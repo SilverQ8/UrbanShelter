@@ -1,150 +1,100 @@
-// Urban road network data representing a dense urban district (Gangnam Station & Teheran-ro Area)
-// Coordinates centered around 37.4980, 127.0280 with realistic pedestrian alleys, main boulevards,
-// underground shopping mall arcade passages, streetlights (15m buffer), and CCTV cameras (20m buffer).
+// Urban road network data representing Busan Haeundae (부산 해운대역 ~ 구남로 ~ 해운대해수욕장 ~ 전통시장)
+// Realistic pedestrian network with Gunam-ro cultural square, Haeundae Traditional Market covered arcade,
+// Haeundae station underground concourse, streetlights (15m buffer), CCTV cameras (20m buffer), and residential dead zones.
 
-export const MAP_CENTER = [37.4981, 127.0278];
-export const DEFAULT_ZOOM = 17;
+export const MAP_CENTER = [35.1610, 129.1600]; // Haeundae Gunam-ro center
+export const DEFAULT_ZOOM = 16;
 
-// Nodes representing pedestrian intersections, station exits, alley junctions
+// Graph Nodes in Haeundae, Busan
 export const NODES = {
-  // Main Boulevard Intersections & Exits
-  'N_STATION_EXT_1': { id: 'N_STATION_EXT_1', name: '강남역 11번 출구', lat: 37.4989, lng: 127.0279, type: 'exit' },
-  'N_STATION_EXT_2': { id: 'N_STATION_EXT_2', name: '강남역 12번 출구', lat: 37.4990, lng: 127.0288, type: 'exit' },
-  'N_STATION_UND_1': { id: 'N_STATION_UND_1', name: '지하도 중앙광장', lat: 37.4981, lng: 127.0278, type: 'underground' },
-  'N_STATION_UND_2': { id: 'N_STATION_UND_2', name: '지하상가 동측통로', lat: 37.4982, lng: 127.0292, type: 'underground' },
-  'N_STATION_UND_3': { id: 'N_STATION_UND_3', name: '지하도 서측통로', lat: 37.4975, lng: 127.0268, type: 'underground' },
-  'N_STATION_EXT_3': { id: 'N_STATION_EXT_3', name: '강남역 1번 출구', lat: 37.4972, lng: 127.0289, type: 'exit' },
-  'N_STATION_EXT_4': { id: 'N_STATION_EXT_4', name: '강남역 2번 출구', lat: 37.4968, lng: 127.0280, type: 'exit' },
-  
-  // Gangnam-daero Main Avenue (High lighting, multiple CCTVs)
-  'N_MAIN_1': { id: 'N_MAIN_1', name: '강남대로 CGV 앞', lat: 37.5015, lng: 127.0262, type: 'junction' },
-  'N_MAIN_2': { id: 'N_MAIN_2', name: '강남대로 신논현 방면', lat: 37.5002, lng: 127.0269, type: 'junction' },
-  'N_MAIN_3': { id: 'N_MAIN_3', name: '강남역 사거리 북서', lat: 37.4988, lng: 127.0272, type: 'junction' },
-  'N_MAIN_4': { id: 'N_MAIN_4', name: '강남역 사거리 남서', lat: 37.4971, lng: 127.0273, type: 'junction' },
-  'N_MAIN_5': { id: 'N_MAIN_5', name: '강남대로 남단 입구', lat: 37.4955, lng: 127.0278, type: 'junction' },
+  // 1. Haeundae Subway Station & Underground Concourse
+  'N_HAE_STATION_3': { id: 'N_HAE_STATION_3', name: '해운대역 3번 출구 (구남로 방면)', lat: 35.1636, lng: 129.1586, type: 'exit' },
+  'N_HAE_STATION_5': { id: 'N_HAE_STATION_5', name: '해운대역 5번 출구 (우동 방면)', lat: 35.1638, lng: 129.1577, type: 'exit' },
+  'N_HAE_STATION_1': { id: 'N_HAE_STATION_1', name: '해운대역 1번 출구 (중동 방면)', lat: 35.1639, lng: 129.1601, type: 'exit' },
+  'N_HAE_UND_CENTER': { id: 'N_HAE_UND_CENTER', name: '해운대역 지하철 환승통로 및 지하상가', lat: 35.1635, lng: 129.1588, type: 'underground' },
+  'N_HAE_UND_EAST': { id: 'N_HAE_UND_EAST', name: '해운대역 지하 동측 아케이드 진출구', lat: 35.1633, lng: 129.1608, type: 'underground' },
 
-  // Teheran-ro Boulevard East-West (Wide, well-lit, covered building passages)
-  'N_TEHERAN_1': { id: 'N_TEHERAN_1', name: '테헤란로 국기원입구 삼거리', lat: 37.4996, lng: 127.0315, type: 'junction' },
-  'N_TEHERAN_2': { id: 'N_TEHERAN_2', name: '테헤란로 역삼방면 사거리', lat: 37.5002, lng: 127.0335, type: 'junction' },
-  'N_TEHERAN_ARCADE_W': { id: 'N_TEHERAN_ARCADE_W', name: '테헤란 아케이드 빌딩 서문', lat: 37.4988, lng: 127.0305, type: 'building' },
-  'N_TEHERAN_ARCADE_E': { id: 'N_TEHERAN_ARCADE_E', name: '테헤란 아케이드 빌딩 동문', lat: 37.4990, lng: 127.0322, type: 'building' },
+  // 2. Gunam-ro Pedestrian Cultural Avenue (Wide boulevard, dense LED streetlights, multiple smart CCTVs)
+  'N_GUNAM_TOP': { id: 'N_GUNAM_TOP', name: '구남로 입구 (해운대역 광장)', lat: 35.1630, lng: 129.1589, type: 'junction' },
+  'N_GUNAM_MID_1': { id: 'N_GUNAM_MID_1', name: '구남로 중앙 분수광장 북측', lat: 35.1618, lng: 129.1593, type: 'junction' },
+  'N_GUNAM_MID_2': { id: 'N_GUNAM_MID_2', name: '구남로 미디어월 광장 (시장 입구 교차)', lat: 35.1605, lng: 129.1598, type: 'junction' },
+  'N_GUNAM_BEACH': { id: 'N_GUNAM_BEACH', name: '구남로 남단 (해운대해변로 횡단보도)', lat: 35.1593, lng: 129.1602, type: 'junction' },
+  'N_BEACH_EVENT': { id: 'N_BEACH_EVENT', name: '해운대 해수욕장 이벤트광장 & 백사장', lat: 35.1584, lng: 129.1605, type: 'junction' },
 
-  // Back Alleys & Food Street (Mix of dark dead zones & residential alleys)
-  'N_ALLEY_N1': { id: 'N_ALLEY_N1', name: '봉은사로 먹자골목 북측', lat: 37.5020, lng: 127.0282, type: 'alley' },
-  'N_ALLEY_N2': { id: 'N_ALLEY_N2', name: '카페거리 갈림길 A', lat: 37.5012, lng: 127.0290, type: 'alley' },
-  'N_ALLEY_N3': { id: 'N_ALLEY_N3', name: '원룸 밀집 암흑골목 1', lat: 37.5022, lng: 127.0305, type: 'alley' },
-  'N_ALLEY_M1': { id: 'N_ALLEY_M1', name: '먹자골목 중앙 사거리', lat: 37.5005, lng: 127.0283, type: 'alley' },
-  'N_ALLEY_M2': { id: 'N_ALLEY_M2', name: '역삼동 먹자골목 동편', lat: 37.5008, lng: 127.0302, type: 'alley' },
-  'N_ALLEY_M3': { id: 'N_ALLEY_M3', name: '이면도로 주택가 골목길', lat: 37.5010, lng: 127.0320, type: 'alley' },
-  'N_ALLEY_DARK_1': { id: 'N_ALLEY_DARK_1', name: '어두운 구릉지 보행로', lat: 37.5025, lng: 127.0325, type: 'alley' },
-  'N_ALLEY_DARK_2': { id: 'N_ALLEY_DARK_2', name: '보안등 사각지대 갈림길', lat: 37.5018, lng: 127.0340, type: 'alley' },
+  // 3. Haeundae Traditional Market (해운대 전통시장 - 비가림 캐노피 아케이드 구간!)
+  'N_MARKET_NORTH': { id: 'N_MARKET_NORTH', name: '해운대 전통시장 북측 아케이드 입구', lat: 35.1623, lng: 129.1618, type: 'arcade' },
+  'N_MARKET_MID': { id: 'N_MARKET_MID', name: '해운대 전통시장 비가림 통로 중앙', lat: 35.1608, lng: 129.1613, type: 'arcade' },
+  'N_MARKET_SOUTH': { id: 'N_MARKET_SOUTH', name: '해운대 전통시장 남측 아케이드 출구', lat: 35.1595, lng: 129.1609, type: 'arcade' },
+  'N_MARKET_ALLEY_E': { id: 'N_MARKET_ALLEY_E', name: '시장 동편 곰장어 골목길', lat: 35.1606, lng: 129.1624, type: 'alley' },
 
-  // South-East Residential / Office Grid
-  'N_SOUTH_1': { id: 'N_SOUTH_1', name: '역삼초교 방면 골목 입구', lat: 37.4965, lng: 127.0305, type: 'alley' },
-  'N_SOUTH_2': { id: 'N_SOUTH_2', name: '안심귀갓길 표지판 삼거리', lat: 37.4958, lng: 127.0320, type: 'alley' },
-  'N_SOUTH_DARK': { id: 'N_SOUTH_DARK', name: '남측 막다른 어두운 골목', lat: 37.4950, lng: 127.0300, type: 'alley' },
-  'N_SOUTH_MAIN': { id: 'N_SOUTH_MAIN', name: '역삼로 교차로', lat: 37.4948, lng: 127.0335, type: 'junction' }
+  // 4. West Side Alleys (우동 주택가 / 모텔 밀집 암흑 사각지대 - Dead Zones)
+  'N_UDONG_DARK_1': { id: 'N_UDONG_DARK_1', name: '우동 원룸밀집 암흑골목 북측', lat: 35.1631, lng: 129.1570, type: 'alley' },
+  'N_UDONG_DARK_2': { id: 'N_UDONG_DARK_2', name: '조명 사각지대 막다른 골목', lat: 35.1617, lng: 129.1568, type: 'alley' },
+  'N_UDONG_DARK_3': { id: 'N_UDONG_DARK_3', name: '모텔촌 후면 취약 보행로', lat: 35.1602, lng: 129.1573, type: 'alley' },
+  'N_UDONG_SOUTH': { id: 'N_UDONG_SOUTH', name: '해운대해변로 서측 이면도로 입구', lat: 35.1590, lng: 129.1581, type: 'junction' },
+
+  // 5. East Side Alleys & Haeundae District Office (중동 온천길 & 안심귀갓길)
+  'N_HOTSPRING_1': { id: 'N_HOTSPRING_1', name: '중동 온천길 상단 교차로', lat: 35.1632, lng: 129.1630, type: 'junction' },
+  'N_SAFE_WAY_MID': { id: 'N_SAFE_WAY_MID', name: '해운대 여성안심귀갓길 스마트 안전폴', lat: 35.1616, lng: 129.1635, type: 'safe_alley' },
+  'N_DISTRICT_OFFICE': { id: 'N_DISTRICT_OFFICE', name: '해운대구청 정문 앞 교차로', lat: 35.1600, lng: 129.1638, type: 'junction' },
+  'N_BEACH_HOTEL': { id: 'N_BEACH_HOTEL', name: '파라다이스 호텔 앞 해안로', lat: 35.1587, lng: 129.1632, type: 'junction' }
 };
 
-// Streetlights infrastructure (15m illumination radius)
+// Streetlights in Haeundae (15m radius illumination buffer)
 export const STREETLIGHTS = [
-  // Gangnam-daero Main Boulevard (Dense high-output LED)
-  { id: 'SL_M01', lat: 37.5014, lng: 127.0263, type: 'smart_led', lumens: 8000, radius: 15 },
-  { id: 'SL_M02', lat: 37.5008, lng: 127.0266, type: 'smart_led', lumens: 8000, radius: 15 },
-  { id: 'SL_M03', lat: 37.5001, lng: 127.0270, type: 'smart_led', lumens: 8000, radius: 15 },
-  { id: 'SL_M04', lat: 37.4994, lng: 127.0271, type: 'smart_led', lumens: 8000, radius: 15 },
-  { id: 'SL_M05', lat: 37.4988, lng: 127.0273, type: 'smart_led', lumens: 8000, radius: 15 },
-  { id: 'SL_M06', lat: 37.4980, lng: 127.0274, type: 'smart_led', lumens: 8000, radius: 15 },
-  { id: 'SL_M07', lat: 37.4971, lng: 127.0274, type: 'smart_led', lumens: 8000, radius: 15 },
-  { id: 'SL_M08', lat: 37.4962, lng: 127.0276, type: 'smart_led', lumens: 8000, radius: 15 },
-  { id: 'SL_M09', lat: 37.4955, lng: 127.0278, type: 'smart_led', lumens: 8000, radius: 15 },
+  // Gunam-ro Avenue (Extremely bright smart LED pedestrian lights)
+  { id: 'SL_G01', lat: 35.1630, lng: 129.1589, type: 'smart_led', lumens: 9000, radius: 15 },
+  { id: 'SL_G02', lat: 35.1625, lng: 129.1591, type: 'smart_led', lumens: 9000, radius: 15 },
+  { id: 'SL_G03', lat: 35.1620, lng: 129.1592, type: 'smart_led', lumens: 9000, radius: 15 },
+  { id: 'SL_G04', lat: 35.1615, lng: 129.1594, type: 'smart_led', lumens: 9000, radius: 15 },
+  { id: 'SL_G05', lat: 35.1610, lng: 129.1596, type: 'smart_led', lumens: 9000, radius: 15 },
+  { id: 'SL_G06', lat: 35.1605, lng: 129.1598, type: 'smart_led', lumens: 9000, radius: 15 },
+  { id: 'SL_G07', lat: 35.1600, lng: 129.1600, type: 'smart_led', lumens: 9000, radius: 15 },
+  { id: 'SL_G08', lat: 35.1594, lng: 129.1602, type: 'smart_led', lumens: 9000, radius: 15 },
+  { id: 'SL_G09', lat: 35.1586, lng: 129.1604, type: 'smart_led', lumens: 9000, radius: 15 },
 
-  // Teheran-ro Streetlights
-  { id: 'SL_T01', lat: 37.4989, lng: 127.0285, type: 'standard', lumens: 6000, radius: 15 },
-  { id: 'SL_T02', lat: 37.4993, lng: 127.0300, type: 'standard', lumens: 6000, radius: 15 },
-  { id: 'SL_T03', lat: 37.4997, lng: 127.0315, type: 'standard', lumens: 6000, radius: 15 },
-  { id: 'SL_T04', lat: 37.5000, lng: 127.0328, type: 'standard', lumens: 6000, radius: 15 },
-  { id: 'SL_T05', lat: 37.5003, lng: 127.0336, type: 'standard', lumens: 6000, radius: 15 },
+  // Haeundae Beach Promenade
+  { id: 'SL_B01', lat: 35.1589, lng: 129.1585, type: 'coastal_led', lumens: 7000, radius: 15 },
+  { id: 'SL_B02', lat: 35.1585, lng: 129.1618, type: 'coastal_led', lumens: 7000, radius: 15 },
+  { id: 'SL_B03', lat: 35.1587, lng: 129.1631, type: 'coastal_led', lumens: 7000, radius: 15 },
 
-  // Safe Alley Streetlights
-  { id: 'SL_A01', lat: 37.5006, lng: 127.0282, type: 'security', lumens: 4500, radius: 15 },
-  { id: 'SL_A02', lat: 37.5010, lng: 127.0285, type: 'security', lumens: 4500, radius: 15 },
-  { id: 'SL_A03', lat: 37.5011, lng: 127.0298, type: 'security', lumens: 4500, radius: 15 },
-  { id: 'SL_A04', lat: 37.4964, lng: 127.0308, type: 'security', lumens: 4500, radius: 15 },
-  { id: 'SL_A05', lat: 37.4957, lng: 127.0322, type: 'security', lumens: 4500, radius: 15 },
-  
-  // Note: N_ALLEY_DARK_1 & DARK_2 and N_ALLEY_N3 have NO streetlights, forming prominent Dead Zones!
+  // Haeundae District Office & Safe Way
+  { id: 'SL_E01', lat: 35.1631, lng: 129.1629, type: 'standard', lumens: 5500, radius: 15 },
+  { id: 'SL_E02', lat: 35.1622, lng: 129.1632, type: 'security', lumens: 6000, radius: 15 },
+  { id: 'SL_E03', lat: 35.1615, lng: 129.1635, type: 'smart_security', lumens: 7000, radius: 15 },
+  { id: 'SL_E04', lat: 35.1607, lng: 129.1637, type: 'standard', lumens: 5500, radius: 15 },
+  { id: 'SL_E05', lat: 35.1600, lng: 129.1638, type: 'standard', lumens: 5500, radius: 15 },
+
+  // Traditional Market Entrance
+  { id: 'SL_M01', lat: 35.1623, lng: 129.1617, type: 'standard', lumens: 5000, radius: 15 },
+  { id: 'SL_M02', lat: 35.1595, lng: 129.1609, type: 'standard', lumens: 5000, radius: 15 }
+
+  // Note: N_UDONG_DARK_1, DARK_2, DARK_3 have NO municipal lighting (Dead Zone!)
 ];
 
-// Security CCTV cameras (20m safety influence buffer)
+// Security CCTVs in Haeundae (20m safety influence buffer)
 export const CCTVS = [
-  { id: 'CCTV_01', name: '강남역 11번 출구 방범용', lat: 37.4989, lng: 127.0280, type: 'safety_rotary', radius: 20 },
-  { id: 'CCTV_02', name: '강남대로 438번지 방범 CCTV', lat: 37.5003, lng: 127.0268, type: 'safety_fixed', radius: 20 },
-  { id: 'CCTV_03', name: 'CGV 강남 앞 스마트 안전폴', lat: 37.5016, lng: 127.0262, type: 'smart_pole', radius: 20 },
-  { id: 'CCTV_04', name: '테헤란로 102 앞 방범 카메라', lat: 37.4992, lng: 127.0295, type: 'safety_fixed', radius: 20 },
-  { id: 'CCTV_05', name: '국기원사거리 방범 안전폴', lat: 37.4998, lng: 127.0318, type: 'smart_pole', radius: 20 },
-  { id: 'CCTV_06', name: '먹자골목 중앙 방범 비상벨 CCTV', lat: 37.5005, lng: 127.0284, type: 'sos_cctv', radius: 20 },
-  { id: 'CCTV_07', name: '안심귀갓길 스마트 안전지대 CCTV', lat: 37.4959, lng: 127.0320, type: 'smart_pole', radius: 20 },
-  { id: 'CCTV_08', name: '강남역 1번 출구 다목적 CCTV', lat: 37.4971, lng: 127.0288, type: 'safety_fixed', radius: 20 }
+  { id: 'CCTV_H01', name: '해운대역 3번출구 방범안전폴', lat: 35.1635, lng: 129.1587, type: 'smart_pole', radius: 20 },
+  { id: 'CCTV_H02', name: '구남로 중앙 분수대 다목적 방범', lat: 35.1617, lng: 129.1594, type: 'safety_rotary', radius: 20 },
+  { id: 'CCTV_H03', name: '구남로-시장입구 교차로 CCTV', lat: 35.1604, lng: 129.1599, type: 'safety_fixed', radius: 20 },
+  { id: 'CCTV_H04', name: '해운대 이벤트광장 방범안전폴', lat: 35.1585, lng: 129.1605, type: 'smart_pole', radius: 20 },
+  { id: 'CCTV_H05', name: '전통시장 북측 입구 방범카메라', lat: 35.1622, lng: 129.1617, type: 'safety_fixed', radius: 20 },
+  { id: 'CCTV_H06', name: '해운대 여성안심귀갓길 SOS비상벨 CCTV', lat: 35.1616, lng: 129.1636, type: 'sos_cctv', radius: 20 },
+  { id: 'CCTV_H07', name: '해운대구청 정문 방범 CCTV', lat: 35.1601, lng: 129.1637, type: 'safety_fixed', radius: 20 },
+  { id: 'CCTV_H08', name: '해변로 서측 교차로 CCTV', lat: 35.1591, lng: 129.1582, type: 'safety_rotary', radius: 20 }
 ];
 
-// Edges (Pedestrian Road Segments)
-// Length is in meters. litLengthRatio: 0~1 (percentage inside 15m light buffer)
-// deadZoneLength: meter length lacking streetlight coverage
-// cctvCount: number of CCTVs within 20m
-// covered: true for indoor/sheltered, layer: -1 for underground, 0 for surface
+// Pedestrian Road Network Edges in Haeundae
 export const EDGES = [
-  // 1. Underground Shopping Mall Passages (Fully sheltered from rain, 100% lit, fully monitored)
+  // 1. Haeundae Station Underground Concourse (100% covered, lit, CCTV protected)
   {
-    id: 'E_UND_1',
-    u: 'N_STATION_UND_1',
-    v: 'N_STATION_EXT_1',
-    name: '강남역 지하상가 11번 출구 연결통로',
-    length: 95,
+    id: 'E_HAE_UND_1',
+    u: 'N_HAE_UND_CENTER',
+    v: 'N_HAE_STATION_3',
+    name: '해운대역 3번 출구 지하 에스컬레이터 연결통로',
+    length: 50,
     covered: true,
     shelterType: 'underground',
-    layer: -1,
-    litLengthRatio: 1.0,
-    deadZoneLength: 0,
-    cctvCount: 3,
-    streetType: 'underground_mall'
-  },
-  {
-    id: 'E_UND_2',
-    u: 'N_STATION_UND_1',
-    v: 'N_STATION_EXT_2',
-    name: '강남역 지하상가 12번 출구 연결통로',
-    length: 110,
-    covered: true,
-    shelterType: 'underground',
-    layer: -1,
-    litLengthRatio: 1.0,
-    deadZoneLength: 0,
-    cctvCount: 2,
-    streetType: 'underground_mall'
-  },
-  {
-    id: 'E_UND_3',
-    u: 'N_STATION_UND_1',
-    v: 'N_STATION_UND_2',
-    name: '강남역 테헤란 지하상가 중앙 아케이드',
-    length: 130,
-    covered: true,
-    shelterType: 'underground',
-    layer: -1,
-    litLengthRatio: 1.0,
-    deadZoneLength: 0,
-    cctvCount: 3,
-    streetType: 'underground_mall'
-  },
-  {
-    id: 'E_UND_4',
-    u: 'N_STATION_UND_2',
-    v: 'N_TEHERAN_ARCADE_W',
-    name: '테헤란 빌딩 지하 직결 통로 (빌딩 아케이드 연결)',
-    length: 85,
-    covered: true,
-    shelterType: 'building_passage',
     layer: -1,
     litLengthRatio: 1.0,
     deadZoneLength: 0,
@@ -152,41 +102,55 @@ export const EDGES = [
     streetType: 'underground_passage'
   },
   {
-    id: 'E_UND_5',
-    u: 'N_STATION_UND_1',
-    v: 'N_STATION_EXT_3',
-    name: '강남역 지하상가 1번 출구 연결통로',
-    length: 120,
-    covered: true,
-    shelterType: 'underground',
-    layer: -1,
-    litLengthRatio: 1.0,
-    deadZoneLength: 0,
-    cctvCount: 2,
-    streetType: 'underground_mall'
-  },
-  {
-    id: 'E_UND_6',
-    u: 'N_STATION_UND_1',
-    v: 'N_STATION_EXT_4',
-    name: '강남역 지하상가 2번 출구 연결통로',
-    length: 135,
+    id: 'E_HAE_UND_2',
+    u: 'N_HAE_UND_CENTER',
+    v: 'N_HAE_STATION_5',
+    name: '해운대역 5번 출구 지하 연결통로',
+    length: 75,
     covered: true,
     shelterType: 'underground',
     layer: -1,
     litLengthRatio: 1.0,
     deadZoneLength: 0,
     cctvCount: 1,
+    streetType: 'underground_passage'
+  },
+  {
+    id: 'E_HAE_UND_3',
+    u: 'N_HAE_UND_CENTER',
+    v: 'N_HAE_UND_EAST',
+    name: '해운대역 지하상가 동측 비가림 보행통로',
+    length: 170,
+    covered: true,
+    shelterType: 'underground',
+    layer: -1,
+    litLengthRatio: 1.0,
+    deadZoneLength: 0,
+    cctvCount: 3,
     streetType: 'underground_mall'
   },
-
-  // 2. Covered Building Arcades & Covered Walkways (Surface layer, covered=yes / covered=arcade)
   {
-    id: 'E_ARC_1',
-    u: 'N_TEHERAN_ARCADE_W',
-    v: 'N_TEHERAN_ARCADE_E',
-    name: '테헤란 종합타워 실내 아케이드 보행로',
-    length: 160,
+    id: 'E_HAE_UND_4',
+    u: 'N_HAE_UND_EAST',
+    v: 'N_MARKET_NORTH',
+    name: '지하상가 동측 출구 ~ 전통시장 북단 캐노피 연결로',
+    length: 110,
+    covered: true,
+    shelterType: 'canopy',
+    layer: 0,
+    litLengthRatio: 0.95,
+    deadZoneLength: 5,
+    cctvCount: 1,
+    streetType: 'covered_walkway'
+  },
+
+  // 2. Haeundae Traditional Market Covered Arcade (비가림 지붕 아케이드 구간!)
+  {
+    id: 'E_MARKET_1',
+    u: 'N_MARKET_NORTH',
+    v: 'N_MARKET_MID',
+    name: '해운대 전통시장 비가림 아케이드 (북측 구간)',
+    length: 180,
     covered: true,
     shelterType: 'covered_arcade',
     layer: 0,
@@ -196,170 +160,168 @@ export const EDGES = [
     streetType: 'arcade'
   },
   {
-    id: 'E_ARC_2',
-    u: 'N_TEHERAN_ARCADE_E',
-    v: 'N_TEHERAN_1',
-    name: '테헤란 캐노피 비가림 회랑',
-    length: 90,
-    covered: true,
-    shelterType: 'canopy',
-    layer: 0,
-    litLengthRatio: 1.0,
-    deadZoneLength: 0,
-    cctvCount: 1,
-    streetType: 'covered_walkway'
-  },
-
-  // 3. Gangnam-daero Main Avenue (Exposed to rain, but bright & multiple CCTVs)
-  {
-    id: 'E_MAIN_1',
-    u: 'N_MAIN_1',
-    v: 'N_MAIN_2',
-    name: '강남대로 서측 보도 (CGV~신논현)',
-    length: 160,
-    covered: false,
-    shelterType: 'none',
-    layer: 0,
-    litLengthRatio: 0.95,
-    deadZoneLength: 8,
-    cctvCount: 2,
-    streetType: 'main_street'
-  },
-  {
-    id: 'E_MAIN_2',
-    u: 'N_MAIN_2',
-    v: 'N_MAIN_3',
-    name: '강남대로 서측 보도 (강남역 방면)',
+    id: 'E_MARKET_2',
+    u: 'N_MARKET_MID',
+    v: 'N_MARKET_SOUTH',
+    name: '해운대 전통시장 비가림 아케이드 (남측 구간)',
     length: 155,
-    covered: false,
-    shelterType: 'none',
-    layer: 0,
-    litLengthRatio: 0.95,
-    deadZoneLength: 8,
-    cctvCount: 2,
-    streetType: 'main_street'
-  },
-  {
-    id: 'E_MAIN_3',
-    u: 'N_MAIN_3',
-    v: 'N_STATION_EXT_1',
-    name: '강남역 11번 출구 앞 광장 횡단',
-    length: 70,
-    covered: false,
-    shelterType: 'none',
+    covered: true,
+    shelterType: 'covered_arcade',
     layer: 0,
     litLengthRatio: 1.0,
     deadZoneLength: 0,
     cctvCount: 2,
-    streetType: 'main_street'
+    streetType: 'arcade'
   },
   {
-    id: 'E_MAIN_4',
-    u: 'N_MAIN_3',
-    v: 'N_MAIN_4',
-    name: '강남역 사거리 서측 보도',
-    length: 190,
-    covered: false,
-    shelterType: 'none',
-    layer: 0,
-    litLengthRatio: 0.92,
-    deadZoneLength: 15,
-    cctvCount: 2,
-    streetType: 'main_street'
-  },
-  {
-    id: 'E_MAIN_5',
-    u: 'N_MAIN_4',
-    v: 'N_MAIN_5',
-    name: '강남대로 남단 보도',
-    length: 180,
-    covered: false,
-    shelterType: 'none',
-    layer: 0,
-    litLengthRatio: 0.90,
-    deadZoneLength: 18,
-    cctvCount: 1,
-    streetType: 'main_street'
-  },
-
-  // 4. Teheran-ro Surface Walkways
-  {
-    id: 'E_TEH_1',
-    u: 'N_STATION_EXT_1',
-    v: 'N_STATION_EXT_2',
-    name: '테헤란로 지상 보도 (11번~12번 출구)',
-    length: 85,
-    covered: false,
-    shelterType: 'none',
-    layer: 0,
-    litLengthRatio: 0.92,
-    deadZoneLength: 7,
-    cctvCount: 2,
-    streetType: 'main_street'
-  },
-  {
-    id: 'E_TEH_2',
-    u: 'N_STATION_EXT_2',
-    v: 'N_TEHERAN_1',
-    name: '테헤란로 지상 보도 (국기원입구 방면)',
-    length: 245,
-    covered: false,
-    shelterType: 'none',
-    layer: 0,
-    litLengthRatio: 0.88,
-    deadZoneLength: 30,
-    cctvCount: 1,
-    streetType: 'main_street'
-  },
-  {
-    id: 'E_TEH_3',
-    u: 'N_TEHERAN_1',
-    v: 'N_TEHERAN_2',
-    name: '테헤란로 역삼역 방면 광폭 보도',
-    length: 190,
-    covered: false,
-    shelterType: 'none',
-    layer: 0,
-    litLengthRatio: 0.90,
-    deadZoneLength: 19,
-    cctvCount: 1,
-    streetType: 'main_street'
-  },
-
-  // 5. Back Alleys (Shortcuts with high risk: dark dead zones, zero CCTV)
-  {
-    id: 'E_ALLEY_D1',
-    u: 'N_MAIN_1',
-    v: 'N_ALLEY_N1',
-    name: '봉은사로 북단 좁은 골목길',
-    length: 190,
-    covered: false,
-    shelterType: 'none',
-    layer: 0,
-    litLengthRatio: 0.45,
-    deadZoneLength: 105,
-    cctvCount: 0,
-    streetType: 'dark_alley'
-  },
-  {
-    id: 'E_ALLEY_D2',
-    u: 'N_ALLEY_N1',
-    v: 'N_ALLEY_N2',
-    name: '카페거리 후면 어두운 사잇길',
+    id: 'E_MARKET_CONN_1',
+    u: 'N_GUNAM_MID_2',
+    v: 'N_MARKET_MID',
+    name: '구남로 ~ 전통시장 중앙 횡단 연결통로',
     length: 110,
     covered: false,
     shelterType: 'none',
     layer: 0,
-    litLengthRatio: 0.50,
-    deadZoneLength: 55,
-    cctvCount: 0,
-    streetType: 'dark_alley'
+    litLengthRatio: 0.85,
+    deadZoneLength: 16,
+    cctvCount: 1,
+    streetType: 'safe_alley'
   },
   {
-    id: 'E_ALLEY_D3',
-    u: 'N_ALLEY_N2',
-    v: 'N_ALLEY_N3',
-    name: '원룸 밀집 암흑 골목 (위험 사각지대)',
+    id: 'E_MARKET_CONN_2',
+    u: 'N_GUNAM_BEACH',
+    v: 'N_MARKET_SOUTH',
+    name: '구남로 남단 ~ 시장 남측 입구 연결보도',
+    length: 80,
+    covered: false,
+    shelterType: 'none',
+    layer: 0,
+    litLengthRatio: 0.90,
+    deadZoneLength: 8,
+    cctvCount: 1,
+    streetType: 'main_street'
+  },
+  {
+    id: 'E_MARKET_CONN_3',
+    u: 'N_GUNAM_TOP',
+    v: 'N_MARKET_NORTH',
+    name: '해운대역 광장 ~ 전통시장 북측 진입로',
+    length: 220,
+    covered: false,
+    shelterType: 'none',
+    layer: 0,
+    litLengthRatio: 0.80,
+    deadZoneLength: 44,
+    cctvCount: 1,
+    streetType: 'main_street'
+  },
+
+  // 3. Gunam-ro Pedestrian Cultural Avenue (Exposed to rain, but 100% lit & full CCTV)
+  {
+    id: 'E_GUNAM_1',
+    u: 'N_HAE_STATION_3',
+    v: 'N_GUNAM_TOP',
+    name: '해운대역 3번출구 앞 광장 진입로',
+    length: 65,
+    covered: false,
+    shelterType: 'none',
+    layer: 0,
+    litLengthRatio: 1.0,
+    deadZoneLength: 0,
+    cctvCount: 2,
+    streetType: 'main_street'
+  },
+  {
+    id: 'E_GUNAM_2',
+    u: 'N_GUNAM_TOP',
+    v: 'N_GUNAM_MID_1',
+    name: '구남로 문화광장 보행전용거리 (북부)',
+    length: 140,
+    covered: false,
+    shelterType: 'none',
+    layer: 0,
+    litLengthRatio: 1.0,
+    deadZoneLength: 0,
+    cctvCount: 2,
+    streetType: 'main_street'
+  },
+  {
+    id: 'E_GUNAM_3',
+    u: 'N_GUNAM_MID_1',
+    v: 'N_GUNAM_MID_2',
+    name: '구남로 문화광장 보행전용거리 (중부)',
+    length: 150,
+    covered: false,
+    shelterType: 'none',
+    layer: 0,
+    litLengthRatio: 1.0,
+    deadZoneLength: 0,
+    cctvCount: 3,
+    streetType: 'main_street'
+  },
+  {
+    id: 'E_GUNAM_4',
+    u: 'N_GUNAM_MID_2',
+    v: 'N_GUNAM_BEACH',
+    name: '구남로 문화광장 보행전용거리 (남부)',
+    length: 135,
+    covered: false,
+    shelterType: 'none',
+    layer: 0,
+    litLengthRatio: 1.0,
+    deadZoneLength: 0,
+    cctvCount: 2,
+    streetType: 'main_street'
+  },
+  {
+    id: 'E_GUNAM_5',
+    u: 'N_GUNAM_BEACH',
+    v: 'N_BEACH_EVENT',
+    name: '해운대해변로 횡단 및 이벤트광장 진입로',
+    length: 95,
+    covered: false,
+    shelterType: 'none',
+    layer: 0,
+    litLengthRatio: 1.0,
+    deadZoneLength: 0,
+    cctvCount: 2,
+    streetType: 'main_street'
+  },
+
+  // 4. West Side Dangerous Dead Zone Alleys (우동 원룸·모텔촌 암흑 사각지대)
+  {
+    id: 'E_DARK_WEST_1',
+    u: 'N_HAE_STATION_5',
+    v: 'N_UDONG_DARK_1',
+    name: '우동 원룸 밀집 북측 좁은 골목길',
+    length: 130,
+    covered: false,
+    shelterType: 'none',
+    layer: 0,
+    litLengthRatio: 0.25,
+    deadZoneLength: 98,
+    cctvCount: 0,
+    streetType: 'dead_zone_alley'
+  },
+  {
+    id: 'E_DARK_WEST_2',
+    u: 'N_UDONG_DARK_1',
+    v: 'N_UDONG_DARK_2',
+    name: '보안등 전무 막다른 암흑 사각골목',
+    length: 160,
+    covered: false,
+    shelterType: 'none',
+    layer: 0,
+    litLengthRatio: 0.10,
+    deadZoneLength: 144,
+    cctvCount: 0,
+    streetType: 'dead_zone_alley'
+  },
+  {
+    id: 'E_DARK_WEST_3',
+    u: 'N_UDONG_DARK_2',
+    v: 'N_UDONG_DARK_3',
+    name: '모텔촌 후면 야간 취약 보행로',
     length: 175,
     covered: false,
     shelterType: 'none',
@@ -370,68 +332,82 @@ export const EDGES = [
     streetType: 'dead_zone_alley'
   },
   {
-    id: 'E_ALLEY_D4',
-    u: 'N_ALLEY_N3',
-    v: 'N_ALLEY_DARK_1',
-    name: '구릉지 암흑 보행 계단길 (조명 전무)',
-    length: 185,
-    covered: false,
-    shelterType: 'none',
-    layer: 0,
-    litLengthRatio: 0.10,
-    deadZoneLength: 166,
-    cctvCount: 0,
-    streetType: 'dead_zone_alley'
-  },
-  {
-    id: 'E_ALLEY_D5',
-    u: 'N_ALLEY_DARK_1',
-    v: 'N_ALLEY_DARK_2',
-    name: '보안등 미설치 사각 골목길',
-    length: 155,
-    covered: false,
-    shelterType: 'none',
-    layer: 0,
-    litLengthRatio: 0.20,
-    deadZoneLength: 124,
-    cctvCount: 0,
-    streetType: 'dead_zone_alley'
-  },
-  {
-    id: 'E_ALLEY_D6',
-    u: 'N_ALLEY_DARK_2',
-    v: 'N_TEHERAN_2',
-    name: '이면도로 역삼사거리 진출로',
-    length: 180,
+    id: 'E_DARK_WEST_4',
+    u: 'N_UDONG_DARK_3',
+    v: 'N_UDONG_SOUTH',
+    name: '해안도로 진출 사잇길',
+    length: 150,
     covered: false,
     shelterType: 'none',
     layer: 0,
     litLengthRatio: 0.40,
-    deadZoneLength: 108,
+    deadZoneLength: 90,
+    cctvCount: 0,
+    streetType: 'alley'
+  },
+  {
+    id: 'E_DARK_WEST_CONN',
+    u: 'N_UDONG_SOUTH',
+    v: 'N_BEACH_EVENT',
+    name: '해운대해변로 서측 보도 (이벤트광장 방면)',
+    length: 220,
+    covered: false,
+    shelterType: 'none',
+    layer: 0,
+    litLengthRatio: 0.88,
+    deadZoneLength: 26,
+    cctvCount: 1,
+    streetType: 'main_street'
+  },
+  {
+    id: 'E_DARK_WEST_MIDCONN',
+    u: 'N_UDONG_DARK_2',
+    v: 'N_GUNAM_MID_1',
+    name: '우동 골목 ~ 구남로 분수광장 연결 사잇길',
+    length: 170,
+    covered: false,
+    shelterType: 'none',
+    layer: 0,
+    litLengthRatio: 0.50,
+    deadZoneLength: 85,
     cctvCount: 0,
     streetType: 'alley'
   },
 
-  // 6. Safe Alleys with Streetlights & CCTV (Safe detour paths)
+  // 5. East Side Safe Alleys & Haeundae District Office (중동 온천길 & 안심귀갓길)
   {
-    id: 'E_ALLEY_S1',
-    u: 'N_MAIN_2',
-    v: 'N_ALLEY_M1',
-    name: '먹자골목 서측 안전 통로',
-    length: 125,
+    id: 'E_EAST_SAFE_1',
+    u: 'N_HAE_STATION_1',
+    v: 'N_HOTSPRING_1',
+    name: '해운대역 1번출구 ~ 온천길 상단 보도',
+    length: 190,
     covered: false,
     shelterType: 'none',
     layer: 0,
     litLengthRatio: 0.85,
-    deadZoneLength: 18,
+    deadZoneLength: 28,
     cctvCount: 1,
+    streetType: 'main_street'
+  },
+  {
+    id: 'E_EAST_SAFE_2',
+    u: 'N_HOTSPRING_1',
+    v: 'N_SAFE_WAY_MID',
+    name: '해운대 여성안심귀갓길 스마트 안전 보행로',
+    length: 180,
+    covered: false,
+    shelterType: 'none',
+    layer: 0,
+    litLengthRatio: 0.95,
+    deadZoneLength: 9,
+    cctvCount: 2,
     streetType: 'safe_alley'
   },
   {
-    id: 'E_ALLEY_S2',
-    u: 'N_ALLEY_M1',
-    v: 'N_ALLEY_M2',
-    name: '먹자골목 중앙 안전구역 (CCTV & 가로등 집중)',
+    id: 'E_EAST_SAFE_3',
+    u: 'N_SAFE_WAY_MID',
+    v: 'N_DISTRICT_OFFICE',
+    name: '해운대구청 앞 안전 보행로',
     length: 175,
     covered: false,
     shelterType: 'none',
@@ -442,156 +418,70 @@ export const EDGES = [
     streetType: 'safe_alley'
   },
   {
-    id: 'E_ALLEY_S3',
-    u: 'N_ALLEY_M2',
-    v: 'N_ALLEY_M3',
-    name: '역삼동 이면도로 가로등길',
-    length: 165,
-    covered: false,
-    shelterType: 'none',
-    layer: 0,
-    litLengthRatio: 0.75,
-    deadZoneLength: 41,
-    cctvCount: 1,
-    streetType: 'alley'
-  },
-  {
-    id: 'E_ALLEY_S4',
-    u: 'N_ALLEY_M3',
-    v: 'N_TEHERAN_2',
-    name: '테헤란로 연결 이면도로',
-    length: 145,
-    covered: false,
-    shelterType: 'none',
-    layer: 0,
-    litLengthRatio: 0.80,
-    deadZoneLength: 29,
-    cctvCount: 1,
-    streetType: 'safe_alley'
-  },
-  {
-    id: 'E_ALLEY_S5',
-    u: 'N_STATION_EXT_1',
-    v: 'N_ALLEY_M1',
-    name: '강남역 11번 출구~먹자골목 연결로',
-    length: 180,
-    covered: false,
-    shelterType: 'none',
-    layer: 0,
-    litLengthRatio: 0.82,
-    deadZoneLength: 32,
-    cctvCount: 1,
-    streetType: 'safe_alley'
-  },
-  {
-    id: 'E_ALLEY_S6',
-    u: 'N_ALLEY_M2',
-    v: 'N_TEHERAN_1',
-    name: '국기원사거리 진입 보행로',
-    length: 175,
-    covered: false,
-    shelterType: 'none',
-    layer: 0,
-    litLengthRatio: 0.80,
-    deadZoneLength: 35,
-    cctvCount: 1,
-    streetType: 'safe_alley'
-  },
-
-  // 7. South-East Neighborhood Paths
-  {
-    id: 'E_SOUTH_1',
-    u: 'N_STATION_EXT_3',
-    v: 'N_SOUTH_1',
-    name: '역삼초 방면 이면도로',
+    id: 'E_EAST_SAFE_4',
+    u: 'N_DISTRICT_OFFICE',
+    v: 'N_BEACH_HOTEL',
+    name: '구청 앞 ~ 파라다이스 호텔 방면 연결로',
     length: 160,
     covered: false,
     shelterType: 'none',
     layer: 0,
-    litLengthRatio: 0.78,
-    deadZoneLength: 35,
-    cctvCount: 1,
-    streetType: 'alley'
-  },
-  {
-    id: 'E_SOUTH_2',
-    u: 'N_SOUTH_1',
-    v: 'N_SOUTH_2',
-    name: '안심귀갓길 스마트 안전 보행로',
-    length: 155,
-    covered: false,
-    shelterType: 'none',
-    layer: 0,
-    litLengthRatio: 0.95,
-    deadZoneLength: 8,
-    cctvCount: 2,
-    streetType: 'safe_alley'
-  },
-  {
-    id: 'E_SOUTH_3',
-    u: 'N_SOUTH_2',
-    v: 'N_SOUTH_MAIN',
-    name: '역삼로 교차로 진입로',
-    length: 185,
-    covered: false,
-    shelterType: 'none',
-    layer: 0,
-    litLengthRatio: 0.88,
-    deadZoneLength: 22,
+    litLengthRatio: 0.85,
+    deadZoneLength: 24,
     cctvCount: 1,
     streetType: 'main_street'
   },
   {
-    id: 'E_SOUTH_D1',
-    u: 'N_MAIN_5',
-    v: 'N_SOUTH_DARK',
-    name: '남단 어두운 주택가 골목길',
-    length: 200,
+    id: 'E_EAST_BEACH_CONN',
+    u: 'N_BEACH_HOTEL',
+    v: 'N_BEACH_EVENT',
+    name: '해운대 해안 산책로 (파라다이스호텔~이벤트광장)',
+    length: 240,
     covered: false,
     shelterType: 'none',
     layer: 0,
-    litLengthRatio: 0.20,
-    deadZoneLength: 160,
-    cctvCount: 0,
-    streetType: 'dead_zone_alley'
+    litLengthRatio: 0.90,
+    deadZoneLength: 24,
+    cctvCount: 2,
+    streetType: 'main_street'
   },
   {
-    id: 'E_SOUTH_D2',
-    u: 'N_SOUTH_DARK',
-    v: 'N_SOUTH_2',
-    name: '남측 방범 취약 연결 사잇길',
-    length: 190,
+    id: 'E_EAST_MARKET_CONN',
+    u: 'N_MARKET_SOUTH',
+    v: 'N_DISTRICT_OFFICE',
+    name: '전통시장 남측 ~ 해운대구청 연결로',
+    length: 210,
     covered: false,
     shelterType: 'none',
     layer: 0,
-    litLengthRatio: 0.25,
-    deadZoneLength: 142,
-    cctvCount: 0,
-    streetType: 'dead_zone_alley'
+    litLengthRatio: 0.80,
+    deadZoneLength: 42,
+    cctvCount: 1,
+    streetType: 'safe_alley'
   }
 ];
 
-// Preset Origin-Destination Scenarios demonstrating the routing engine
+// Preset Scenarios centered on Busan Haeundae
 export const PRESET_SCENARIOS = [
   {
     id: 'scenario_1',
-    title: '강남 CGV → 테헤란로 역삼사거리',
-    desc: '어두운 원룸 암흑골목(Dead Zone)을 통과하는 최단 경로 vs 안전조명 및 CCTV 집중 우회 경로',
-    startNode: 'N_MAIN_1',
-    endNode: 'N_TEHERAN_2'
+    title: '해운대역 3번출구 → 해운대 이벤트광장(해수욕장)',
+    desc: '우동 원룸·모텔촌 암흑골목(Dead Zone 400m 이상) 최단길 vs 구남로 스마트 LED & CCTV 집중 안심 보행로',
+    startNode: 'N_HAE_STATION_5',
+    endNode: 'N_BEACH_EVENT'
   },
   {
     id: 'scenario_2',
-    title: '강남역 중앙 → 테헤란로 국기원입구',
-    desc: '비에 노출되는 지상 보도 vs 지하상가 및 빌딩 아케이드 비가림 쾌적 경로',
-    startNode: 'N_STATION_UND_1',
-    endNode: 'N_TEHERAN_1'
+    title: '해운대역 지하철역 → 해운대해수욕장 남단',
+    desc: '비에 노출되는 야외 보행로 vs 지하상가 + 해운대 전통시장 비가림 아케이드(100% 비 차단) 쉴드 경로',
+    startNode: 'N_HAE_UND_CENTER',
+    endNode: 'N_MARKET_SOUTH'
   },
   {
     id: 'scenario_3',
-    title: '강남대로 남단 → 역삼로 교차로',
-    desc: '보안등 없는 위험 주택가 골목 vs 스마트 안심귀갓길 표지구간 우회',
-    startNode: 'N_MAIN_5',
-    endNode: 'N_SOUTH_MAIN'
+    title: '우동 주택가 → 해운대구청 정문',
+    desc: '어둡고 CCTV 없는 골목길 vs 구남로 및 여성안심귀갓길 스마트 안전부스 경유 안심 우회로',
+    startNode: 'N_UDONG_DARK_1',
+    endNode: 'N_DISTRICT_OFFICE'
   }
 ];

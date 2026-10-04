@@ -179,11 +179,23 @@ html, body, #root {
   z-index: 1;
 }
 
-/* Leaflet Dark Customization */
+/* Leaflet Customization */
 .leaflet-container {
   width: 100% !important;
   height: 100% !important;
   background: #090e1a !important;
+}
+
+/* Dark theme tile filter for OpenStreetMap */
+.map-theme-dark .leaflet-tile-pane {
+  filter: brightness(0.72) invert(1) contrast(2.8) hue-rotate(200deg) saturate(0.28) brightness(0.75);
+}
+
+.map-theme-light .leaflet-tile-pane {
+  filter: none;
+}
+.map-theme-light .leaflet-container {
+  background: #f1f5f9 !important;
 }
 
 .leaflet-control-zoom {

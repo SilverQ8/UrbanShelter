@@ -1,5 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 import L from 'leaflet';
+import 'leaflet/dist/leaflet.css';
 import { NODES, EDGES, STREETLIGHTS, CCTVS, MAP_CENTER, DEFAULT_ZOOM } from '../data/urbanNetwork';
 import { findNearestNode } from '../engine/routingEngine';
 
@@ -13,12 +14,14 @@ export default function MapComponent({
   mode,
   recommendedRoute,
   standardRoute,
-  layers
+  layers,
+  mapTheme = 'dark'
 }) {
   const mapContainerRef = useRef(null);
   const mapInstanceRef = useRef(null);
-  
-  // Layer groups refs to easily add/remove layers
+  const tileLayerRef = useRef(null);
+
+  // Layer groups refs
   const networkLayerRef = useRef(null);
   const routeLayerRef = useRef(null);
   const streetlightsLayerRef = useRef(null);
@@ -31,7 +34,7 @@ export default function MapComponent({
   useEffect(() => {
     if (!mapContainerRef.current || mapInstanceRef.current) return;
 
-    // Create Leaflet Map
+    // Create Leaflet Map centered on Busan Haeundae
     const map = L.map(mapContainerRef.current, {
       center: MAP_CENTER,
       zoom: DEFAULT_ZOOM,
@@ -39,20 +42,20 @@ export default function MapComponent({
       attributionControl: false
     });
 
-    // Add CartoDB Dark Matter tiles for ultra-sleek dark aesthetic
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-      maxZoom: 20,
-      subdomains: 'abcd',
-      attribution: '&copy; CartoDB &copy; OpenStreetMap'
+    // Use reliable OpenStreetMap tiles (no API key required)
+    const tileLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19,
+      subdomains: ['a', 'b', 'c'],
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
     }).addTo(map);
 
-    // Zoom control at top-right
-    L.control.zoom({ position: 'topright' }).addTo(map);
+    tileLayerRef.current = tileLayer;
 
-    // Attribution at bottom-right
+    // Controls
+    L.control.zoom({ position: 'topright' }).addTo(map);
     L.control.attribution({ position: 'bottomright' }).addTo(map);
 
-    // Create Layer Groups
+    // Layer Groups
     networkLayerRef.current = L.layerGroup().addTo(map);
     coveredLayerRef.current = L.layerGroup().addTo(map);
     deadZonesLayerRef.current = L.layerGroup().addTo(map);
@@ -63,11 +66,38 @@ export default function MapComponent({
 
     mapInstanceRef.current = map;
 
+    // Force size recalculation to prevent gray tiles
+    setTimeout(() => {
+      map.invalidateSize();
+    }, 150);
+
+    const handleResize = () => {
+      map.invalidateSize();
+    };
+    window.addEventListener('resize', handleResize);
+
     return () => {
+      window.removeEventListener('resize', handleResize);
       map.remove();
       mapInstanceRef.current = null;
     };
   }, []);
+
+  // Update Map Center when Nodes change drastically
+  useEffect(() => {
+    const map = mapInstanceRef.current;
+    if (!map) return;
+
+    const startNode = NODES[startNodeId];
+    const targetNode = NODES[targetNodeId];
+    if (startNode && targetNode) {
+      const bounds = L.latLngBounds(
+        [startNode.lat, startNode.lng],
+        [targetNode.lat, targetNode.lng]
+      );
+      map.fitBounds(bounds, { padding: [80, 80], maxZoom: 17 });
+    }
+  }, [startNodeId, targetNodeId]);
 
   // Handle map clicks for 2.1 출발지 / 도착지 선택
   useEffect(() => {
@@ -90,7 +120,6 @@ export default function MapComponent({
         }
         setPinSelectMode(null);
       } else {
-        // Default click behavior: cycle or snap to closest
         setStartNodeId(nearestId);
       }
     };
@@ -107,7 +136,6 @@ export default function MapComponent({
     if (!netLayer) return;
     netLayer.clearLayers();
 
-    // Render underlying pedestrian network
     for (const edge of EDGES) {
       const uNode = NODES[edge.u];
       const vNode = NODES[edge.v];
@@ -116,8 +144,8 @@ export default function MapComponent({
       const poly = L.polyline(
         [[uNode.lat, uNode.lng], [vNode.lat, vNode.lng]],
         {
-          color: '#334155',
-          weight: 3,
+          color: mapTheme === 'dark' ? '#475569' : '#94a3b8',
+          weight: 4,
           opacity: 0.6,
           dashArray: edge.layer === -1 ? '4, 4' : null
         }
@@ -128,7 +156,7 @@ export default function MapComponent({
       );
       netLayer.addLayer(poly);
     }
-  }, []);
+  }, [mapTheme]);
 
   // Render 2.3 Layer Toggles: Streetlights, CCTV, Covered Corridors, Dead Zones
   useEffect(() => {
@@ -140,19 +168,17 @@ export default function MapComponent({
     slLayer.clearLayers();
     if (layers.streetlights) {
       for (const sl of STREETLIGHTS) {
-        // 15m illumination circle
         const circle = L.circle([sl.lat, sl.lng], {
           radius: sl.radius,
           color: '#f59e0b',
-          weight: 1,
-          opacity: 0.6,
+          weight: 1.2,
+          opacity: 0.7,
           fillColor: '#fde047',
-          fillOpacity: 0.16
+          fillOpacity: 0.22
         });
         circle.bindTooltip(`가로등 (${sl.type})<br/>유효 조명 반경 15m`, { className: 'route-tooltip-custom' });
         slLayer.addLayer(circle);
 
-        // Core light marker
         const lampIcon = L.divIcon({
           className: 'lamp-marker',
           html: `<div style="width: 8px; height: 8px; border-radius: 50%; background: #fef08a; box-shadow: 0 0 10px #eab308; border: 1px solid #ca8a04;"></div>`,
@@ -169,19 +195,17 @@ export default function MapComponent({
     cctvLayer.clearLayers();
     if (layers.cctv) {
       for (const cam of CCTVS) {
-        // 20m buffer circle
         const circle = L.circle([cam.lat, cam.lng], {
           radius: cam.radius,
           color: '#0284c7',
-          weight: 1,
-          opacity: 0.5,
+          weight: 1.2,
+          opacity: 0.6,
           fillColor: '#38bdf8',
-          fillOpacity: 0.12
+          fillOpacity: 0.16
         });
         circle.bindTooltip(`방범 CCTV: ${cam.name}<br/>안전 감시 반경 20m`, { className: 'route-tooltip-custom' });
         cctvLayer.addLayer(circle);
 
-        // CCTV badge marker
         const cctvIcon = L.divIcon({
           className: 'cctv-badge',
           html: `<div style="background: #0284c7; color: white; width: 18px; height: 18px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 9px; font-weight: bold; border: 1.5px solid #ffffff; box-shadow: 0 0 8px rgba(56,189,248,0.8);">📹</div>`,
@@ -205,11 +229,11 @@ export default function MapComponent({
 
           const poly = L.polyline([[uNode.lat, uNode.lng], [vNode.lat, vNode.lng]], {
             color: '#10b981',
-            weight: 6,
-            opacity: 0.55,
+            weight: 7,
+            opacity: 0.65,
             dashArray: '8, 6'
           });
-          poly.bindTooltip(`비가림 쉴드 통로: ${edge.name} (${edge.shelterType})`, { className: 'route-tooltip-custom' });
+          poly.bindTooltip(`비가림 통로: ${edge.name} (${edge.shelterType})`, { className: 'route-tooltip-custom' });
           covLayer.addLayer(poly);
         }
       }
@@ -228,10 +252,10 @@ export default function MapComponent({
           const poly = L.polyline([[uNode.lat, uNode.lng], [vNode.lat, vNode.lng]], {
             color: '#f43f5e',
             weight: 5,
-            opacity: 0.75,
-            dashArray: '4, 6'
+            opacity: 0.85,
+            dashArray: '5, 6'
           });
-          poly.bindTooltip(`⚠️ 조명 미설치 암흑 구간: ${edge.deadZoneLength}m (${edge.name})`, { className: 'route-tooltip-custom' });
+          poly.bindTooltip(`⚠️ 조명 미설치 암흑 사각지대: ${edge.deadZoneLength}m (${edge.name})`, { className: 'route-tooltip-custom' });
           deadLayer.addLayer(poly);
         }
       }
@@ -248,9 +272,9 @@ export default function MapComponent({
     if (standardRoute && standardRoute.nodeIds.length > 1) {
       const latlngs = standardRoute.nodeIds.map((id) => [NODES[id].lat, NODES[id].lng]);
       const standardPoly = L.polyline(latlngs, {
-        color: '#94a3b8',
+        color: mapTheme === 'dark' ? '#94a3b8' : '#64748b',
         weight: 4,
-        opacity: 0.7,
+        opacity: 0.75,
         dashArray: '6, 8',
         lineCap: 'round',
         lineJoin: 'round'
@@ -259,30 +283,28 @@ export default function MapComponent({
       routeLayer.addLayer(standardPoly);
     }
 
-    // 2. Recommended Custom Route (안심/우천 추천 경로: 파란색/녹색 실선 & Glow)
+    // 2. Recommended Custom Route (안심/우천 추천 경로)
     if (recommendedRoute && recommendedRoute.nodeIds.length > 1) {
       const latlngs = recommendedRoute.nodeIds.map((id) => [NODES[id].lat, NODES[id].lng]);
       
       const isNight = mode === 'night';
       const isRain = mode === 'rain';
-      const primaryColor = isNight ? '#38bdf8' : isRain ? '#10b981' : '#94a3b8';
-      const glowColor = isNight ? '#0284c7' : isRain ? '#059669' : '#64748b';
+      const primaryColor = isNight ? '#0284c7' : isRain ? '#059669' : '#64748b';
+      const glowColor = isNight ? '#38bdf8' : isRain ? '#10b981' : '#94a3b8';
 
       if (mode !== 'standard') {
-        // Glowing halo effect under the route line
         const glowPoly = L.polyline(latlngs, {
           color: glowColor,
           weight: 12,
-          opacity: 0.35,
+          opacity: 0.45,
           lineCap: 'round',
           lineJoin: 'round'
         });
         routeLayer.addLayer(glowPoly);
       }
 
-      // Foreground solid route polyline
       const mainPoly = L.polyline(latlngs, {
-        color: primaryColor,
+        color: glowColor,
         weight: mode === 'standard' ? 4 : 6,
         opacity: 0.95,
         lineCap: 'round',
@@ -292,18 +314,18 @@ export default function MapComponent({
       mainPoly.bindTooltip(
         `<strong>${
           isNight
-            ? '야간 안심 경로 (조명·CCTV 최적화)'
+            ? '야간 안심 경로 (구남로 스마트 가로등·CCTV)'
             : isRain
-            ? '우천 회피 경로 (비가림 아케이드)'
+            ? '우천 회피 경로 (전통시장 비가림 아케이드)'
             : '일반 최단 경로'
         }</strong><br/>거리: ${recommendedRoute.totalDistance}m | 시간: ${recommendedRoute.estimatedMinutes}분`,
         { className: 'route-tooltip-custom', sticky: true }
       );
       routeLayer.addLayer(mainPoly);
     }
-  }, [mode, recommendedRoute, standardRoute]);
+  }, [mode, recommendedRoute, standardRoute, mapTheme]);
 
-  // Render 2.1 출발지 (A) & 도착지 (B) Interactive Draggable Markers
+  // Render 2.1 Interactive Start (A) & End (B) Pins
   useEffect(() => {
     const markLayer = markersLayerRef.current;
     if (!markLayer) return;
@@ -335,12 +357,11 @@ export default function MapComponent({
         if (nearest && nearest !== targetNodeId) {
           setStartNodeId(nearest);
         } else {
-          // snap back
           startMarker.setLatLng([startNode.lat, startNode.lng]);
         }
       });
 
-      startMarker.bindTooltip(`출발지 (A): ${startNode.name}<br/>(드래그하여 변경 가능)`, {
+      startMarker.bindTooltip(`출발지 (A): ${startNode.name}<br/>(드래그하여 이동 가능)`, {
         className: 'route-tooltip-custom'
       });
       markLayer.addLayer(startMarker);
@@ -372,12 +393,11 @@ export default function MapComponent({
         if (nearest && nearest !== startNodeId) {
           setTargetNodeId(nearest);
         } else {
-          // snap back
           targetMarker.setLatLng([targetNode.lat, targetNode.lng]);
         }
       });
 
-      targetMarker.bindTooltip(`도착지 (B): ${targetNode.name}<br/>(드래그하여 변경 가능)`, {
+      targetMarker.bindTooltip(`도착지 (B): ${targetNode.name}<br/>(드래그하여 이동 가능)`, {
         className: 'route-tooltip-custom'
       });
       markLayer.addLayer(targetMarker);
@@ -387,7 +407,7 @@ export default function MapComponent({
   return (
     <div
       ref={mapContainerRef}
-      className="map-viewport"
+      className={`map-viewport ${mapTheme === 'dark' ? 'map-theme-dark' : 'map-theme-light'}`}
       style={{ cursor: pinSelectMode ? 'crosshair' : 'grab' }}
     />
   );

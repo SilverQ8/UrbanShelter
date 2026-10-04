@@ -10,10 +10,11 @@ export default function App() {
   // Routing states
   const [mode, setMode] = useState('night'); // 'standard' | 'night' | 'rain'
   const [sensitivity, setSensitivity] = useState(0.65); // 0.0 to 1.0 (default 65%)
-  const [startNodeId, setStartNodeId] = useState('N_MAIN_1');
-  const [targetNodeId, setTargetNodeId] = useState('N_TEHERAN_2');
+  const [startNodeId, setStartNodeId] = useState('N_HAE_STATION_5');
+  const [targetNodeId, setTargetNodeId] = useState('N_BEACH_EVENT');
   const [pinSelectMode, setPinSelectMode] = useState(null); // null | 'start' | 'target'
   const [activeScenario, setActiveScenario] = useState('scenario_1');
+  const [mapTheme, setMapTheme] = useState('dark'); // 'dark' | 'light'
 
   // Visualization layer toggles (2.3)
   const [layers, setLayers] = useState({
@@ -61,6 +62,8 @@ export default function App() {
         activeScenario={activeScenario}
         onSelectScenario={handleSelectScenario}
         onResetPins={handleResetPins}
+        mapTheme={mapTheme}
+        setMapTheme={setMapTheme}
       />
 
       {/* Main Workspace */}
@@ -77,6 +80,7 @@ export default function App() {
           recommendedRoute={recommendedRoute}
           standardRoute={standardRoute}
           layers={layers}
+          mapTheme={mapTheme}
         />
 
         {/* Floating Left Overlay: Control & Weighting Panel */}
