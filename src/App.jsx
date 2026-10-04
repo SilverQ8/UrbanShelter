@@ -4,13 +4,30 @@ import MapComponent from './components/MapComponent';
 import RouteSearch from './components/RouteSearch';
 import ControlPanel from './components/ControlPanel';
 import Dashboard from './components/Dashboard';
-import { PRESET_SCENARIOS, MAP_CENTER } from './data/urbanNetwork';
-import { findPath, findNearestNode } from './engine/routingEngine';
+import { NODES, PRESET_SCENARIOS, MAP_CENTER } from './data/urbanNetwork';
+import { findNearestNode } from './engine/routingEngine';
+import { solveAllRoutes } from './services/routingService';
 
 export default function App() {
   // Routing states
   const [mode, setMode] = useState('night'); // 'standard' | 'night' | 'rain'
   const [sensitivity, setSensitivity] = useState(0.65); // 0.0 to 1.0 (default 65%)
+  
+  // High-precision geographic start and target locations
+  const [startPoint, setStartPoint] = useState({
+    name: '해운대역 3번 출구',
+    roadAddress: '부산광역시 해운대구 구남로 1',
+    lat: 35.1636,
+    lng: 129.1586
+  });
+
+  const [targetPoint, setTargetPoint] = useState({
+    name: '해운대 해수욕장 이벤트광장',
+    roadAddress: '부산광역시 해운대구 해운대해변로 264',
+    lat: 35.1592,
+    lng: 129.1615
+  });
+
   const [startNodeId, setStartNodeId] = useState('N_HAE_STATION_3');
   const [targetNodeId, setTargetNodeId] = useState('N_BEACH_EVENT');
   const [pinSelectMode, setPinSelectMode] = useState(null); // null | 'start' | 'target'
@@ -21,6 +38,13 @@ export default function App() {
   const [userGps, setUserGps] = useState(null);
   const [gpsStatus, setGpsStatus] = useState('idle'); // 'idle' | 'loading' | 'active' | 'denied'
 
+  // Computed Routes Container
+  const [computedRoutes, setComputedRoutes] = useState({
+    standard: null,
+    night: null,
+    rain: null
+  });
+
   // Visualization layer toggles (2.3)
   const [layers, setLayers] = useState({
     streetlights: true,
@@ -28,6 +52,21 @@ export default function App() {
     covered: true,
     deadZones: true,
   });
+
+  // Solve real-world pedestrian routes whenever points or sensitivity changes
+  useEffect(() => {
+    let isCancelled = false;
+
+    async function computeRoutes() {
+      const results = await solveAllRoutes(startPoint, targetPoint, sensitivity);
+      if (!isCancelled) {
+        setComputedRoutes(results);
+      }
+    }
+
+    computeRoutes();
+    return () => { isCancelled = true; };
+  }, [startPoint, targetPoint, sensitivity]);
 
   // Request GPS User Location
   const requestGpsLocation = useCallback(() => {
@@ -43,6 +82,14 @@ export default function App() {
         setUserGps({ lat: latitude, lng: longitude });
         setGpsStatus('active');
 
+        // Update start location to User GPS
+        setStartPoint({
+          name: '내 현재 위치 (GPS)',
+          roadAddress: '실시간 GPS 위치',
+          lat: latitude,
+          lng: longitude
+        });
+
         // Snap user GPS to nearest road network node
         const nearestId = findNearestNode(latitude, longitude);
         if (nearestId) {
@@ -52,8 +99,6 @@ export default function App() {
       (err) => {
         console.warn('Geolocation access failed or denied:', err);
         setGpsStatus('denied');
-        // Fallback default: Haeundae Station
-        setStartNodeId('N_HAE_STATION_3');
       },
       {
         enableHighAccuracy: true,
@@ -68,23 +113,14 @@ export default function App() {
     requestGpsLocation();
   }, [requestGpsLocation]);
 
-  // Compute all 3 routes for comparison
-  const standardRoute = useMemo(() => {
-    return findPath(startNodeId, targetNodeId, 'standard', 0);
-  }, [startNodeId, targetNodeId]);
-
-  const nightRoute = useMemo(() => {
-    return findPath(startNodeId, targetNodeId, 'night', sensitivity);
-  }, [startNodeId, targetNodeId, sensitivity]);
-
-  const rainRoute = useMemo(() => {
-    return findPath(startNodeId, targetNodeId, 'rain', sensitivity);
-  }, [startNodeId, targetNodeId, sensitivity]);
+  const standardRoute = computedRoutes.standard;
+  const nightRoute = computedRoutes.night;
+  const rainRoute = computedRoutes.rain;
 
   // Current active recommended route based on selected mode
   const recommendedRoute = useMemo(() => {
-    if (mode === 'night') return nightRoute;
-    if (mode === 'rain') return rainRoute;
+    if (mode === 'night') return nightRoute || standardRoute;
+    if (mode === 'rain') return rainRoute || standardRoute;
     return standardRoute;
   }, [mode, nightRoute, rainRoute, standardRoute]);
 
@@ -95,6 +131,23 @@ export default function App() {
     setActiveScenario(scenarioId);
     setStartNodeId(sc.startNode);
     setTargetNodeId(sc.endNode);
+
+    const sNode = NODES[sc.startNode];
+    const tNode = NODES[sc.endNode];
+    if (sNode && tNode) {
+      setStartPoint({
+        name: sNode.roadAddress || sNode.name,
+        roadAddress: sNode.roadAddress || sNode.name,
+        lat: sNode.lat,
+        lng: sNode.lng
+      });
+      setTargetPoint({
+        name: tNode.roadAddress || tNode.name,
+        roadAddress: tNode.roadAddress || tNode.name,
+        lat: tNode.lat,
+        lng: tNode.lng
+      });
+    }
 
     if (scenarioId === 'scenario_2') {
       setMode('rain');
@@ -125,6 +178,10 @@ export default function App() {
         <MapComponent
           userGps={userGps}
           onRequestGps={requestGpsLocation}
+          startPoint={startPoint}
+          setStartPoint={setStartPoint}
+          targetPoint={targetPoint}
+          setTargetPoint={setTargetPoint}
           startNodeId={startNodeId}
           setStartNodeId={setStartNodeId}
           targetNodeId={targetNodeId}
@@ -147,6 +204,10 @@ export default function App() {
             userGps={userGps}
             onRequestGps={requestGpsLocation}
             gpsStatus={gpsStatus}
+            startPoint={startPoint}
+            setStartPoint={setStartPoint}
+            targetPoint={targetPoint}
+            setTargetPoint={setTargetPoint}
             startNodeId={startNodeId}
             setStartNodeId={setStartNodeId}
             targetNodeId={targetNodeId}

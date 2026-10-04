@@ -126,6 +126,14 @@ export default defineConfig({
           'Accept-Language': 'ko-KR,ko;q=0.9',
         },
       },
+      '/api/route/foot': {
+        target: 'https://router.project-osrm.org/route/v1/foot',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api\/route\/foot/, ''),
+        headers: {
+          'User-Agent': 'UrbanShelter-PedestrianApp/1.0',
+        },
+      },
     }
   },
 });

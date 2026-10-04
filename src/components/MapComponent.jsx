@@ -8,6 +8,10 @@ import { findNearestNode } from '../engine/routingEngine';
 export default function MapComponent({
   userGps,
   onRequestGps,
+  startPoint,
+  setStartPoint,
+  targetPoint,
+  setTargetPoint,
   startNodeId,
   setStartNodeId,
   targetNodeId,
@@ -92,21 +96,27 @@ export default function MapComponent({
     map.flyTo([userGps.lat, userGps.lng], 17, { duration: 1.2 });
   }, [userGps]);
 
-  // Fit bounds when Start and Target change
+  // Fit bounds when Start and Target change or when Route is updated
   useEffect(() => {
     const map = mapInstanceRef.current;
     if (!map) return;
 
-    const startNode = NODES[startNodeId];
-    const targetNode = NODES[targetNodeId];
-    if (startNode && targetNode && startNodeId !== targetNodeId) {
-      const bounds = L.latLngBounds(
-        [startNode.lat, startNode.lng],
-        [targetNode.lat, targetNode.lng]
-      );
+    if (recommendedRoute && recommendedRoute.latlngs && recommendedRoute.latlngs.length > 1) {
+      const bounds = L.latLngBounds(recommendedRoute.latlngs);
+      map.fitBounds(bounds, { padding: [80, 80], maxZoom: 17 });
+      return;
+    }
+
+    const sLat = startPoint?.lat ?? NODES[startNodeId]?.lat;
+    const sLng = startPoint?.lng ?? NODES[startNodeId]?.lng;
+    const tLat = targetPoint?.lat ?? NODES[targetNodeId]?.lat;
+    const tLng = targetPoint?.lng ?? NODES[targetNodeId]?.lng;
+
+    if (sLat && sLng && tLat && tLng && (sLat !== tLat || sLng !== tLng)) {
+      const bounds = L.latLngBounds([[sLat, sLng], [tLat, tLng]]);
       map.fitBounds(bounds, { padding: [100, 100], maxZoom: 17 });
     }
-  }, [startNodeId, targetNodeId]);
+  }, [startPoint, targetPoint, startNodeId, targetNodeId, recommendedRoute]);
 
   // Handle map clicks
   useEffect(() => {
@@ -288,31 +298,61 @@ export default function MapComponent({
     if (!routeLayer) return;
     routeLayer.clearLayers();
 
-    // 1. Standard Shortest Route (회색 점선)
-    if (standardRoute && standardRoute.nodeIds.length > 1) {
-      const latlngs = standardRoute.nodeIds.map((id) => [NODES[id].lat, NODES[id].lng]);
-      const standardPoly = L.polyline(latlngs, {
-        color: mapTheme === 'dark' ? '#94a3b8' : '#64748b',
-        weight: mode === 'standard' ? 6 : 4,
-        opacity: mode === 'standard' ? 0.95 : 0.65,
-        dashArray: mode === 'standard' ? null : '6, 8',
-        lineCap: 'round',
-        lineJoin: 'round'
-      });
-      standardPoly.bindTooltip('기본 최단 경로 (대조군 기준)', { className: 'route-tooltip-custom' });
-      routeLayer.addLayer(standardPoly);
+    // Helper to get coordinates array from route object
+    const getRouteLatLngs = (r) => {
+      if (!r) return [];
+      if (r.latlngs && r.latlngs.length > 0) return r.latlngs;
+      if (r.nodeIds && r.nodeIds.length > 0) {
+        return r.nodeIds.filter(id => NODES[id]).map(id => [NODES[id].lat, NODES[id].lng]);
+      }
+      return [];
+    };
+
+    // 1. Standard Shortest Route
+    const stdLatLngs = getRouteLatLngs(standardRoute);
+    if (stdLatLngs.length > 1) {
+      if (mode === 'standard') {
+        const glowPoly = L.polyline(stdLatLngs, {
+          color: '#38bdf8',
+          weight: 12,
+          opacity: 0.4,
+          lineCap: 'round',
+          lineJoin: 'round'
+        });
+        routeLayer.addLayer(glowPoly);
+
+        const standardPoly = L.polyline(stdLatLngs, {
+          color: '#0284c7',
+          weight: 6,
+          opacity: 0.95,
+          lineCap: 'round',
+          lineJoin: 'round'
+        });
+        standardPoly.bindTooltip(`<strong>기본 최단 도보 경로</strong><br/>거리: ${standardRoute.totalDistance}m | 소요시간: ${standardRoute.estimatedMinutes}분`, { className: 'route-tooltip-custom', sticky: true });
+        routeLayer.addLayer(standardPoly);
+      } else {
+        const standardPoly = L.polyline(stdLatLngs, {
+          color: mapTheme === 'dark' ? '#94a3b8' : '#64748b',
+          weight: 4,
+          opacity: 0.65,
+          dashArray: '6, 8',
+          lineCap: 'round',
+          lineJoin: 'round'
+        });
+        standardPoly.bindTooltip(`기본 최단 경로 (${standardRoute.totalDistance}m)`, { className: 'route-tooltip-custom' });
+        routeLayer.addLayer(standardPoly);
+      }
     }
 
     // 2. Recommended Custom Route (안심/우천 추천 경로)
-    if (recommendedRoute && recommendedRoute.nodeIds.length > 1 && mode !== 'standard') {
-      const latlngs = recommendedRoute.nodeIds.map((id) => [NODES[id].lat, NODES[id].lng]);
-      
+    const recLatLngs = getRouteLatLngs(recommendedRoute);
+    if (recLatLngs.length > 1 && mode !== 'standard') {
       const isNight = mode === 'night';
       const isRain = mode === 'rain';
       const glowColor = isNight ? '#38bdf8' : isRain ? '#10b981' : '#94a3b8';
 
       // Glow halo
-      const glowPoly = L.polyline(latlngs, {
+      const glowPoly = L.polyline(recLatLngs, {
         color: glowColor,
         weight: 12,
         opacity: 0.45,
@@ -321,7 +361,7 @@ export default function MapComponent({
       });
       routeLayer.addLayer(glowPoly);
 
-      const mainPoly = L.polyline(latlngs, {
+      const mainPoly = L.polyline(recLatLngs, {
         color: glowColor,
         weight: 6,
         opacity: 0.95,
@@ -332,14 +372,30 @@ export default function MapComponent({
       mainPoly.bindTooltip(
         `<strong>${
           isNight
-            ? '야간 안심 추천 경로 (구남로 스마트 가로등·CCTV 79개소)'
+            ? '야간 안심 추천 경로 (스마트 가로등·CCTV 보호구역)'
             : isRain
-            ? '우천 회피 추천 경로 (전통시장 비가림 아케이드)'
+            ? '우천 회피 추천 경로 (비가림 아케이드 및 보도)'
             : '추천 경로'
         }</strong><br/>거리: ${recommendedRoute.totalDistance}m | 소요시간: ${recommendedRoute.estimatedMinutes}분`,
         { className: 'route-tooltip-custom', sticky: true }
       );
       routeLayer.addLayer(mainPoly);
+    }
+
+    // 3. Automatically Fit Map Bounds to Show the Whole Route
+    const targetLatLngs = (recLatLngs.length > 1 && mode !== 'standard') ? recLatLngs : stdLatLngs;
+    const map = mapInstanceRef.current;
+    if (map && targetLatLngs.length > 1) {
+      try {
+        const bounds = L.latLngBounds(targetLatLngs);
+        map.fitBounds(bounds, {
+          padding: [60, 60],
+          maxZoom: 17,
+          animate: true
+        });
+      } catch (err) {
+        console.warn('fitBounds error:', err);
+      }
     }
   }, [mode, recommendedRoute, standardRoute, mapTheme]);
 
@@ -368,8 +424,11 @@ export default function MapComponent({
     }
 
     // 1. Start Pin (A - Emerald)
-    const startNode = NODES[startNodeId];
-    if (startNode) {
+    const sLat = startPoint?.lat ?? NODES[startNodeId]?.lat;
+    const sLng = startPoint?.lng ?? NODES[startNodeId]?.lng;
+    const sName = startPoint?.name || startPoint?.roadAddress || NODES[startNodeId]?.roadAddress || '출발지';
+
+    if (sLat && sLng) {
       const startIcon = L.divIcon({
         className: 'custom-pin-start',
         html: `
@@ -382,33 +441,35 @@ export default function MapComponent({
         iconAnchor: [17, 17]
       });
 
-      const startMarker = L.marker([startNode.lat, startNode.lng], {
+      const startMarker = L.marker([sLat, sLng], {
         icon: startIcon,
         draggable: true
       });
 
       startMarker.on('dragend', (e) => {
         const { lat, lng } = e.target.getLatLng();
-        const nearest = findNearestNode(lat, lng);
-        if (nearest && nearest !== targetNodeId) {
-          setStartNodeId(nearest);
-        } else {
-          startMarker.setLatLng([startNode.lat, startNode.lng]);
+        if (setStartPoint) {
+          setStartPoint({ name: '선택한 위치 (A)', roadAddress: `위도 ${lat.toFixed(4)}, 경도 ${lng.toFixed(4)}`, lat, lng });
         }
+        const nearest = findNearestNode(lat, lng);
+        if (nearest) setStartNodeId(nearest);
       });
 
       startMarker.bindTooltip(
         `<strong>📍 출발지 (A)</strong><br/>` +
-        `<span style="color:#38bdf8; font-weight:600;">${startNode.roadAddress || startNode.name}</span><br/>` +
-        `<span style="color:#94a3b8; font-size:11px;">(드래그하여 이동 가능)</span>`,
+        `<span style="color:#34d399; font-weight:700;">${sName}</span><br/>` +
+        `<span style="color:#94a3b8; font-size:11px;">(드래그하여 위치 변경 가능)</span>`,
         { className: 'route-tooltip-custom' }
       );
       markLayer.addLayer(startMarker);
     }
 
     // 2. Target Pin (B - Rose)
-    const targetNode = NODES[targetNodeId];
-    if (targetNode) {
+    const tLat = targetPoint?.lat ?? NODES[targetNodeId]?.lat;
+    const tLng = targetPoint?.lng ?? NODES[targetNodeId]?.lng;
+    const tName = targetPoint?.name || targetPoint?.roadAddress || NODES[targetNodeId]?.roadAddress || '도착지';
+
+    if (tLat && tLng) {
       const targetIcon = L.divIcon({
         className: 'custom-pin-target',
         html: `
@@ -421,30 +482,29 @@ export default function MapComponent({
         iconAnchor: [17, 17]
       });
 
-      const targetMarker = L.marker([targetNode.lat, targetNode.lng], {
+      const targetMarker = L.marker([tLat, tLng], {
         icon: targetIcon,
         draggable: true
       });
 
       targetMarker.on('dragend', (e) => {
         const { lat, lng } = e.target.getLatLng();
-        const nearest = findNearestNode(lat, lng);
-        if (nearest && nearest !== startNodeId) {
-          setTargetNodeId(nearest);
-        } else {
-          targetMarker.setLatLng([targetNode.lat, targetNode.lng]);
+        if (setTargetPoint) {
+          setTargetPoint({ name: '선택한 위치 (B)', roadAddress: `위도 ${lat.toFixed(4)}, 경도 ${lng.toFixed(4)}`, lat, lng });
         }
+        const nearest = findNearestNode(lat, lng);
+        if (nearest) setTargetNodeId(nearest);
       });
 
       targetMarker.bindTooltip(
-        `<strong>🎯 도착지 (B)</strong><br/>` +
-        `<span style="color:#f43f5e; font-weight:600;">${targetNode.roadAddress || targetNode.name}</span><br/>` +
-        `<span style="color:#94a3b8; font-size:11px;">(드래그하여 이동 가능)</span>`,
+        `<strong>📍 도착지 (B)</strong><br/>` +
+        `<span style="color:#f43f5e; font-weight:700;">${tName}</span><br/>` +
+        `<span style="color:#94a3b8; font-size:11px;">(드래그하여 위치 변경 가능)</span>`,
         { className: 'route-tooltip-custom' }
       );
       markLayer.addLayer(targetMarker);
     }
-  }, [userGps, startNodeId, targetNodeId, setStartNodeId, setTargetNodeId]);
+  }, [userGps, startPoint, targetPoint, startNodeId, targetNodeId, setStartPoint, setTargetPoint, setStartNodeId, setTargetNodeId]);
 
   return (
     <div style={{ position: 'relative', width: '100%', height: '100%' }}>

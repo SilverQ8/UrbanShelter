@@ -23,6 +23,10 @@ export default function RouteSearch({
   userGps,
   onRequestGps,
   gpsStatus,
+  startPoint,
+  setStartPoint,
+  targetPoint,
+  setTargetPoint,
   startNodeId,
   setStartNodeId,
   targetNodeId,
@@ -46,18 +50,22 @@ export default function RouteSearch({
   const destInputRef = useRef(null);
   const debounceTimerRef = useRef(null);
 
-  // Sync input text with active node official road name addresses
+  // Sync input text with active points or node official road name addresses
   useEffect(() => {
-    if (NODES[startNodeId]) {
+    if (startPoint?.name) {
+      setStartQuery(startPoint.name);
+    } else if (NODES[startNodeId]) {
       setStartQuery(NODES[startNodeId].roadAddress || NODES[startNodeId].name);
     }
-  }, [startNodeId]);
+  }, [startPoint, startNodeId]);
 
   useEffect(() => {
-    if (NODES[targetNodeId]) {
+    if (targetPoint?.name) {
+      setDestQuery(targetPoint.name);
+    } else if (NODES[targetNodeId]) {
       setDestQuery(NODES[targetNodeId].roadAddress || NODES[targetNodeId].name);
     }
-  }, [targetNodeId]);
+  }, [targetPoint, targetNodeId]);
 
   // Handle outside click to close dropdowns
   useEffect(() => {
@@ -124,9 +132,18 @@ export default function RouteSearch({
     setStartQuery(displayName);
     setActiveDropdown(null);
 
+    if (setStartPoint) {
+      setStartPoint({
+        name: place.name,
+        roadAddress: place.roadAddress || place.name,
+        lat: place.lat,
+        lng: place.lng
+      });
+    }
+
     if (place.lat && place.lng) {
       const nearestNodeId = findNearestNode(place.lat, place.lng);
-      if (nearestNodeId && nearestNodeId !== targetNodeId) {
+      if (nearestNodeId) {
         setStartNodeId(nearestNodeId);
       }
     }
@@ -138,9 +155,18 @@ export default function RouteSearch({
     setDestQuery(displayName);
     setActiveDropdown(null);
 
+    if (setTargetPoint) {
+      setTargetPoint({
+        name: place.name,
+        roadAddress: place.roadAddress || place.name,
+        lat: place.lat,
+        lng: place.lng
+      });
+    }
+
     if (place.lat && place.lng) {
       const nearestNodeId = findNearestNode(place.lat, place.lng);
-      if (nearestNodeId && nearestNodeId !== startNodeId) {
+      if (nearestNodeId) {
         setTargetNodeId(nearestNodeId);
       }
     }
@@ -219,15 +245,29 @@ export default function RouteSearch({
 
   // Swap Start and Destination
   const handleSwapLocations = () => {
-    const prevStart = startNodeId;
-    const prevTarget = targetNodeId;
-    setStartNodeId(prevTarget);
-    setTargetNodeId(prevStart);
+    const prevStart = startPoint;
+    const prevTarget = targetPoint;
+    if (setStartPoint && setTargetPoint && prevStart && prevTarget) {
+      setStartPoint(prevTarget);
+      setTargetPoint(prevStart);
+    }
+    const prevStartId = startNodeId;
+    const prevTargetId = targetNodeId;
+    setStartNodeId(prevTargetId);
+    setTargetNodeId(prevStartId);
   };
 
   // Reset Start to User GPS
   const handleUseGpsAsStart = () => {
     if (userGps) {
+      if (setStartPoint) {
+        setStartPoint({
+          name: '내 현재 위치 (GPS)',
+          roadAddress: '실시간 GPS 위치',
+          lat: userGps.lat,
+          lng: userGps.lng
+        });
+      }
       const nearestId = findNearestNode(userGps.lat, userGps.lng);
       if (nearestId) {
         setStartNodeId(nearestId);
