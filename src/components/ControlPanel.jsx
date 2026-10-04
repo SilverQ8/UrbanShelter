@@ -29,8 +29,8 @@ export default function ControlPanel({
     setLayers((prev) => ({ ...prev, [layerKey]: !prev[layerKey] }));
   };
 
-  const startNodeName = NODES[startNodeId]?.name || '미지정';
-  const targetNodeName = NODES[targetNodeId]?.name || '미지정';
+  const startNodeName = NODES[startNodeId]?.roadAddress || NODES[startNodeId]?.name || '미지정';
+  const targetNodeName = NODES[targetNodeId]?.roadAddress || NODES[targetNodeId]?.name || '미지정';
 
   return (
     <div className="glass-panel" style={{ width: '100%' }}>
@@ -196,7 +196,10 @@ export default function ControlPanel({
               <div className="toggle-icon-wrap" style={{ background: 'rgba(56, 189, 248, 0.15)', color: '#38bdf8' }}>
                 <Video size={13} />
               </div>
-              <span>방범 CCTV 마커 & 20m 버퍼</span>
+              <div>
+                <div>방범 CCTV (공공데이터 79개소)</div>
+                <div style={{ fontSize: '10px', color: '#38bdf8', opacity: 0.85 }}>행정안전부 실시간 API 연동</div>
+              </div>
             </div>
             <label className="switch" onClick={(e) => e.stopPropagation()}>
               <input

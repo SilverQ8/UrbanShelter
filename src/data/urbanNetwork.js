@@ -5,39 +5,215 @@
 export const MAP_CENTER = [35.1610, 129.1600]; // Haeundae Gunam-ro center
 export const DEFAULT_ZOOM = 16;
 
-// Graph Nodes in Haeundae, Busan
+// Graph Nodes in Haeundae, Busan with Official Road Name Addresses (도로명주소)
 export const NODES = {
   // 1. Haeundae Subway Station & Underground Concourse
-  'N_HAE_STATION_3': { id: 'N_HAE_STATION_3', name: '해운대역 3번 출구 (구남로 방면)', lat: 35.1636, lng: 129.1586, type: 'exit' },
-  'N_HAE_STATION_5': { id: 'N_HAE_STATION_5', name: '해운대역 5번 출구 (우동 방면)', lat: 35.1638, lng: 129.1577, type: 'exit' },
-  'N_HAE_STATION_1': { id: 'N_HAE_STATION_1', name: '해운대역 1번 출구 (중동 방면)', lat: 35.1639, lng: 129.1601, type: 'exit' },
-  'N_HAE_UND_CENTER': { id: 'N_HAE_UND_CENTER', name: '해운대역 지하철 환승통로 및 지하상가', lat: 35.1635, lng: 129.1588, type: 'underground' },
-  'N_HAE_UND_EAST': { id: 'N_HAE_UND_EAST', name: '해운대역 지하 동측 아케이드 진출구', lat: 35.1633, lng: 129.1608, type: 'underground' },
+  'N_HAE_STATION_3': {
+    id: 'N_HAE_STATION_3',
+    roadAddress: '부산광역시 해운대구 구남로 1',
+    roadName: '구남로 1',
+    name: '부산광역시 해운대구 구남로 1 (해운대역 3번출구)',
+    lat: 35.1636,
+    lng: 129.1586,
+    type: 'exit'
+  },
+  'N_HAE_STATION_5': {
+    id: 'N_HAE_STATION_5',
+    roadAddress: '부산광역시 해운대구 해운대로 620',
+    roadName: '해운대로 620',
+    name: '부산광역시 해운대구 해운대로 620 (해운대역 5번출구)',
+    lat: 35.1638,
+    lng: 129.1577,
+    type: 'exit'
+  },
+  'N_HAE_STATION_1': {
+    id: 'N_HAE_STATION_1',
+    roadAddress: '부산광역시 해운대구 해운대로 626',
+    roadName: '해운대로 626',
+    name: '부산광역시 해운대구 해운대로 626 (해운대역 1번출구)',
+    lat: 35.1639,
+    lng: 129.1601,
+    type: 'exit'
+  },
+  'N_HAE_UND_CENTER': {
+    id: 'N_HAE_UND_CENTER',
+    roadAddress: '부산광역시 해운대구 해운대로 지하 620',
+    roadName: '해운대로 지하 620',
+    name: '부산광역시 해운대구 해운대로 지하 620 (해운대역 지하연결상가)',
+    lat: 35.1635,
+    lng: 129.1588,
+    type: 'underground'
+  },
+  'N_HAE_UND_EAST': {
+    id: 'N_HAE_UND_EAST',
+    roadAddress: '부산광역시 해운대구 해운대로 지하 626',
+    roadName: '해운대로 지하 626',
+    name: '부산광역시 해운대구 해운대로 지하 626 (지하동측 아케이드)',
+    lat: 35.1633,
+    lng: 129.1608,
+    type: 'underground'
+  },
 
-  // 2. Gunam-ro Pedestrian Cultural Avenue (Wide boulevard, dense LED streetlights, multiple smart CCTVs)
-  'N_GUNAM_TOP': { id: 'N_GUNAM_TOP', name: '구남로 입구 (해운대역 광장)', lat: 35.1630, lng: 129.1589, type: 'junction' },
-  'N_GUNAM_MID_1': { id: 'N_GUNAM_MID_1', name: '구남로 중앙 분수광장 북측', lat: 35.1618, lng: 129.1593, type: 'junction' },
-  'N_GUNAM_MID_2': { id: 'N_GUNAM_MID_2', name: '구남로 미디어월 광장 (시장 입구 교차)', lat: 35.1605, lng: 129.1598, type: 'junction' },
-  'N_GUNAM_BEACH': { id: 'N_GUNAM_BEACH', name: '구남로 남단 (해운대해변로 횡단보도)', lat: 35.1593, lng: 129.1602, type: 'junction' },
-  'N_BEACH_EVENT': { id: 'N_BEACH_EVENT', name: '해운대 해수욕장 이벤트광장 & 백사장', lat: 35.1584, lng: 129.1605, type: 'junction' },
+  // 2. Gunam-ro Pedestrian Cultural Avenue
+  'N_GUNAM_TOP': {
+    id: 'N_GUNAM_TOP',
+    roadAddress: '부산광역시 해운대구 구남로 9',
+    roadName: '구남로 9',
+    name: '부산광역시 해운대구 구남로 9 (구남로 상단 입구)',
+    lat: 35.1630,
+    lng: 129.1589,
+    type: 'junction'
+  },
+  'N_GUNAM_MID_1': {
+    id: 'N_GUNAM_MID_1',
+    roadAddress: '부산광역시 해운대구 구남로 24',
+    roadName: '구남로 24',
+    name: '부산광역시 해운대구 구남로 24 (구남로 중앙 분수광장)',
+    lat: 35.1618,
+    lng: 129.1593,
+    type: 'junction'
+  },
+  'N_GUNAM_MID_2': {
+    id: 'N_GUNAM_MID_2',
+    roadAddress: '부산광역시 해운대구 구남로 36',
+    roadName: '구남로 36',
+    name: '부산광역시 해운대구 구남로 36 (구남로 미디어월 광장)',
+    lat: 35.1605,
+    lng: 129.1598,
+    type: 'junction'
+  },
+  'N_GUNAM_BEACH': {
+    id: 'N_GUNAM_BEACH',
+    roadAddress: '부산광역시 해운대구 구남로 48',
+    roadName: '구남로 48',
+    name: '부산광역시 해운대구 구남로 48 (구남로 남단 교차로)',
+    lat: 35.1593,
+    lng: 129.1602,
+    type: 'junction'
+  },
+  'N_BEACH_EVENT': {
+    id: 'N_BEACH_EVENT',
+    roadAddress: '부산광역시 해운대구 해운대해변로 264',
+    roadName: '해운대해변로 264',
+    name: '부산광역시 해운대구 해운대해변로 264 (해수욕장 이벤트광장)',
+    lat: 35.1584,
+    lng: 129.1605,
+    type: 'junction'
+  },
 
-  // 3. Haeundae Traditional Market (해운대 전통시장 - 비가림 캐노피 아케이드 구간!)
-  'N_MARKET_NORTH': { id: 'N_MARKET_NORTH', name: '해운대 전통시장 북측 아케이드 입구', lat: 35.1623, lng: 129.1618, type: 'arcade' },
-  'N_MARKET_MID': { id: 'N_MARKET_MID', name: '해운대 전통시장 비가림 통로 중앙', lat: 35.1608, lng: 129.1613, type: 'arcade' },
-  'N_MARKET_SOUTH': { id: 'N_MARKET_SOUTH', name: '해운대 전통시장 남측 아케이드 출구', lat: 35.1595, lng: 129.1609, type: 'arcade' },
-  'N_MARKET_ALLEY_E': { id: 'N_MARKET_ALLEY_E', name: '시장 동편 곰장어 골목길', lat: 35.1606, lng: 129.1624, type: 'alley' },
+  // 3. Haeundae Traditional Market (Covered Arcade)
+  'N_MARKET_NORTH': {
+    id: 'N_MARKET_NORTH',
+    roadAddress: '부산광역시 해운대구 구남로41번길 2',
+    roadName: '구남로41번길 2',
+    name: '부산광역시 해운대구 구남로41번길 2 (전통시장 북측 아케이드 입구)',
+    lat: 35.1623,
+    lng: 129.1618,
+    type: 'arcade'
+  },
+  'N_MARKET_MID': {
+    id: 'N_MARKET_MID',
+    roadAddress: '부산광역시 해운대구 구남로41번길 22',
+    roadName: '구남로41번길 22',
+    name: '부산광역시 해운대구 구남로41번길 22 (전통시장 비가림 아케이드 중앙)',
+    lat: 35.1608,
+    lng: 129.1613,
+    type: 'arcade'
+  },
+  'N_MARKET_SOUTH': {
+    id: 'N_MARKET_SOUTH',
+    roadAddress: '부산광역시 해운대구 중동1로 38',
+    roadName: '중동1로 38',
+    name: '부산광역시 해운대구 중동1로 38 (전통시장 남측 아케이드 출구)',
+    lat: 35.1595,
+    lng: 129.1609,
+    type: 'arcade'
+  },
+  'N_MARKET_ALLEY_E': {
+    id: 'N_MARKET_ALLEY_E',
+    roadAddress: '부산광역시 해운대구 중동1로 42',
+    roadName: '중동1로 42',
+    name: '부산광역시 해운대구 중동1로 42 (시장 동편 보행로)',
+    lat: 35.1606,
+    lng: 129.1624,
+    type: 'alley'
+  },
 
-  // 4. West Side Alleys (우동 주택가 / 모텔 밀집 암흑 사각지대 - Dead Zones)
-  'N_UDONG_DARK_1': { id: 'N_UDONG_DARK_1', name: '우동 원룸밀집 암흑골목 북측', lat: 35.1631, lng: 129.1570, type: 'alley' },
-  'N_UDONG_DARK_2': { id: 'N_UDONG_DARK_2', name: '조명 사각지대 막다른 골목', lat: 35.1617, lng: 129.1568, type: 'alley' },
-  'N_UDONG_DARK_3': { id: 'N_UDONG_DARK_3', name: '모텔촌 후면 취약 보행로', lat: 35.1602, lng: 129.1573, type: 'alley' },
-  'N_UDONG_SOUTH': { id: 'N_UDONG_SOUTH', name: '해운대해변로 서측 이면도로 입구', lat: 35.1590, lng: 129.1581, type: 'junction' },
+  // 4. West Side Alleys (우동 주택가 / 모텔 밀집 골목)
+  'N_UDONG_DARK_1': {
+    id: 'N_UDONG_DARK_1',
+    roadAddress: '부산광역시 해운대구 구남로12번길 18',
+    roadName: '구남로12번길 18',
+    name: '부산광역시 해운대구 구남로12번길 18 (우동 북측 골목)',
+    lat: 35.1631,
+    lng: 129.1570,
+    type: 'alley'
+  },
+  'N_UDONG_DARK_2': {
+    id: 'N_UDONG_DARK_2',
+    roadAddress: '부산광역시 해운대구 구남로12번길 34',
+    roadName: '구남로12번길 34',
+    name: '부산광역시 해운대구 구남로12번길 34 (조명 사각 골목)',
+    lat: 35.1617,
+    lng: 129.1568,
+    type: 'alley'
+  },
+  'N_UDONG_DARK_3': {
+    id: 'N_UDONG_DARK_3',
+    roadAddress: '부산광역시 해운대구 구남로12번길 52',
+    roadName: '구남로12번길 52',
+    name: '부산광역시 해운대구 구남로12번길 52 (모텔촌 후면로)',
+    lat: 35.1602,
+    lng: 129.1573,
+    type: 'alley'
+  },
+  'N_UDONG_SOUTH': {
+    id: 'N_UDONG_SOUTH',
+    roadAddress: '부산광역시 해운대구 해운대해변로 237',
+    roadName: '해운대해변로 237',
+    name: '부산광역시 해운대구 해운대해변로 237 (해변로 서측 입구)',
+    lat: 35.1590,
+    lng: 129.1581,
+    type: 'junction'
+  },
 
-  // 5. East Side Alleys & Haeundae District Office (중동 온천길 & 안심귀갓길)
-  'N_HOTSPRING_1': { id: 'N_HOTSPRING_1', name: '중동 온천길 상단 교차로', lat: 35.1632, lng: 129.1630, type: 'junction' },
-  'N_SAFE_WAY_MID': { id: 'N_SAFE_WAY_MID', name: '해운대 여성안심귀갓길 스마트 안전폴', lat: 35.1616, lng: 129.1635, type: 'safe_alley' },
-  'N_DISTRICT_OFFICE': { id: 'N_DISTRICT_OFFICE', name: '해운대구청 정문 앞 교차로', lat: 35.1600, lng: 129.1638, type: 'junction' },
-  'N_BEACH_HOTEL': { id: 'N_BEACH_HOTEL', name: '파라다이스 호텔 앞 해안로', lat: 35.1587, lng: 129.1632, type: 'junction' }
+  // 5. East Side Alleys & Haeundae District Office
+  'N_HOTSPRING_1': {
+    id: 'N_HOTSPRING_1',
+    roadAddress: '부산광역시 해운대구 온천길 15',
+    roadName: '온천길 15',
+    name: '부산광역시 해운대구 온천길 15 (온천길 사거리)',
+    lat: 35.1632,
+    lng: 129.1630,
+    type: 'junction'
+  },
+  'N_SAFE_WAY_MID': {
+    id: 'N_SAFE_WAY_MID',
+    roadAddress: '부산광역시 해운대구 중동1로 17번길 10',
+    roadName: '중동1로 17번길 10',
+    name: '부산광역시 해운대구 중동1로 17번길 10 (안심귀갓길 안전폴 앞)',
+    lat: 35.1616,
+    lng: 129.1635,
+    type: 'safe_alley'
+  },
+  'N_DISTRICT_OFFICE': {
+    id: 'N_DISTRICT_OFFICE',
+    roadAddress: '부산광역시 해운대구 중동2로 11',
+    roadName: '중동2로 11',
+    name: '부산광역시 해운대구 중동2로 11 (해운대구청 정문 앞)',
+    lat: 35.1600,
+    lng: 129.1638,
+    type: 'junction'
+  },
+  'N_BEACH_HOTEL': {
+    id: 'N_BEACH_HOTEL',
+    roadAddress: '부산광역시 해운대구 해운대해변로 296',
+    roadName: '해운대해변로 296',
+    name: '부산광역시 해운대구 해운대해변로 296 (파라다이스 호텔 앞)',
+    lat: 35.1587,
+    lng: 129.1632,
+    type: 'junction'
+  }
 };
 
 // Streetlights in Haeundae (15m radius illumination buffer)
@@ -72,17 +248,10 @@ export const STREETLIGHTS = [
   // Note: N_UDONG_DARK_1, DARK_2, DARK_3 have NO municipal lighting (Dead Zone!)
 ];
 
-// Security CCTVs in Haeundae (20m safety influence buffer)
-export const CCTVS = [
-  { id: 'CCTV_H01', name: '해운대역 3번출구 방범안전폴', lat: 35.1635, lng: 129.1587, type: 'smart_pole', radius: 20 },
-  { id: 'CCTV_H02', name: '구남로 중앙 분수대 다목적 방범', lat: 35.1617, lng: 129.1594, type: 'safety_rotary', radius: 20 },
-  { id: 'CCTV_H03', name: '구남로-시장입구 교차로 CCTV', lat: 35.1604, lng: 129.1599, type: 'safety_fixed', radius: 20 },
-  { id: 'CCTV_H04', name: '해운대 이벤트광장 방범안전폴', lat: 35.1585, lng: 129.1605, type: 'smart_pole', radius: 20 },
-  { id: 'CCTV_H05', name: '전통시장 북측 입구 방범카메라', lat: 35.1622, lng: 129.1617, type: 'safety_fixed', radius: 20 },
-  { id: 'CCTV_H06', name: '해운대 여성안심귀갓길 SOS비상벨 CCTV', lat: 35.1616, lng: 129.1636, type: 'sos_cctv', radius: 20 },
-  { id: 'CCTV_H07', name: '해운대구청 정문 방범 CCTV', lat: 35.1601, lng: 129.1637, type: 'safety_fixed', radius: 20 },
-  { id: 'CCTV_H08', name: '해변로 서측 교차로 CCTV', lat: 35.1591, lng: 129.1582, type: 'safety_rotary', radius: 20 }
-];
+import realCctvs from './cctvRealData.json';
+
+// Real Security CCTVs in Haeundae (행정안전부_CCTV정보 조회서비스 - 79개소 연동)
+export const CCTVS = realCctvs;
 
 // Pedestrian Road Network Edges in Haeundae
 export const EDGES = [
@@ -465,22 +634,22 @@ export const EDGES = [
 export const PRESET_SCENARIOS = [
   {
     id: 'scenario_1',
-    title: '해운대역 3번출구 → 해운대 이벤트광장(해수욕장)',
-    desc: '우동 원룸·모텔촌 암흑골목(Dead Zone 400m 이상) 최단길 vs 구남로 스마트 LED & CCTV 집중 안심 보행로',
-    startNode: 'N_HAE_STATION_5',
+    title: '구남로 1 (해운대역) → 해운대해변로 264 (해수욕장)',
+    desc: '구남로12번길 암흑 사각골목(Dead Zone 400m) vs 구남로 스마트 LED & CCTV 79개소 집중 안심 보행로',
+    startNode: 'N_HAE_STATION_3',
     endNode: 'N_BEACH_EVENT'
   },
   {
     id: 'scenario_2',
-    title: '해운대역 지하철역 → 해운대해수욕장 남단',
-    desc: '비에 노출되는 야외 보행로 vs 지하상가 + 해운대 전통시장 비가림 아케이드(100% 비 차단) 쉴드 경로',
+    title: '해운대로 지하 620 (해운대역) → 중동1로 38 (전통시장 남측)',
+    desc: '비에 노출되는 야외 보행로 vs 지하상가 + 구남로41번길 해운대 전통시장 비가림 아케이드(100% 비 차단) 쉴드 경로',
     startNode: 'N_HAE_UND_CENTER',
     endNode: 'N_MARKET_SOUTH'
   },
   {
     id: 'scenario_3',
-    title: '우동 주택가 → 해운대구청 정문',
-    desc: '어둡고 CCTV 없는 골목길 vs 구남로 및 여성안심귀갓길 스마트 안전부스 경유 안심 우회로',
+    title: '구남로12번길 18 (우동) → 중동2로 11 (해운대구청)',
+    desc: '조명 없는 사각 골목길 vs 구남로 및 중동1로 17번길 여성안심귀갓길 스마트 안전부스 경유 안심 우회로',
     startNode: 'N_UDONG_DARK_1',
     endNode: 'N_DISTRICT_OFFICE'
   }

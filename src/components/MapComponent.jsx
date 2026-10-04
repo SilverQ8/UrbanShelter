@@ -1,10 +1,13 @@
 import React, { useEffect, useRef } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
+import { Crosshair } from 'lucide-react';
 import { NODES, EDGES, STREETLIGHTS, CCTVS, MAP_CENTER, DEFAULT_ZOOM } from '../data/urbanNetwork';
 import { findNearestNode } from '../engine/routingEngine';
 
 export default function MapComponent({
+  userGps,
+  onRequestGps,
   startNodeId,
   setStartNodeId,
   targetNodeId,
@@ -14,6 +17,8 @@ export default function MapComponent({
   mode,
   recommendedRoute,
   standardRoute,
+  nightRoute,
+  rainRoute,
   layers,
   mapTheme = 'dark'
 }) {
@@ -34,15 +39,13 @@ export default function MapComponent({
   useEffect(() => {
     if (!mapContainerRef.current || mapInstanceRef.current) return;
 
-    // Create Leaflet Map centered on Busan Haeundae
     const map = L.map(mapContainerRef.current, {
-      center: MAP_CENTER,
+      center: userGps ? [userGps.lat, userGps.lng] : MAP_CENTER,
       zoom: DEFAULT_ZOOM,
       zoomControl: false,
       attributionControl: false
     });
 
-    // Use reliable OpenStreetMap tiles (no API key required)
     const tileLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       maxZoom: 19,
       subdomains: ['a', 'b', 'c'],
@@ -66,7 +69,6 @@ export default function MapComponent({
 
     mapInstanceRef.current = map;
 
-    // Force size recalculation to prevent gray tiles
     setTimeout(() => {
       map.invalidateSize();
     }, 150);
@@ -83,23 +85,30 @@ export default function MapComponent({
     };
   }, []);
 
-  // Update Map Center when Nodes change drastically
+  // Pan to User GPS location when GPS is updated
+  useEffect(() => {
+    const map = mapInstanceRef.current;
+    if (!map || !userGps) return;
+    map.flyTo([userGps.lat, userGps.lng], 17, { duration: 1.2 });
+  }, [userGps]);
+
+  // Fit bounds when Start and Target change
   useEffect(() => {
     const map = mapInstanceRef.current;
     if (!map) return;
 
     const startNode = NODES[startNodeId];
     const targetNode = NODES[targetNodeId];
-    if (startNode && targetNode) {
+    if (startNode && targetNode && startNodeId !== targetNodeId) {
       const bounds = L.latLngBounds(
         [startNode.lat, startNode.lng],
         [targetNode.lat, targetNode.lng]
       );
-      map.fitBounds(bounds, { padding: [80, 80], maxZoom: 17 });
+      map.fitBounds(bounds, { padding: [100, 100], maxZoom: 17 });
     }
   }, [startNodeId, targetNodeId]);
 
-  // Handle map clicks for 2.1 출발지 / 도착지 선택
+  // Handle map clicks
   useEffect(() => {
     const map = mapInstanceRef.current;
     if (!map) return;
@@ -120,7 +129,7 @@ export default function MapComponent({
         }
         setPinSelectMode(null);
       } else {
-        setStartNodeId(nearestId);
+        setTargetNodeId(nearestId);
       }
     };
 
@@ -146,7 +155,7 @@ export default function MapComponent({
         {
           color: mapTheme === 'dark' ? '#475569' : '#94a3b8',
           weight: 4,
-          opacity: 0.6,
+          opacity: 0.5,
           dashArray: edge.layer === -1 ? '4, 4' : null
         }
       );
@@ -190,7 +199,7 @@ export default function MapComponent({
       }
     }
 
-    // 2. CCTV & 20m safety zone
+    // 2. Real CCTV & 20m safety zone
     const cctvLayer = cctvLayerRef.current;
     cctvLayer.clearLayers();
     if (layers.cctv) {
@@ -203,7 +212,17 @@ export default function MapComponent({
           fillColor: '#38bdf8',
           fillOpacity: 0.16
         });
-        circle.bindTooltip(`방범 CCTV: ${cam.name}<br/>안전 감시 반경 20m`, { className: 'route-tooltip-custom' });
+
+        const tooltipContent = `
+          <strong>📹 ${cam.name}</strong><br/>
+          <span style="color:#94a3b8; font-size:11px;">${cam.address || ''}</span><br/>
+          <div style="margin-top:4px; font-size:11px;">
+            설치목적: <span style="color:#38bdf8;">${cam.purpose || '방범'}</span> | 
+            카메라: <span style="color:#34d399;">${cam.cameraCount || 1}대</span><br/>
+            관리기관: ${cam.manager || '해운대구청'} (안전반경 20m)
+          </div>
+        `;
+        circle.bindTooltip(tooltipContent, { className: 'route-tooltip-custom' });
         cctvLayer.addLayer(circle);
 
         const cctvIcon = L.divIcon({
@@ -213,6 +232,7 @@ export default function MapComponent({
           iconAnchor: [9, 9]
         });
         const marker = L.marker([cam.lat, cam.lng], { icon: cctvIcon });
+        marker.bindTooltip(tooltipContent, { className: 'route-tooltip-custom' });
         cctvLayer.addLayer(marker);
       }
     }
@@ -273,9 +293,9 @@ export default function MapComponent({
       const latlngs = standardRoute.nodeIds.map((id) => [NODES[id].lat, NODES[id].lng]);
       const standardPoly = L.polyline(latlngs, {
         color: mapTheme === 'dark' ? '#94a3b8' : '#64748b',
-        weight: 4,
-        opacity: 0.75,
-        dashArray: '6, 8',
+        weight: mode === 'standard' ? 6 : 4,
+        opacity: mode === 'standard' ? 0.95 : 0.65,
+        dashArray: mode === 'standard' ? null : '6, 8',
         lineCap: 'round',
         lineJoin: 'round'
       });
@@ -284,28 +304,26 @@ export default function MapComponent({
     }
 
     // 2. Recommended Custom Route (안심/우천 추천 경로)
-    if (recommendedRoute && recommendedRoute.nodeIds.length > 1) {
+    if (recommendedRoute && recommendedRoute.nodeIds.length > 1 && mode !== 'standard') {
       const latlngs = recommendedRoute.nodeIds.map((id) => [NODES[id].lat, NODES[id].lng]);
       
       const isNight = mode === 'night';
       const isRain = mode === 'rain';
-      const primaryColor = isNight ? '#0284c7' : isRain ? '#059669' : '#64748b';
       const glowColor = isNight ? '#38bdf8' : isRain ? '#10b981' : '#94a3b8';
 
-      if (mode !== 'standard') {
-        const glowPoly = L.polyline(latlngs, {
-          color: glowColor,
-          weight: 12,
-          opacity: 0.45,
-          lineCap: 'round',
-          lineJoin: 'round'
-        });
-        routeLayer.addLayer(glowPoly);
-      }
+      // Glow halo
+      const glowPoly = L.polyline(latlngs, {
+        color: glowColor,
+        weight: 12,
+        opacity: 0.45,
+        lineCap: 'round',
+        lineJoin: 'round'
+      });
+      routeLayer.addLayer(glowPoly);
 
       const mainPoly = L.polyline(latlngs, {
         color: glowColor,
-        weight: mode === 'standard' ? 4 : 6,
+        weight: 6,
         opacity: 0.95,
         lineCap: 'round',
         lineJoin: 'round'
@@ -314,24 +332,42 @@ export default function MapComponent({
       mainPoly.bindTooltip(
         `<strong>${
           isNight
-            ? '야간 안심 경로 (구남로 스마트 가로등·CCTV)'
+            ? '야간 안심 추천 경로 (구남로 스마트 가로등·CCTV 79개소)'
             : isRain
-            ? '우천 회피 경로 (전통시장 비가림 아케이드)'
-            : '일반 최단 경로'
-        }</strong><br/>거리: ${recommendedRoute.totalDistance}m | 시간: ${recommendedRoute.estimatedMinutes}분`,
+            ? '우천 회피 추천 경로 (전통시장 비가림 아케이드)'
+            : '추천 경로'
+        }</strong><br/>거리: ${recommendedRoute.totalDistance}m | 소요시간: ${recommendedRoute.estimatedMinutes}분`,
         { className: 'route-tooltip-custom', sticky: true }
       );
       routeLayer.addLayer(mainPoly);
     }
   }, [mode, recommendedRoute, standardRoute, mapTheme]);
 
-  // Render 2.1 Interactive Start (A) & End (B) Pins
+  // Render 2.1 Interactive Markers (User GPS, Start A, Target B)
   useEffect(() => {
     const markLayer = markersLayerRef.current;
     if (!markLayer) return;
     markLayer.clearLayers();
 
-    // Start Pin (A - Emerald)
+    // 0. User GPS Dot Marker (Glowing Blue Dot with Pulse)
+    if (userGps && userGps.lat && userGps.lng) {
+      const gpsIcon = L.divIcon({
+        className: 'user-gps-marker',
+        html: `
+          <div style="position: relative; width: 30px; height: 30px; display: flex; align-items: center; justify-content: center;">
+            <div class="gps-pulse-ring" style="position: absolute; width: 30px; height: 30px; border-radius: 50%; background: rgba(56, 189, 248, 0.45);"></div>
+            <div style="width: 14px; height: 14px; border-radius: 50%; background: #0284c7; border: 2.5px solid #ffffff; box-shadow: 0 0 10px rgba(56,189,248,0.9); z-index: 4;"></div>
+          </div>
+        `,
+        iconSize: [30, 30],
+        iconAnchor: [15, 15]
+      });
+      const gpsMarker = L.marker([userGps.lat, userGps.lng], { icon: gpsIcon });
+      gpsMarker.bindTooltip('<strong>📍 내 현재 위치 (GPS)</strong>', { className: 'route-tooltip-custom' });
+      markLayer.addLayer(gpsMarker);
+    }
+
+    // 1. Start Pin (A - Emerald)
     const startNode = NODES[startNodeId];
     if (startNode) {
       const startIcon = L.divIcon({
@@ -361,13 +397,16 @@ export default function MapComponent({
         }
       });
 
-      startMarker.bindTooltip(`출발지 (A): ${startNode.name}<br/>(드래그하여 이동 가능)`, {
-        className: 'route-tooltip-custom'
-      });
+      startMarker.bindTooltip(
+        `<strong>📍 출발지 (A)</strong><br/>` +
+        `<span style="color:#38bdf8; font-weight:600;">${startNode.roadAddress || startNode.name}</span><br/>` +
+        `<span style="color:#94a3b8; font-size:11px;">(드래그하여 이동 가능)</span>`,
+        { className: 'route-tooltip-custom' }
+      );
       markLayer.addLayer(startMarker);
     }
 
-    // Target Pin (B - Rose)
+    // 2. Target Pin (B - Rose)
     const targetNode = NODES[targetNodeId];
     if (targetNode) {
       const targetIcon = L.divIcon({
@@ -397,18 +436,32 @@ export default function MapComponent({
         }
       });
 
-      targetMarker.bindTooltip(`도착지 (B): ${targetNode.name}<br/>(드래그하여 이동 가능)`, {
-        className: 'route-tooltip-custom'
-      });
+      targetMarker.bindTooltip(
+        `<strong>🎯 도착지 (B)</strong><br/>` +
+        `<span style="color:#f43f5e; font-weight:600;">${targetNode.roadAddress || targetNode.name}</span><br/>` +
+        `<span style="color:#94a3b8; font-size:11px;">(드래그하여 이동 가능)</span>`,
+        { className: 'route-tooltip-custom' }
+      );
       markLayer.addLayer(targetMarker);
     }
-  }, [startNodeId, targetNodeId, setStartNodeId, setTargetNodeId]);
+  }, [userGps, startNodeId, targetNodeId, setStartNodeId, setTargetNodeId]);
 
   return (
-    <div
-      ref={mapContainerRef}
-      className={`map-viewport ${mapTheme === 'dark' ? 'map-theme-dark' : 'map-theme-light'}`}
-      style={{ cursor: pinSelectMode ? 'crosshair' : 'grab' }}
-    />
+    <div style={{ position: 'relative', width: '100%', height: '100%' }}>
+      <div
+        ref={mapContainerRef}
+        className={`map-viewport ${mapTheme === 'dark' ? 'map-theme-dark' : 'map-theme-light'}`}
+        style={{ cursor: pinSelectMode ? 'crosshair' : 'grab' }}
+      />
+
+      {/* Floating GPS Button on Map */}
+      <button
+        className="floating-map-gps-btn"
+        onClick={onRequestGps}
+        title="내 현재 GPS 위치로 지도 이동"
+      >
+        <Crosshair size={18} />
+      </button>
+    </div>
   );
 }
