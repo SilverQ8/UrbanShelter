@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import { SunMedium, Compass, Shield } from 'lucide-react';
+import { SunMedium, Shield } from 'lucide-react';
 import { MapLibreBasemap } from '../utils/MapLibreBasemap';
 import { NODES, MAP_CENTER, DEFAULT_ZOOM } from '../data/urbanNetwork';
 import { findNearestNode } from '../engine/routingEngine';
@@ -26,8 +26,6 @@ export default function MapComponent({
   shadeRoute,
   nightRoute,
   sunPos,
-  shadows = [],
-  simulatedHour = 14,
   layers,
   mapTheme = 'dark',
   focusPoint = null,
@@ -51,8 +49,7 @@ export default function MapComponent({
     zoom: 16
   });
 
-  // Layer groups refs
-  const shadowLayerRef = useRef(null);
+  // Layer groups refs (Clean & uncluttered: CCTV, Routes, Markers)
   const buildingLayerRef = useRef(null);
   const treeLayerRef = useRef(null);
   const routeLayerRef = useRef(null);
@@ -82,22 +79,16 @@ export default function MapComponent({
     L.control.attribution({ position: 'bottomright' }).addTo(map);
 
     // Initialize Layer Groups in proper z-order
-    // 1. Shadows (lowest above tiles)
-    shadowLayerRef.current = L.layerGroup().addTo(map);
-    // 2. Building Footprints
+    // 건물 윤곽·가로수는 CCTV·경로보다 아래에 깐다
     buildingLayerRef.current = L.layerGroup().addTo(map);
-    // 3. Tree Canopies
     treeLayerRef.current = L.layerGroup().addTo(map);
-    // 4. CCTV
     cctvLayerRef.current = L.layerGroup().addTo(map);
-    // 5. Routes
     routeLayerRef.current = L.layerGroup().addTo(map);
-    // 6. Interactive Pins
     markersLayerRef.current = L.layerGroup().addTo(map);
 
     mapInstanceRef.current = map;
 
-    setTimeout(() => {
+    const sizeTimer = setTimeout(() => {
       map.invalidateSize();
     }, 150);
 
@@ -107,6 +98,7 @@ export default function MapComponent({
     window.addEventListener('resize', handleResize);
 
     return () => {
+      clearTimeout(sizeTimer); // 지도가 정리된 뒤에 크기 보정이 호출되지 않도록
       window.removeEventListener('resize', handleResize);
       map.remove();
       mapInstanceRef.current = null;
@@ -382,7 +374,7 @@ export default function MapComponent({
     };
   }, [layers.cctv]);
 
-  // 5. Render Multi-Route Polylines (Standard, Shade-Safe, Night-Safe)
+  // 2. Render Pedestrian Route with High-contrast Shade vs Sun Differentiation
   useEffect(() => {
     const routeLayer = routeLayerRef.current;
     if (!routeLayer) return;
@@ -394,7 +386,7 @@ export default function MapComponent({
       return [];
     };
 
-    // 1. Standard Shortest Route
+    // 1. Standard Shortest Route (Baseline)
     const stdLatLngs = getRouteLatLngs(standardRoute);
     if (stdLatLngs.length > 1) {
       if (mode === 'standard') {
@@ -432,38 +424,75 @@ export default function MapComponent({
       }
     }
 
-    // 2. Recommended Custom Route: Shade-Safe (Gneul-ro) or Night-Safe
+    // 2. Recommended Custom Route (Gneul-ro Shade or Night Safe)
     const recLatLngs = getRouteLatLngs(recommendedRoute);
     if (recLatLngs.length > 1 && mode !== 'standard') {
       if (mode === 'shade') {
-        // Gneul-ro Shade-Safe Route (Vibrant Emerald/Teal Glow)
-        const glowPoly = L.polyline(recLatLngs, {
-          color: '#10b981',
-          weight: 14,
-          opacity: 0.5,
-          lineCap: 'round',
-          lineJoin: 'round'
-        });
-        routeLayer.addLayer(glowPoly);
+        // Gneul-ro Shade-Safe Route
+        // Color-differentiates directly on the street:
+        // Shaded sections = Vibrant Emerald Solid Line (#10b981)
+        // Sunny/Exposed sections = Bright Amber Dashed Line (#f59e0b)
+        const segments = recommendedRoute.segments && recommendedRoute.segments.length > 0
+          ? recommendedRoute.segments
+          : [{ latlngs: recLatLngs, isShaded: true }];
 
-        const mainPoly = L.polyline(recLatLngs, {
-          color: '#059669',
-          weight: 7,
-          opacity: 0.95,
-          lineCap: 'round',
-          lineJoin: 'round'
-        });
+        for (const seg of segments) {
+          if (!seg.latlngs || seg.latlngs.length < 2) continue;
 
-        mainPoly.bindTooltip(
-          `<strong>☀️ 폭염 안심 그늘 경로 (그늘로 엔진)</strong><br/>` +
-          `거리: ${formatDistance(recommendedRoute.totalDistance)} | 소요: ${formatDuration(recommendedRoute.estimatedMinutes)}<br/>` +
-          `<span style="color:#34d399; font-weight:700;">그늘 보행: ${recommendedRoute.shadeRatio}% (${formatDistance(recommendedRoute.shadedDistance)})</span><br/>` +
-          `<span style="color:#fbbf24;">직사광선 노출 최소화: ${formatDistance(recommendedRoute.exposedDistance)}</span>`,
-          { className: 'route-tooltip-custom', sticky: true }
-        );
-        routeLayer.addLayer(mainPoly);
+          if (seg.isShaded) {
+            // Shaded Walkway Segment (시원한 그늘 도보 구간)
+            const glowPoly = L.polyline(seg.latlngs, {
+              color: '#10b981',
+              weight: 14,
+              opacity: 0.50,
+              lineCap: 'round',
+              lineJoin: 'round'
+            });
+            routeLayer.addLayer(glowPoly);
+
+            const mainPoly = L.polyline(seg.latlngs, {
+              color: '#059669',
+              weight: 7.5,
+              opacity: 1.0,
+              lineCap: 'round',
+              lineJoin: 'round'
+            });
+            mainPoly.bindTooltip(
+              `<strong>🌿 시원한 그늘 도보 구간</strong><br/>` +
+              `건물 및 수목 그늘 차폐 · 체감온도 -2.5℃ 저감<br/>` +
+              `<span style="color:#34d399; font-weight:700;">전체 경로 그늘율: ${recommendedRoute.shadeRatio}% (${formatDistance(recommendedRoute.shadedDistance)})</span>`,
+              { className: 'route-tooltip-custom', sticky: true }
+            );
+            routeLayer.addLayer(mainPoly);
+          } else {
+            // Exposed Sunny Segment (직사광선 땡볕 구간)
+            const glowPoly = L.polyline(seg.latlngs, {
+              color: '#f59e0b',
+              weight: 12,
+              opacity: 0.35,
+              lineCap: 'round',
+              lineJoin: 'round'
+            });
+            routeLayer.addLayer(glowPoly);
+
+            const mainPoly = L.polyline(seg.latlngs, {
+              color: '#f59e0b',
+              weight: 6.0,
+              opacity: 0.95,
+              lineCap: 'round',
+              lineJoin: 'round'
+            });
+            mainPoly.bindTooltip(
+              `<strong>☀️ 직사광선 노출 구간 (땡볕)</strong><br/>` +
+              `자외선 주의 · 양산/선글라스 착용 권장<br/>` +
+              `<span style="color:#fbbf24; font-weight:700;">직사광선 노출 거리: ${formatDistance(recommendedRoute.exposedDistance)}</span>`,
+              { className: 'route-tooltip-custom', sticky: true }
+            );
+            routeLayer.addLayer(mainPoly);
+          }
+        }
       } else if (mode === 'night') {
-        // Night Safe Route
+        // Night Safe Route (CCTV Priority)
         const glowPoly = L.polyline(recLatLngs, {
           color: '#38bdf8',
           weight: 12,
@@ -490,7 +519,7 @@ export default function MapComponent({
     }
   }, [mode, recommendedRoute, standardRoute, mapTheme, travelMode]);
 
-  // 6. Interactive Markers (User GPS, Start A, Target B)
+  // 3. Interactive Markers (User GPS, Start A, Target B)
   useEffect(() => {
     const markLayer = markersLayerRef.current;
     if (!markLayer) return;
@@ -590,6 +619,39 @@ export default function MapComponent({
         className={`map-viewport ${mapTheme === 'dark' ? 'map-theme-dark' : 'map-theme-light'}`}
         style={{ cursor: pinSelectMode ? 'crosshair' : 'grab' }}
       />
+
+      {/* Floating Route Shade Legend (Clear visual guide on the street) */}
+      {mode === 'shade' && (
+        <div style={{
+          position: 'absolute',
+          bottom: '24px',
+          left: '20px',
+          zIndex: 1000,
+          background: 'rgba(15, 23, 42, 0.88)',
+          backdropFilter: 'blur(10px)',
+          border: '1px solid rgba(255, 255, 255, 0.12)',
+          borderRadius: '10px',
+          padding: '8px 12px',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '6px',
+          boxShadow: '0 4px 16px rgba(0,0,0,0.4)',
+          pointerEvents: 'auto',
+          fontSize: '0.74rem'
+        }}>
+          <div style={{ fontSize: '0.70rem', fontWeight: 700, color: 'var(--text-muted)' }}>
+            보행로 일조/그늘 상태 구분
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span style={{ width: '22px', height: '5px', borderRadius: '3px', background: '#10b981', display: 'inline-block', boxShadow: '0 0 8px rgba(16,185,129,0.8)' }}></span>
+            <span style={{ color: '#34d399', fontWeight: 600 }}>시원한 그늘 구간 (초록)</span>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span style={{ width: '22px', height: '4px', borderRadius: '2px', background: '#f59e0b', display: 'inline-block' }}></span>
+            <span style={{ color: '#fbbf24', fontWeight: 600 }}>직사광선 땡볕 구간 (주황)</span>
+          </div>
+        </div>
+      )}
 
       {/* Floating Solar Simulation Compass Dial on Map */}
       {sunPos && (
