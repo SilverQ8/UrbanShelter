@@ -2,10 +2,15 @@ import React from 'react';
 import {
   Compass,
   Moon,
+  Sun,
+  SunMedium,
   Sliders,
   Layers,
   Video,
-  MapPin
+  Building,
+  Trees,
+  Clock,
+  RotateCcw
 } from 'lucide-react';
 import { NODES } from '../data/urbanNetwork';
 
@@ -14,6 +19,11 @@ export default function ControlPanel({
   setMode,
   sensitivity,
   setSensitivity,
+  simulatedHour,
+  setSimulatedHour,
+  isLiveTime,
+  setIsLiveTime,
+  sunPos,
   layers,
   setLayers,
   startPoint,
@@ -30,9 +40,17 @@ export default function ControlPanel({
   const startName = startPoint?.name || NODES[startNodeId]?.roadAddress || NODES[startNodeId]?.name || '출발지 미지정';
   const targetName = targetPoint?.name || NODES[targetNodeId]?.roadAddress || NODES[targetNodeId]?.name || '도착지 미지정';
 
+  const formatHourString = (val) => {
+    const h = Math.floor(val);
+    const m = Math.round((val % 1) * 60);
+    const period = h < 12 ? '오전' : '오후';
+    const displayH = h <= 12 ? h : h - 12;
+    return `${period} ${displayH}시 ${m > 0 ? `${m}분` : ''} (${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')})`;
+  };
+
   return (
     <div className="glass-panel" style={{ width: '100%' }}>
-      {/* 2.1 출발지 / 도착지 선택 현황 */}
+      {/* 1. 출발지 / 도착지 선택 현황 */}
       <div style={{ marginBottom: '14px', borderBottom: '1px solid rgba(255,255,255,0.07)', paddingBottom: '12px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
           <span style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-muted)' }}>
@@ -98,36 +116,151 @@ export default function ControlPanel({
         </div>
       </div>
 
-      {/* 라우팅 모드 선택 탭 (Standard / Night) */}
+      {/* 2. 3대 라우팅 모드 선택 탭 (Standard / Shade Gneul-ro / Night CCTV) */}
       <div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '8px' }}>
           <Compass size={14} color="var(--accent-cyan)" />
           <span style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-muted)' }}>
-            라우팅 모드 선택
+            스마트 라우팅 모드 선택
           </span>
         </div>
 
-        <div className="mode-tabs" style={{ gridTemplateColumns: '1fr 1fr' }}>
+        <div className="mode-tabs" style={{ gridTemplateColumns: 'repeat(3, 1fr)' }}>
           <button
             className={`mode-tab-btn mode-standard ${mode === 'standard' ? 'active' : ''}`}
             onClick={() => setMode('standard')}
           >
-            <Compass size={16} />
+            <Compass size={14} />
             <span>일반 최단</span>
+          </button>
+          <button
+            className={`mode-tab-btn mode-rain ${mode === 'shade' ? 'active' : ''}`}
+            style={{
+              borderColor: mode === 'shade' ? '#10b981' : undefined,
+              color: mode === 'shade' ? '#10b981' : undefined,
+              background: mode === 'shade' ? 'rgba(16, 185, 129, 0.15)' : undefined
+            }}
+            onClick={() => setMode('shade')}
+          >
+            <SunMedium size={14} />
+            <span>폭염 그늘 (그늘로)</span>
           </button>
           <button
             className={`mode-tab-btn mode-night ${mode === 'night' ? 'active' : ''}`}
             onClick={() => setMode('night')}
           >
-            <Moon size={16} />
-            <span>야간 안심 (CCTV 우선)</span>
+            <Moon size={14} />
+            <span>야간 안심 (CCTV)</span>
           </button>
         </div>
       </div>
 
-      {/* 야간 안심 가중치 슬라이더 (Custom Weighting) */}
+      {/* 3. 태양광 시뮬레이터 시간대 컨트롤러 (Gneul-ro Solar Shadow Engine) */}
+      <div style={{
+        marginTop: '14px',
+        padding: '10px',
+        borderRadius: '10px',
+        background: 'rgba(245, 158, 11, 0.07)',
+        border: '1px solid rgba(245, 158, 11, 0.22)'
+      }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+            <Sun size={13} color="#f59e0b" />
+            <span style={{ fontSize: '0.76rem', fontWeight: 700, color: '#f59e0b' }}>
+              태양광 & 그림자 시뮬레이션
+            </span>
+          </div>
+          <button
+            onClick={() => {
+              if (!isLiveTime) {
+                const now = new Date();
+                const curHour = now.getHours() + now.getMinutes() / 60;
+                setSimulatedHour(Math.min(19, Math.max(8, curHour)));
+                setIsLiveTime(true);
+              } else {
+                setIsLiveTime(false);
+              }
+            }}
+            style={{
+              padding: '2px 8px',
+              borderRadius: '6px',
+              fontSize: '0.68rem',
+              fontWeight: 600,
+              cursor: 'pointer',
+              background: isLiveTime ? '#f59e0b' : 'rgba(255,255,255,0.06)',
+              color: isLiveTime ? '#000' : 'var(--text-muted)',
+              border: 'none',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '3px'
+            }}
+          >
+            <Clock size={10} />
+            {isLiveTime ? '실시간 연동중' : '현재 시각 동기화'}
+          </button>
+        </div>
+
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.72rem', color: 'var(--text-main)', marginBottom: '4px' }}>
+          <span style={{ fontWeight: 600 }}>{formatHourString(simulatedHour)}</span>
+          {sunPos && (
+            <span style={{ color: 'var(--text-muted)' }}>
+              고도 <strong style={{ color: '#f59e0b' }}>{sunPos.altitudeDeg}°</strong> · 방위 {sunPos.azimuthDeg}°
+            </span>
+          )}
+        </div>
+
+        <input
+          type="range"
+          min="8"
+          max="19"
+          step="0.5"
+          value={simulatedHour}
+          onChange={(e) => {
+            setIsLiveTime(false);
+            setSimulatedHour(parseFloat(e.target.value));
+          }}
+          className="custom-range-slider"
+          style={{ width: '100%', accentColor: '#f59e0b' }}
+        />
+        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.66rem', color: 'var(--text-dim)', marginTop: '2px' }}>
+          <span>아침 08시</span>
+          <span>정오 12시</span>
+          <span>오후 14시(최대일조)</span>
+          <span>저녁 19시</span>
+        </div>
+      </div>
+
+      {/* 4. 가중치 슬라이더 (그늘 선호도 α 또는 야간 CCTV 가중치) */}
+      {mode === 'shade' && (
+        <div className="slider-control-group" style={{ marginTop: '12px' }}>
+          <div className="slider-label-row">
+            <span className="slider-title">
+              <Sliders size={13} color="#10b981" />
+              <span>그늘 선호도 가중치 (α)</span>
+            </span>
+            <span className="slider-value-badge" style={{ color: '#10b981', borderColor: 'rgba(16,185,129,0.3)' }}>
+              {Math.round(sensitivity * 100)}%
+            </span>
+          </div>
+          <input
+            type="range"
+            min="0"
+            max="1"
+            step="0.05"
+            value={sensitivity}
+            onChange={(e) => setSensitivity(parseFloat(e.target.value))}
+            className="custom-range-slider"
+            style={{ accentColor: '#10b981' }}
+          />
+          <div className="slider-endpoints">
+            <span>최단 거리(0%)</span>
+            <span>그늘 극대화 우회(100%)</span>
+          </div>
+        </div>
+      )}
+
       {mode === 'night' && (
-        <div className="slider-control-group">
+        <div className="slider-control-group" style={{ marginTop: '12px' }}>
           <div className="slider-label-row">
             <span className="slider-title">
               <Sliders size={13} color="var(--accent-cyan)" />
@@ -148,13 +281,13 @@ export default function ControlPanel({
           />
           <div className="slider-endpoints">
             <span>최단 거리(0%)</span>
-            <span>안전 우회(100%)</span>
+            <span>CCTV 보호구역 우회(100%)</span>
           </div>
         </div>
       )}
 
-      {/* 안전 인프라 시각화 레이어 토글 */}
-      <div style={{ marginTop: '16px' }}>
+      {/* 5. 안전 & 그늘 인프라 시각화 레이어 토글 */}
+      <div style={{ marginTop: '14px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '8px' }}>
           <Layers size={14} color="var(--accent-cyan)" />
           <span style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-muted)' }}>
@@ -163,6 +296,69 @@ export default function ControlPanel({
         </div>
 
         <div className="layer-toggle-grid">
+          {/* 3D 건물 그림자 레이어 (그늘로 핵심) */}
+          <div className="toggle-item" onClick={() => toggleLayer('shadows')}>
+            <div className={`toggle-info ${layers.shadows ? 'active' : ''}`}>
+              <div className="toggle-icon-wrap" style={{ background: 'rgba(245, 158, 11, 0.15)', color: '#f59e0b' }}>
+                <Sun size={13} />
+              </div>
+              <div>
+                <div>실시간 3D 건물 그림자 (그늘로 엔진)</div>
+                <div style={{ fontSize: '10px', color: '#f59e0b', opacity: 0.85 }}>태양 고도/방위각 기반 투영 연산</div>
+              </div>
+            </div>
+            <label className="switch" onClick={(e) => e.stopPropagation()}>
+              <input
+                type="checkbox"
+                checked={layers.shadows}
+                onChange={() => toggleLayer('shadows')}
+              />
+              <span className="switch-slider" />
+            </label>
+          </div>
+
+          {/* 3D 건물 외곽 레이어 */}
+          <div className="toggle-item" onClick={() => toggleLayer('buildings')}>
+            <div className={`toggle-info ${layers.buildings ? 'active' : ''}`}>
+              <div className="toggle-icon-wrap" style={{ background: 'rgba(56, 189, 248, 0.15)', color: '#38bdf8' }}>
+                <Building size={13} />
+              </div>
+              <div>
+                <div>3D 건물 폴리곤 및 높이 데이터</div>
+                <div style={{ fontSize: '10px', color: '#38bdf8', opacity: 0.85 }}>높이(H) 기반 그림자 길이 계산</div>
+              </div>
+            </div>
+            <label className="switch" onClick={(e) => e.stopPropagation()}>
+              <input
+                type="checkbox"
+                checked={layers.buildings}
+                onChange={() => toggleLayer('buildings')}
+              />
+              <span className="switch-slider" />
+            </label>
+          </div>
+
+          {/* 가로수 그늘 캐노피 레이어 */}
+          <div className="toggle-item" onClick={() => toggleLayer('trees')}>
+            <div className={`toggle-info ${layers.trees ? 'active' : ''}`}>
+              <div className="toggle-icon-wrap" style={{ background: 'rgba(16, 185, 129, 0.15)', color: '#10b981' }}>
+                <Trees size={13} />
+              </div>
+              <div>
+                <div>가로수 그늘 캐노피 (보행로 차양)</div>
+                <div style={{ fontSize: '10px', color: '#10b981', opacity: 0.85 }}>반경 4.5m 수목 자연 그늘</div>
+              </div>
+            </div>
+            <label className="switch" onClick={(e) => e.stopPropagation()}>
+              <input
+                type="checkbox"
+                checked={layers.trees}
+                onChange={() => toggleLayer('trees')}
+              />
+              <span className="switch-slider" />
+            </label>
+          </div>
+
           {/* 방범 CCTV 레이어 (전국 실시간 공공데이터) */}
           <div className="toggle-item" onClick={() => toggleLayer('cctv')}>
             <div className={`toggle-info ${layers.cctv ? 'active' : ''}`}>
@@ -188,4 +384,3 @@ export default function ControlPanel({
     </div>
   );
 }
-

@@ -12,7 +12,8 @@ import {
   Loader2,
   X,
   Sparkles,
-  CornerDownLeft
+  CornerDownLeft,
+  SunMedium
 } from 'lucide-react';
 import { NODES } from '../data/urbanNetwork';
 import { findNearestNode } from '../engine/routingEngine';
@@ -33,6 +34,7 @@ export default function RouteSearch({
   mode,
   setMode,
   standardRoute,
+  shadeRoute,
   nightRoute
 }) {
   const [startQuery, setStartQuery] = useState('');
@@ -583,7 +585,7 @@ export default function RouteSearch({
           추천 경로 비교 (클릭하여 선택)
         </div>
 
-        <div className="recommend-routes-grid">
+        <div className="recommend-routes-grid" style={{ gridTemplateColumns: 'repeat(3, 1fr)' }}>
           {/* 1. 일반 최단 경로 */}
           {standardRoute && (
             <div
@@ -601,12 +603,38 @@ export default function RouteSearch({
                 <strong>{standardRoute.totalDistance}m</strong> · {standardRoute.estimatedMinutes}분
               </div>
               <div className="route-card-desc">
-                물리적 최단 도보 기준
+                그늘 {standardRoute.shadeRatio || 35}% (직사광선 {standardRoute.exposedDistance || Math.round(standardRoute.totalDistance * 0.65)}m)
               </div>
             </div>
           )}
 
-          {/* 2. 야간 안심 경로 */}
+          {/* 2. 폭염 안심 그늘 경로 (그늘로) */}
+          {shadeRoute && (
+            <div
+              className={`recommend-route-card ${mode === 'shade' ? 'selected rain-active' : ''}`}
+              style={{
+                borderColor: mode === 'shade' ? '#10b981' : undefined,
+                background: mode === 'shade' ? 'rgba(16, 185, 129, 0.12)' : undefined
+              }}
+              onClick={() => setMode('shade')}
+            >
+              <div className="card-top-row">
+                <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                  <SunMedium size={14} color="#10b981" />
+                  <span className="route-card-title" style={{ color: '#10b981' }}>폭염 그늘</span>
+                </div>
+                {mode === 'shade' && <CheckCircle2 size={13} color="#10b981" />}
+              </div>
+              <div className="route-card-metrics">
+                <strong>{shadeRoute.totalDistance}m</strong> · {shadeRoute.estimatedMinutes}분
+              </div>
+              <div className="route-card-desc">
+                <span style={{ color: '#10b981', fontWeight: 700 }}>그늘 {shadeRoute.shadeRatio}% 도보</span> (땡볕 최소화)
+              </div>
+            </div>
+          )}
+
+          {/* 3. 야간 안심 경로 */}
           {nightRoute && (
             <div
               className={`recommend-route-card ${mode === 'night' ? 'selected night-active' : ''}`}
@@ -623,7 +651,7 @@ export default function RouteSearch({
                 <strong>{nightRoute.totalDistance}m</strong> · {nightRoute.estimatedMinutes}분
               </div>
               <div className="route-card-desc">
-                CCTV <span style={{ color: '#38bdf8', fontWeight: 700 }}>{nightRoute.cctvCount}대</span> 안전존 경유
+                CCTV <span style={{ color: '#38bdf8', fontWeight: 700 }}>{nightRoute.cctvCount}대</span> 안전존
               </div>
             </div>
           )}

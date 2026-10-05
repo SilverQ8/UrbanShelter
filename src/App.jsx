@@ -23,10 +23,28 @@ const DEFAULT_TARGET = {
 };
 
 export default function App() {
-  // Routing states
-  const [mode, setMode] = useState('night'); // 'standard' | 'night'
-  const [sensitivity, setSensitivity] = useState(0.65); // 0.0 to 1.0 (default 65%)
+  // Routing states: 'shade' (Gneul-ro) | 'standard' | 'night'
+  const [mode, setMode] = useState('shade');
+  const [sensitivity, setSensitivity] = useState(0.70); // 0.0 to 1.0 (70% shade priority)
   
+  // Solar Simulation Time states (08:00 to 19:00, default 14:00 / 2 PM when sun is high)
+  const [simulatedHour, setSimulatedHour] = useState(14.0);
+  const [isLiveTime, setIsLiveTime] = useState(false);
+
+  // Compute active simulation Date object
+  const activeDate = useMemo(() => {
+    const d = new Date();
+    if (!isLiveTime) {
+      // Set to high-summer July afternoon with selected hour
+      d.setMonth(6); // July
+      d.setDate(15);
+      const hours = Math.floor(simulatedHour);
+      const mins = Math.round((simulatedHour - hours) * 60);
+      d.setHours(hours, mins, 0, 0);
+    }
+    return d;
+  }, [simulatedHour, isLiveTime]);
+
   // High-precision geographic start and target locations
   const [startPoint, setStartPoint] = useState(DEFAULT_START);
   const [targetPoint, setTargetPoint] = useState(DEFAULT_TARGET);
@@ -43,20 +61,26 @@ export default function App() {
   // Computed Routes Container
   const [computedRoutes, setComputedRoutes] = useState({
     standard: null,
-    night: null
+    shade: null,
+    night: null,
+    sunPos: null,
+    shadows: []
   });
 
   // Visualization layer toggles
   const [layers, setLayers] = useState({
+    shadows: true,
+    buildings: true,
+    trees: true,
     cctv: true
   });
 
-  // Solve real-world pedestrian routes whenever points or sensitivity changes
+  // Solve real-world pedestrian routes whenever points, sensitivity, or sun time changes
   useEffect(() => {
     let isCancelled = false;
 
     async function computeRoutes() {
-      const results = await solveAllRoutes(startPoint, targetPoint, sensitivity);
+      const results = await solveAllRoutes(startPoint, targetPoint, sensitivity, activeDate);
       if (!isCancelled) {
         setComputedRoutes(results);
       }
@@ -64,7 +88,7 @@ export default function App() {
 
     computeRoutes();
     return () => { isCancelled = true; };
-  }, [startPoint, targetPoint, sensitivity]);
+  }, [startPoint, targetPoint, sensitivity, activeDate]);
 
   // Request GPS User Location
   const requestGpsLocation = useCallback(() => {
@@ -112,13 +136,17 @@ export default function App() {
   }, [requestGpsLocation]);
 
   const standardRoute = computedRoutes.standard;
+  const shadeRoute = computedRoutes.shade;
   const nightRoute = computedRoutes.night;
+  const sunPos = computedRoutes.sunPos;
+  const shadows = computedRoutes.shadows;
 
   // Current active recommended route based on selected mode
   const recommendedRoute = useMemo(() => {
+    if (mode === 'shade') return shadeRoute || standardRoute;
     if (mode === 'night') return nightRoute || standardRoute;
     return standardRoute;
-  }, [mode, nightRoute, standardRoute]);
+  }, [mode, shadeRoute, nightRoute, standardRoute]);
 
   // Reset to default location
   const handleResetPins = () => {
@@ -126,7 +154,9 @@ export default function App() {
     setTargetPoint(DEFAULT_TARGET);
     setStartNodeId('N_HAE_STATION_3');
     setTargetNodeId('N_BEACH_EVENT');
-    setMode('night');
+    setMode('shade');
+    setSimulatedHour(14.0);
+    setIsLiveTime(false);
   };
 
   return (
@@ -136,6 +166,8 @@ export default function App() {
         onResetPins={handleResetPins}
         mapTheme={mapTheme}
         setMapTheme={setMapTheme}
+        sunPos={sunPos}
+        simulatedHour={simulatedHour}
       />
 
       {/* Main Workspace */}
@@ -157,7 +189,11 @@ export default function App() {
           mode={mode}
           recommendedRoute={recommendedRoute}
           standardRoute={standardRoute}
+          shadeRoute={shadeRoute}
           nightRoute={nightRoute}
+          sunPos={sunPos}
+          shadows={shadows}
+          simulatedHour={simulatedHour}
           layers={layers}
           mapTheme={mapTheme}
         />
@@ -180,15 +216,21 @@ export default function App() {
             mode={mode}
             setMode={setMode}
             standardRoute={standardRoute}
+            shadeRoute={shadeRoute}
             nightRoute={nightRoute}
           />
 
-          {/* Infrastructure Layer & Weighting Controls */}
+          {/* Infrastructure Layer, Solar Time & Weighting Controls */}
           <ControlPanel
             mode={mode}
             setMode={setMode}
             sensitivity={sensitivity}
             setSensitivity={setSensitivity}
+            simulatedHour={simulatedHour}
+            setSimulatedHour={setSimulatedHour}
+            isLiveTime={isLiveTime}
+            setIsLiveTime={setIsLiveTime}
+            sunPos={sunPos}
             layers={layers}
             setLayers={setLayers}
             startPoint={startPoint}
@@ -206,6 +248,7 @@ export default function App() {
             mode={mode}
             recommendedRoute={recommendedRoute}
             standardRoute={standardRoute}
+            sunPos={sunPos}
           />
         </div>
       </main>

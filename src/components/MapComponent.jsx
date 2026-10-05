@@ -1,8 +1,9 @@
 import React, { useEffect, useRef, useState } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import { Crosshair } from 'lucide-react';
+import { Crosshair, SunMedium, Compass, Shield } from 'lucide-react';
 import { NODES, MAP_CENTER, DEFAULT_ZOOM } from '../data/urbanNetwork';
+import { HAEUNDAE_BUILDINGS, GUNAM_RO_TREES } from '../data/buildings3DData';
 import { findNearestNode } from '../engine/routingEngine';
 
 export default function MapComponent({
@@ -21,7 +22,11 @@ export default function MapComponent({
   mode,
   recommendedRoute,
   standardRoute,
+  shadeRoute,
   nightRoute,
+  sunPos,
+  shadows = [],
+  simulatedHour = 14,
   layers,
   mapTheme = 'dark'
 }) {
@@ -36,6 +41,9 @@ export default function MapComponent({
   });
 
   // Layer groups refs
+  const shadowLayerRef = useRef(null);
+  const buildingLayerRef = useRef(null);
+  const treeLayerRef = useRef(null);
   const routeLayerRef = useRef(null);
   const cctvLayerRef = useRef(null);
   const markersLayerRef = useRef(null);
@@ -63,9 +71,18 @@ export default function MapComponent({
     L.control.zoom({ position: 'topright' }).addTo(map);
     L.control.attribution({ position: 'bottomright' }).addTo(map);
 
-    // Layer Groups (CCTV, Route, Markers)
+    // Initialize Layer Groups in proper z-order
+    // 1. Shadows (lowest above tiles)
+    shadowLayerRef.current = L.layerGroup().addTo(map);
+    // 2. Building Footprints
+    buildingLayerRef.current = L.layerGroup().addTo(map);
+    // 3. Tree Canopies
+    treeLayerRef.current = L.layerGroup().addTo(map);
+    // 4. CCTV
     cctvLayerRef.current = L.layerGroup().addTo(map);
+    // 5. Routes
     routeLayerRef.current = L.layerGroup().addTo(map);
+    // 6. Interactive Pins
     markersLayerRef.current = L.layerGroup().addTo(map);
 
     mapInstanceRef.current = map;
@@ -103,7 +120,94 @@ export default function MapComponent({
     }
   }, [startPoint, targetPoint, recommendedRoute]);
 
-  // Dynamic CCTV Viewport Rendering (Nationwide Government CCTV Integration)
+  // 1. Render 3D Building Shadows (Gneul-ro Solar Simulation)
+  useEffect(() => {
+    const shadowLayer = shadowLayerRef.current;
+    if (!shadowLayer) return;
+    shadowLayer.clearLayers();
+
+    if (!layers.shadows || !sunPos || !sunPos.isDaylight) return;
+
+    // Semi-transparent deep shadow color
+    const shadowFillColor = mapTheme === 'dark' ? '#090d16' : '#1e293b';
+    const shadowOpacity = Math.min(0.55, Math.max(0.25, (sunPos.altitudeDeg / 90) * 0.65));
+
+    for (const s of shadows) {
+      if (!s.polygon || s.polygon.length < 3) continue;
+
+      const poly = L.polygon(s.polygon, {
+        color: 'transparent',
+        weight: 0,
+        fillColor: shadowFillColor,
+        fillOpacity: shadowOpacity,
+        interactive: false
+      });
+      shadowLayer.addLayer(poly);
+    }
+  }, [shadows, layers.shadows, sunPos, mapTheme]);
+
+  // 2. Render 3D Building Footprints
+  useEffect(() => {
+    const buildingLayer = buildingLayerRef.current;
+    if (!buildingLayer) return;
+    buildingLayer.clearLayers();
+
+    if (!layers.buildings) return;
+
+    for (const b of HAEUNDAE_BUILDINGS) {
+      const poly = L.polygon(b.polygon, {
+        color: mapTheme === 'dark' ? '#38bdf8' : '#0284c7',
+        weight: 1.5,
+        opacity: 0.65,
+        fillColor: mapTheme === 'dark' ? '#1e293b' : '#cbd5e1',
+        fillOpacity: 0.45
+      });
+
+      poly.bindTooltip(
+        `<strong>🏢 ${b.name}</strong><br/>` +
+        `<span style="color:#38bdf8; font-size:11px;">건물 높이: ${b.height}m</span><br/>` +
+        `<span style="color:#94a3b8; font-size:10px;">그늘로 태양광 3D 차폐 시뮬레이션 적용</span>`,
+        { className: 'route-tooltip-custom' }
+      );
+      buildingLayer.addLayer(poly);
+    }
+  }, [layers.buildings, mapTheme]);
+
+  // 3. Render Roadside Trees & Canopy Shade
+  useEffect(() => {
+    const treeLayer = treeLayerRef.current;
+    if (!treeLayer) return;
+    treeLayer.clearLayers();
+
+    if (!layers.trees) return;
+
+    for (const t of GUNAM_RO_TREES) {
+      // Tree canopy shadow circle
+      const shadowCircle = L.circle([t.lat, t.lng], {
+        radius: t.radius || 4.5,
+        color: 'transparent',
+        weight: 0,
+        fillColor: '#064e3b',
+        fillOpacity: 0.35,
+        interactive: false
+      });
+      treeLayer.addLayer(shadowCircle);
+
+      // Tree Marker Icon
+      const treeIcon = L.divIcon({
+        className: 'tree-canopy-icon',
+        html: `<div style="font-size: 11px; filter: drop-shadow(0 0 4px rgba(16,185,129,0.7));">🌳</div>`,
+        iconSize: [14, 14],
+        iconAnchor: [7, 7]
+      });
+
+      const marker = L.marker([t.lat, t.lng], { icon: treeIcon });
+      marker.bindTooltip(`🌳 가로수 그늘 캐노피 (반경 ${(t.radius || 4.5).toFixed(1)}m)`, { className: 'route-tooltip-custom' });
+      treeLayer.addLayer(marker);
+    }
+  }, [layers.trees]);
+
+  // 4. Dynamic CCTV Viewport Rendering (Nationwide Government CCTV Integration)
   useEffect(() => {
     const map = mapInstanceRef.current;
     const cctvLayer = cctvLayerRef.current;
@@ -120,7 +224,6 @@ export default function MapComponent({
 
       const zoom = map.getZoom();
 
-      // Scale check: only show when scale is large enough (zoom >= 15) to prevent clutter
       if (zoom < 15) {
         setCctvState({ count: 0, displayedCount: 0, isZoomTooLow: true, zoom });
         return;
@@ -159,7 +262,6 @@ export default function MapComponent({
         cctvLayer.clearLayers();
 
         for (const cam of items) {
-          // Draw 20m safety zone when zoomed in closely (zoom >= 16)
           if (zoom >= 16) {
             const circle = L.circle([cam.lat, cam.lng], {
               radius: cam.radius || 20,
@@ -210,19 +312,15 @@ export default function MapComponent({
     };
   }, [layers.cctv]);
 
-  // Render 2.2 다중 경로 시각화 (Polyline Overlay)
+  // 5. Render Multi-Route Polylines (Standard, Shade-Safe, Night-Safe)
   useEffect(() => {
     const routeLayer = routeLayerRef.current;
     if (!routeLayer) return;
     routeLayer.clearLayers();
 
-    // Helper to get coordinates array from route object
     const getRouteLatLngs = (r) => {
       if (!r) return [];
       if (r.latlngs && r.latlngs.length > 0) return r.latlngs;
-      if (r.nodeIds && r.nodeIds.length > 0) {
-        return r.nodeIds.filter(id => NODES[id]).map(id => [NODES[id].lat, NODES[id].lng]);
-      }
       return [];
     };
 
@@ -246,7 +344,10 @@ export default function MapComponent({
           lineCap: 'round',
           lineJoin: 'round'
         });
-        standardPoly.bindTooltip(`<strong>기본 최단 도보 경로</strong><br/>거리: ${standardRoute.totalDistance}m | 소요시간: ${standardRoute.estimatedMinutes}분`, { className: 'route-tooltip-custom', sticky: true });
+        standardPoly.bindTooltip(
+          `<strong>기본 최단 도보 경로</strong><br/>거리: ${standardRoute.totalDistance}m | 소요시간: ${standardRoute.estimatedMinutes}분<br/>그늘 비율: ${standardRoute.shadeRatio}%`,
+          { className: 'route-tooltip-custom', sticky: true }
+        );
         routeLayer.addLayer(standardPoly);
       } else {
         const standardPoly = L.polyline(stdLatLngs, {
@@ -262,37 +363,64 @@ export default function MapComponent({
       }
     }
 
-    // 2. Recommended Custom Route (야간 안심 추천 경로)
+    // 2. Recommended Custom Route: Shade-Safe (Gneul-ro) or Night-Safe
     const recLatLngs = getRouteLatLngs(recommendedRoute);
     if (recLatLngs.length > 1 && mode !== 'standard') {
-      const glowColor = '#38bdf8';
+      if (mode === 'shade') {
+        // Gneul-ro Shade-Safe Route (Dual Segment visualization: Cool Teal for shade, warm dashed amber for exposed)
+        const glowPoly = L.polyline(recLatLngs, {
+          color: '#06b6d4',
+          weight: 13,
+          opacity: 0.45,
+          lineCap: 'round',
+          lineJoin: 'round'
+        });
+        routeLayer.addLayer(glowPoly);
 
-      // Glow halo
-      const glowPoly = L.polyline(recLatLngs, {
-        color: glowColor,
-        weight: 12,
-        opacity: 0.45,
-        lineCap: 'round',
-        lineJoin: 'round'
-      });
-      routeLayer.addLayer(glowPoly);
+        const mainPoly = L.polyline(recLatLngs, {
+          color: '#10b981',
+          weight: 6.5,
+          opacity: 0.95,
+          lineCap: 'round',
+          lineJoin: 'round'
+        });
 
-      const mainPoly = L.polyline(recLatLngs, {
-        color: glowColor,
-        weight: 6,
-        opacity: 0.95,
-        lineCap: 'round',
-        lineJoin: 'round'
-      });
+        mainPoly.bindTooltip(
+          `<strong>☀️ 폭염 안심 그늘 경로 (그늘로 엔진)</strong><br/>` +
+          `거리: ${recommendedRoute.totalDistance}m | 소요: ${recommendedRoute.estimatedMinutes}분<br/>` +
+          `<span style="color:#34d399; font-weight:700;">그늘 보행: ${recommendedRoute.shadeRatio}% (${recommendedRoute.shadedDistance}m)</span><br/>` +
+          `<span style="color:#fbbf24;">직사광선 노출 최소화: ${recommendedRoute.exposedDistance}m</span>`,
+          { className: 'route-tooltip-custom', sticky: true }
+        );
+        routeLayer.addLayer(mainPoly);
+      } else if (mode === 'night') {
+        // Night Safe Route
+        const glowPoly = L.polyline(recLatLngs, {
+          color: '#38bdf8',
+          weight: 12,
+          opacity: 0.45,
+          lineCap: 'round',
+          lineJoin: 'round'
+        });
+        routeLayer.addLayer(glowPoly);
 
-      mainPoly.bindTooltip(
-        `<strong>야간 안심 추천 경로 (방범 CCTV 안전구역 연계)</strong><br/>거리: ${recommendedRoute.totalDistance}m | 소요시간: ${recommendedRoute.estimatedMinutes}분`,
-        { className: 'route-tooltip-custom', sticky: true }
-      );
-      routeLayer.addLayer(mainPoly);
+        const mainPoly = L.polyline(recLatLngs, {
+          color: '#0284c7',
+          weight: 6,
+          opacity: 0.95,
+          lineCap: 'round',
+          lineJoin: 'round'
+        });
+
+        mainPoly.bindTooltip(
+          `<strong>야간 안심 추천 경로 (방범 CCTV 안전구역 연계)</strong><br/>거리: ${recommendedRoute.totalDistance}m | 소요: ${recommendedRoute.estimatedMinutes}분`,
+          { className: 'route-tooltip-custom', sticky: true }
+        );
+        routeLayer.addLayer(mainPoly);
+      }
     }
 
-    // 3. Automatically Fit Map Bounds to Show the Whole Route
+    // Auto-fit bounds
     const targetLatLngs = (recLatLngs.length > 1 && mode !== 'standard') ? recLatLngs : stdLatLngs;
     const map = mapInstanceRef.current;
     if (map && targetLatLngs.length > 1) {
@@ -309,13 +437,13 @@ export default function MapComponent({
     }
   }, [mode, recommendedRoute, standardRoute, mapTheme]);
 
-  // Render 2.1 Interactive Markers (User GPS, Start A, Target B)
+  // 6. Interactive Markers (User GPS, Start A, Target B)
   useEffect(() => {
     const markLayer = markersLayerRef.current;
     if (!markLayer) return;
     markLayer.clearLayers();
 
-    // 0. User GPS Dot Marker (Glowing Blue Dot with Pulse)
+    // User GPS Dot
     if (userGps && userGps.lat && userGps.lng) {
       const gpsIcon = L.divIcon({
         className: 'user-gps-marker',
@@ -333,7 +461,7 @@ export default function MapComponent({
       markLayer.addLayer(gpsMarker);
     }
 
-    // 1. Start Pin (A - Emerald)
+    // Start Pin (A - Emerald)
     const sLat = startPoint?.lat ?? NODES[startNodeId]?.lat;
     const sLng = startPoint?.lng ?? NODES[startNodeId]?.lng;
     const sName = startPoint?.name || startPoint?.roadAddress || NODES[startNodeId]?.roadAddress || '출발지';
@@ -351,11 +479,7 @@ export default function MapComponent({
         iconAnchor: [17, 17]
       });
 
-      const startMarker = L.marker([sLat, sLng], {
-        icon: startIcon,
-        draggable: true
-      });
-
+      const startMarker = L.marker([sLat, sLng], { icon: startIcon, draggable: true });
       startMarker.on('dragend', (e) => {
         const { lat, lng } = e.target.getLatLng();
         if (setStartPoint) {
@@ -364,17 +488,14 @@ export default function MapComponent({
         const nearest = findNearestNode(lat, lng);
         if (nearest) setStartNodeId(nearest);
       });
-
       startMarker.bindTooltip(
-        `<strong>📍 출발지 (A)</strong><br/>` +
-        `<span style="color:#34d399; font-weight:700;">${sName}</span><br/>` +
-        `<span style="color:#94a3b8; font-size:11px;">(드래그하여 위치 변경 가능)</span>`,
+        `<strong>📍 출발지 (A)</strong><br/><span style="color:#34d399; font-weight:700;">${sName}</span>`,
         { className: 'route-tooltip-custom' }
       );
       markLayer.addLayer(startMarker);
     }
 
-    // 2. Target Pin (B - Rose)
+    // Target Pin (B - Rose)
     const tLat = targetPoint?.lat ?? NODES[targetNodeId]?.lat;
     const tLng = targetPoint?.lng ?? NODES[targetNodeId]?.lng;
     const tName = targetPoint?.name || targetPoint?.roadAddress || NODES[targetNodeId]?.roadAddress || '도착지';
@@ -392,11 +513,7 @@ export default function MapComponent({
         iconAnchor: [17, 17]
       });
 
-      const targetMarker = L.marker([tLat, tLng], {
-        icon: targetIcon,
-        draggable: true
-      });
-
+      const targetMarker = L.marker([tLat, tLng], { icon: targetIcon, draggable: true });
       targetMarker.on('dragend', (e) => {
         const { lat, lng } = e.target.getLatLng();
         if (setTargetPoint) {
@@ -405,11 +522,8 @@ export default function MapComponent({
         const nearest = findNearestNode(lat, lng);
         if (nearest) setTargetNodeId(nearest);
       });
-
       targetMarker.bindTooltip(
-        `<strong>📍 도착지 (B)</strong><br/>` +
-        `<span style="color:#f43f5e; font-weight:700;">${tName}</span><br/>` +
-        `<span style="color:#94a3b8; font-size:11px;">(드래그하여 위치 변경 가능)</span>`,
+        `<strong>📍 도착지 (B)</strong><br/><span style="color:#f43f5e; font-weight:700;">${tName}</span>`,
         { className: 'route-tooltip-custom' }
       );
       markLayer.addLayer(targetMarker);
@@ -423,6 +537,64 @@ export default function MapComponent({
         className={`map-viewport ${mapTheme === 'dark' ? 'map-theme-dark' : 'map-theme-light'}`}
         style={{ cursor: pinSelectMode ? 'crosshair' : 'grab' }}
       />
+
+      {/* Floating Solar Simulation Compass Dial on Map */}
+      {sunPos && (
+        <div style={{
+          position: 'absolute',
+          top: '16px',
+          right: '54px',
+          zIndex: 1000,
+          background: 'rgba(15, 23, 42, 0.85)',
+          backdropFilter: 'blur(10px)',
+          border: '1px solid rgba(255, 255, 255, 0.12)',
+          borderRadius: '12px',
+          padding: '8px 12px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '10px',
+          boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
+          pointerEvents: 'auto'
+        }}>
+          {/* Rotating Sun Direction Dial */}
+          <div style={{
+            position: 'relative',
+            width: '32px',
+            height: '32px',
+            borderRadius: '50%',
+            background: 'rgba(245, 158, 11, 0.15)',
+            border: '1.5px solid rgba(245, 158, 11, 0.4)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center'
+          }}>
+            <div style={{
+              transform: `rotate(${sunPos.azimuthDeg}deg)`,
+              transition: 'transform 0.4s ease-out',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center'
+            }}>
+              <span style={{ fontSize: '10px', lineHeight: 1 }}>☀️</span>
+              <span style={{ width: '2px', height: '6px', background: '#f59e0b', borderRadius: '1px' }}></span>
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <span style={{ fontSize: '0.74rem', fontWeight: 700, color: '#f59e0b' }}>
+                태양 고도 {sunPos.altitudeDeg}°
+              </span>
+              <span style={{ fontSize: '0.68rem', color: 'var(--text-dim)' }}>
+                방위 {sunPos.azimuthDeg}°
+              </span>
+            </div>
+            <div style={{ fontSize: '0.68rem', color: sunPos.uvEstimate >= 7 ? '#f43f5e' : '#34d399', fontWeight: 600 }}>
+              {sunPos.sunStatus}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Real-time CCTV Visible Counter Pill on Map */}
       {layers.cctv && (
