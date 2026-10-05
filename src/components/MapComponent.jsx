@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { Crosshair } from 'lucide-react';
-import { NODES, EDGES, STREETLIGHTS, CCTVS, MAP_CENTER, DEFAULT_ZOOM } from '../data/urbanNetwork';
+import { NODES, MAP_CENTER, DEFAULT_ZOOM } from '../data/urbanNetwork';
 import { findNearestNode } from '../engine/routingEngine';
 
 export default function MapComponent({
@@ -22,7 +22,6 @@ export default function MapComponent({
   recommendedRoute,
   standardRoute,
   nightRoute,
-  rainRoute,
   layers,
   mapTheme = 'dark'
 }) {
@@ -37,12 +36,8 @@ export default function MapComponent({
   });
 
   // Layer groups refs
-  const networkLayerRef = useRef(null);
   const routeLayerRef = useRef(null);
-  const streetlightsLayerRef = useRef(null);
   const cctvLayerRef = useRef(null);
-  const coveredLayerRef = useRef(null);
-  const deadZonesLayerRef = useRef(null);
   const markersLayerRef = useRef(null);
 
   // Initialize Map
@@ -68,11 +63,7 @@ export default function MapComponent({
     L.control.zoom({ position: 'topright' }).addTo(map);
     L.control.attribution({ position: 'bottomright' }).addTo(map);
 
-    // Layer Groups
-    networkLayerRef.current = L.layerGroup().addTo(map);
-    coveredLayerRef.current = L.layerGroup().addTo(map);
-    deadZonesLayerRef.current = L.layerGroup().addTo(map);
-    streetlightsLayerRef.current = L.layerGroup().addTo(map);
+    // Layer Groups (CCTV, Route, Markers)
     cctvLayerRef.current = L.layerGroup().addTo(map);
     routeLayerRef.current = L.layerGroup().addTo(map);
     markersLayerRef.current = L.layerGroup().addTo(map);
@@ -95,13 +86,6 @@ export default function MapComponent({
     };
   }, []);
 
-  // Pan to User GPS location when GPS is updated
-  useEffect(() => {
-    const map = mapInstanceRef.current;
-    if (!map || !userGps) return;
-    map.flyTo([userGps.lat, userGps.lng], 17, { duration: 1.2 });
-  }, [userGps]);
-
   // Fit bounds when Start and Target change or when Route is updated
   useEffect(() => {
     const map = mapInstanceRef.current;
@@ -113,152 +97,11 @@ export default function MapComponent({
       return;
     }
 
-    const sLat = startPoint?.lat ?? NODES[startNodeId]?.lat;
-    const sLng = startPoint?.lng ?? NODES[startNodeId]?.lng;
-    const tLat = targetPoint?.lat ?? NODES[targetNodeId]?.lat;
-    const tLng = targetPoint?.lng ?? NODES[targetNodeId]?.lng;
-
-    if (sLat && sLng && tLat && tLng && (sLat !== tLat || sLng !== tLng)) {
-      const bounds = L.latLngBounds([[sLat, sLng], [tLat, tLng]]);
+    if (startPoint?.lat && startPoint?.lng && targetPoint?.lat && targetPoint?.lng) {
+      const bounds = L.latLngBounds([[startPoint.lat, startPoint.lng], [targetPoint.lat, targetPoint.lng]]);
       map.fitBounds(bounds, { padding: [100, 100], maxZoom: 17 });
     }
-  }, [startPoint, targetPoint, startNodeId, targetNodeId, recommendedRoute]);
-
-  // Handle map clicks
-  useEffect(() => {
-    const map = mapInstanceRef.current;
-    if (!map) return;
-
-    const handleMapClick = (e) => {
-      const { lat, lng } = e.latlng;
-      const nearestId = findNearestNode(lat, lng);
-      if (!nearestId) return;
-
-      if (pinSelectMode === 'start') {
-        if (nearestId !== targetNodeId) {
-          setStartNodeId(nearestId);
-        }
-        setPinSelectMode(null);
-      } else if (pinSelectMode === 'target') {
-        if (nearestId !== startNodeId) {
-          setTargetNodeId(nearestId);
-        }
-        setPinSelectMode(null);
-      } else {
-        setTargetNodeId(nearestId);
-      }
-    };
-
-    map.on('click', handleMapClick);
-    return () => {
-      map.off('click', handleMapClick);
-    };
-  }, [pinSelectMode, startNodeId, targetNodeId, setStartNodeId, setTargetNodeId, setPinSelectMode]);
-
-  // Render Base Road Network
-  useEffect(() => {
-    const netLayer = networkLayerRef.current;
-    if (!netLayer) return;
-    netLayer.clearLayers();
-
-    for (const edge of EDGES) {
-      const uNode = NODES[edge.u];
-      const vNode = NODES[edge.v];
-      if (!uNode || !vNode) continue;
-
-      const poly = L.polyline(
-        [[uNode.lat, uNode.lng], [vNode.lat, vNode.lng]],
-        {
-          color: mapTheme === 'dark' ? '#475569' : '#94a3b8',
-          weight: 4,
-          opacity: 0.5,
-          dashArray: edge.layer === -1 ? '4, 4' : null
-        }
-      );
-      poly.bindTooltip(
-        `<strong>${edge.name}</strong><br/>길이: ${edge.length}m | ${edge.covered ? '비가림/지하 통로' : '지상 보도'}<br/>가로등 조명률: ${Math.round((edge.litLengthRatio||0)*100)}% | CCTV: ${edge.cctvCount||0}대`,
-        { className: 'route-tooltip-custom', sticky: true }
-      );
-      netLayer.addLayer(poly);
-    }
-  }, [mapTheme]);
-
-  // Render 2.3 Layer Toggles: Streetlights, CCTV, Covered Corridors, Dead Zones
-  useEffect(() => {
-    const map = mapInstanceRef.current;
-    if (!map) return;
-
-    // 1. Streetlights & 15m radius buffer
-    const slLayer = streetlightsLayerRef.current;
-    slLayer.clearLayers();
-    if (layers.streetlights) {
-      for (const sl of STREETLIGHTS) {
-        const circle = L.circle([sl.lat, sl.lng], {
-          radius: sl.radius,
-          color: '#f59e0b',
-          weight: 1.2,
-          opacity: 0.7,
-          fillColor: '#fde047',
-          fillOpacity: 0.22
-        });
-        circle.bindTooltip(`가로등 (${sl.type})<br/>유효 조명 반경 15m`, { className: 'route-tooltip-custom' });
-        slLayer.addLayer(circle);
-
-        const lampIcon = L.divIcon({
-          className: 'lamp-marker',
-          html: `<div style="width: 8px; height: 8px; border-radius: 50%; background: #fef08a; box-shadow: 0 0 10px #eab308; border: 1px solid #ca8a04;"></div>`,
-          iconSize: [8, 8],
-          iconAnchor: [4, 4]
-        });
-        const marker = L.marker([sl.lat, sl.lng], { icon: lampIcon });
-        slLayer.addLayer(marker);
-      }
-    }
-
-    // 2. Covered / Underground Corridors
-    const covLayer = coveredLayerRef.current;
-    covLayer.clearLayers();
-    if (layers.covered) {
-      for (const edge of EDGES) {
-        if (edge.covered || edge.layer === -1) {
-          const uNode = NODES[edge.u];
-          const vNode = NODES[edge.v];
-          if (!uNode || !vNode) continue;
-
-          const poly = L.polyline([[uNode.lat, uNode.lng], [vNode.lat, vNode.lng]], {
-            color: '#10b981',
-            weight: 7,
-            opacity: 0.65,
-            dashArray: '8, 6'
-          });
-          poly.bindTooltip(`비가림 통로: ${edge.name} (${edge.shelterType})`, { className: 'route-tooltip-custom' });
-          covLayer.addLayer(poly);
-        }
-      }
-    }
-
-    // 3. Dead Zones (암흑 구간)
-    const deadLayer = deadZonesLayerRef.current;
-    deadLayer.clearLayers();
-    if (layers.deadZones) {
-      for (const edge of EDGES) {
-        if (edge.deadZoneLength > 20) {
-          const uNode = NODES[edge.u];
-          const vNode = NODES[edge.v];
-          if (!uNode || !vNode) continue;
-
-          const poly = L.polyline([[uNode.lat, uNode.lng], [vNode.lat, vNode.lng]], {
-            color: '#f43f5e',
-            weight: 5,
-            opacity: 0.85,
-            dashArray: '5, 6'
-          });
-          poly.bindTooltip(`⚠️ 조명 미설치 암흑 사각지대: ${edge.deadZoneLength}m (${edge.name})`, { className: 'route-tooltip-custom' });
-          deadLayer.addLayer(poly);
-        }
-      }
-    }
-  }, [layers.streetlights, layers.covered, layers.deadZones]);
+  }, [startPoint, targetPoint, recommendedRoute]);
 
   // Dynamic CCTV Viewport Rendering (Nationwide Government CCTV Integration)
   useEffect(() => {
@@ -419,12 +262,10 @@ export default function MapComponent({
       }
     }
 
-    // 2. Recommended Custom Route (안심/우천 추천 경로)
+    // 2. Recommended Custom Route (야간 안심 추천 경로)
     const recLatLngs = getRouteLatLngs(recommendedRoute);
     if (recLatLngs.length > 1 && mode !== 'standard') {
-      const isNight = mode === 'night';
-      const isRain = mode === 'rain';
-      const glowColor = isNight ? '#38bdf8' : isRain ? '#10b981' : '#94a3b8';
+      const glowColor = '#38bdf8';
 
       // Glow halo
       const glowPoly = L.polyline(recLatLngs, {
@@ -445,13 +286,7 @@ export default function MapComponent({
       });
 
       mainPoly.bindTooltip(
-        `<strong>${
-          isNight
-            ? '야간 안심 추천 경로 (스마트 가로등·CCTV 보호구역)'
-            : isRain
-            ? '우천 회피 추천 경로 (비가림 아케이드 및 보도)'
-            : '추천 경로'
-        }</strong><br/>거리: ${recommendedRoute.totalDistance}m | 소요시간: ${recommendedRoute.estimatedMinutes}분`,
+        `<strong>야간 안심 추천 경로 (방범 CCTV 안전구역 연계)</strong><br/>거리: ${recommendedRoute.totalDistance}m | 소요시간: ${recommendedRoute.estimatedMinutes}분`,
         { className: 'route-tooltip-custom', sticky: true }
       );
       routeLayer.addLayer(mainPoly);

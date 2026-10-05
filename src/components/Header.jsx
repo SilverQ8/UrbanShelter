@@ -1,10 +1,7 @@
 import React from 'react';
 import { Shield, RotateCcw, MapPin, Moon, Sun } from 'lucide-react';
-import { PRESET_SCENARIOS } from '../data/urbanNetwork';
 
 export default function Header({
-  activeScenario,
-  onSelectScenario,
   onResetPins,
   mapTheme,
   setMapTheme
@@ -31,10 +28,10 @@ export default function Header({
               gap: '3px'
             }}>
               <MapPin size={10} />
-              부산 해운대구
+              전국 실시간 서비스
             </span>
           </div>
-          <span className="brand-tagline">구남로·전통시장 아케이드 도보 안전 & 우천 회피 라우팅</span>
+          <span className="brand-tagline">전국 실시간 방범 CCTV 안전구역 기반 도보 안심 스마트 라우팅</span>
         </div>
       </div>
 
@@ -48,21 +45,6 @@ export default function Header({
           {mapTheme === 'dark' ? <Sun size={14} color="#f59e0b" /> : <Moon size={14} color="#38bdf8" />}
           <span>{mapTheme === 'dark' ? '밝은 지도' : '다크 지도'}</span>
         </button>
-
-        {/* Scenario Selector */}
-        <select
-          className="scenario-select"
-          value={activeScenario || ''}
-          onChange={(e) => onSelectScenario(e.target.value)}
-          title="사전 정의된 시나리오 선택"
-        >
-          <option value="" disabled>시나리오 프리셋 선택...</option>
-          {PRESET_SCENARIOS.map((sc) => (
-            <option key={sc.id} value={sc.id}>
-              {sc.title}
-            </option>
-          ))}
-        </select>
 
         {/* Reset Button */}
         <button

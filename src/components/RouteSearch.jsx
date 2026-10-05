@@ -5,7 +5,6 @@ import {
   Crosshair,
   Compass,
   Moon,
-  CloudRain,
   Navigation,
   ArrowUpDown,
   CheckCircle2,
@@ -34,8 +33,7 @@ export default function RouteSearch({
   mode,
   setMode,
   standardRoute,
-  nightRoute,
-  rainRoute
+  nightRoute
 }) {
   const [startQuery, setStartQuery] = useState('');
   const [destQuery, setDestQuery] = useState('');
@@ -625,29 +623,7 @@ export default function RouteSearch({
                 <strong>{nightRoute.totalDistance}m</strong> · {nightRoute.estimatedMinutes}분
               </div>
               <div className="route-card-desc">
-                조명도 <span style={{ color: '#38bdf8' }}>{nightRoute.litRatio}%</span> · CCTV {nightRoute.cctvCount}대
-              </div>
-            </div>
-          )}
-
-          {/* 3. 우천 회피 경로 */}
-          {rainRoute && (
-            <div
-              className={`recommend-route-card ${mode === 'rain' ? 'selected rain-active' : ''}`}
-              onClick={() => setMode('rain')}
-            >
-              <div className="card-top-row">
-                <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-                  <CloudRain size={14} color="#34d399" />
-                  <span className="route-card-title" style={{ color: '#34d399' }}>우천 회피</span>
-                </div>
-                {mode === 'rain' && <CheckCircle2 size={13} color="#34d399" />}
-              </div>
-              <div className="route-card-metrics">
-                <strong>{rainRoute.totalDistance}m</strong> · {rainRoute.estimatedMinutes}분
-              </div>
-              <div className="route-card-desc">
-                비가림 <span style={{ color: '#34d399' }}>{rainRoute.coveredRatio}%</span> (아케이드)
+                CCTV <span style={{ color: '#38bdf8', fontWeight: 700 }}>{nightRoute.cctvCount}대</span> 안전존 경유
               </div>
             </div>
           )}

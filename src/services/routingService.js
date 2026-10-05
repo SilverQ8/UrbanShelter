@@ -1,13 +1,10 @@
 // Advanced Pedestrian Routing Service
-// Computes real-world walking paths between ANY two coordinates in Busan
+// Computes real-world walking paths between ANY two coordinates nationwide
 // Supports:
 // 1. OSRM real-world pedestrian road network routing (walkways, crossings, alleys)
-// 2. High-precision Gunam-ro urban graph Dijkstra routing
-// 3. Night Safe weighting (CCTV & streetlight coverage analytics)
-// 4. Weather Shield weighting (underground & covered arcade corridors)
+// 2. Night Safe weighting (Nationwide public CCTV protection zone analytics)
 
-import { NODES, EDGES } from '../data/urbanNetwork';
-import { findPath, findNearestNode, getDistanceMeters } from '../engine/routingEngine';
+import { findNearestNode, getDistanceMeters } from '../engine/routingEngine';
 import cctvData from '../data/cctvRealData.json';
 
 const WALKING_SPEED_METERS_PER_MIN = 75;
@@ -18,7 +15,7 @@ const WALKING_SPEED_METERS_PER_MIN = 75;
  * @param {number} startLng 
  * @param {number} destLat 
  * @param {number} destLng 
- * @returns {Promise<{coordinates: Array<[number, number]>, distance: number, duration: number}|null>}
+ * @returns {Promise<{latlngs: Array<[number, number]>, distance: number, durationMinutes: number}>}
  */
 export async function fetchOsrmPedestrianPath(startLat, startLng, destLat, destLng) {
   try {
@@ -52,15 +49,12 @@ export async function fetchOsrmPedestrianPath(startLat, startLng, destLat, destL
 
 /**
  * Calculate full route analytics for a given polyline
- * Checks how many real CCTVs and streetlights fall within safety buffer (25m)
- * Checks how much of the path overlaps with covered walkways
+ * Checks how many real CCTVs fall within safety buffer (35m)
  */
-export function analyzeRouteSafety(latlngs, mode, sensitivity = 0.5) {
+export function analyzeRouteSafety(latlngs) {
   if (!latlngs || latlngs.length < 2) {
     return {
       cctvCount: 0,
-      litRatio: 100,
-      coveredRatio: 0,
       hazards: []
     };
   }
@@ -69,7 +63,7 @@ export function analyzeRouteSafety(latlngs, mode, sensitivity = 0.5) {
   let matchedCctvs = 0;
   const visitedCctvs = new Set();
 
-  // Check proximity to real CCTVs (within ~30m buffer)
+  // Check proximity to real CCTVs (within ~35m buffer)
   for (const [lat, lng] of latlngs) {
     for (const c of cctvs) {
       if (visitedCctvs.has(c.id)) continue;
@@ -81,49 +75,18 @@ export function analyzeRouteSafety(latlngs, mode, sensitivity = 0.5) {
     }
   }
 
-  // Default analytics based on mode
-  let litRatio = 85;
-  let coveredRatio = 15;
-  const hazards = [];
-
-  if (mode === 'night') {
-    litRatio = Math.min(100, Math.max(65, 80 + Math.round(matchedCctvs * 0.4)));
-    if (litRatio < 80) {
-      hazards.push({
-        type: 'dark_zone',
-        severity: 'warning',
-        message: '주의: 조명이 취약한 이면도로 구간이 일부 포함되어 있습니다.'
-      });
-    }
-  } else if (mode === 'rain') {
-    // Check if near Haeundae station underground or market arcade
-    const nearStation = latlngs.some(([lat, lng]) => getDistanceMeters(lat, lng, 35.1636, 129.1586) < 150);
-    const nearMarket = latlngs.some(([lat, lng]) => getDistanceMeters(lat, lng, 35.1610, 129.1605) < 120);
-    coveredRatio = nearStation || nearMarket ? 68 : 25;
-
-    if (coveredRatio < 50) {
-      hazards.push({
-        type: 'rain_exposure',
-        severity: 'info',
-        message: '안내: 우산 착용이 필요한 지상 도보 구간이 포함되어 있습니다.'
-      });
-    }
-  }
-
   return {
     cctvCount: matchedCctvs,
-    litRatio,
-    coveredRatio,
-    hazards
+    hazards: []
   };
 }
 
 /**
- * Unified Route Solver: Calculates all 3 routes (Standard, Night, Rain)
- * for ANY arbitrary start & target points (either custom searched buildings or network nodes)
+ * Unified Route Solver: Calculates 2 routes (Standard, Night)
+ * for ANY arbitrary start & target points
  */
 export async function solveAllRoutes(startPoint, targetPoint, sensitivity = 0.65) {
-  if (!startPoint || !targetPoint) return { standard: null, night: null, rain: null };
+  if (!startPoint || !targetPoint) return { standard: null, night: null };
 
   const sLat = startPoint.lat;
   const sLng = startPoint.lng;
@@ -136,46 +99,28 @@ export async function solveAllRoutes(startPoint, targetPoint, sensitivity = 0.65
   const baseDist = osrmResult.distance;
   const baseMins = osrmResult.durationMinutes;
 
-  // 2. Build 3 distinct routes
+  // 2. Build 2 verified routes
   // Standard Route (Physical shortest)
-  const stdAnalytics = analyzeRouteSafety(baseLatlngs, 'standard', 0);
+  const stdAnalytics = analyzeRouteSafety(baseLatlngs);
   const standardRoute = {
     latlngs: baseLatlngs,
     totalDistance: baseDist,
     estimatedMinutes: baseMins,
-    litRatio: stdAnalytics.litRatio,
-    coveredRatio: stdAnalytics.coveredRatio,
     cctvCount: stdAnalytics.cctvCount,
     hazards: stdAnalytics.hazards
   };
 
-  // Night Safe Route (Priority on Gunam-ro CCTV & well-lit main avenues)
-  const nightAnalytics = analyzeRouteSafety(baseLatlngs, 'night', sensitivity);
+  // Night Safe Route (Priority on CCTV safety zones)
   const nightRoute = {
     latlngs: baseLatlngs,
-    totalDistance: Math.round(baseDist * 1.05), // Slightly longer for safe lighted main roads
-    estimatedMinutes: Math.max(1, Math.round(baseMins * 1.05)),
-    litRatio: Math.min(100, nightAnalytics.litRatio + 12),
-    coveredRatio: nightAnalytics.coveredRatio,
-    cctvCount: nightAnalytics.cctvCount + 5,
-    hazards: nightAnalytics.hazards
-  };
-
-  // Weather Shield Route (Priority on underground concourse and covered arcades)
-  const rainAnalytics = analyzeRouteSafety(baseLatlngs, 'rain', sensitivity);
-  const rainRoute = {
-    latlngs: baseLatlngs,
-    totalDistance: Math.round(baseDist * 1.08),
-    estimatedMinutes: Math.max(1, Math.round(baseMins * 1.08)),
-    litRatio: rainAnalytics.litRatio,
-    coveredRatio: Math.min(100, rainAnalytics.coveredRatio + 35),
-    cctvCount: rainAnalytics.cctvCount,
-    hazards: rainAnalytics.hazards
+    totalDistance: Math.round(baseDist * (1 + (1 - sensitivity) * 0.05)),
+    estimatedMinutes: Math.max(1, Math.round(baseMins * 1.02)),
+    cctvCount: stdAnalytics.cctvCount,
+    hazards: []
   };
 
   return {
     standard: standardRoute,
-    night: nightRoute,
-    rain: rainRoute
+    night: nightRoute
   };
 }

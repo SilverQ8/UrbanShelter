@@ -4,34 +4,36 @@ import MapComponent from './components/MapComponent';
 import RouteSearch from './components/RouteSearch';
 import ControlPanel from './components/ControlPanel';
 import Dashboard from './components/Dashboard';
-import { NODES, PRESET_SCENARIOS, MAP_CENTER } from './data/urbanNetwork';
+import { NODES } from './data/urbanNetwork';
 import { findNearestNode } from './engine/routingEngine';
 import { solveAllRoutes } from './services/routingService';
 
+const DEFAULT_START = {
+  name: '해운대역 3번 출구',
+  roadAddress: '부산광역시 해운대구 구남로 1',
+  lat: 35.1636,
+  lng: 129.1586
+};
+
+const DEFAULT_TARGET = {
+  name: '해운대 해수욕장 이벤트광장',
+  roadAddress: '부산광역시 해운대구 해운대해변로 264',
+  lat: 35.1592,
+  lng: 129.1615
+};
+
 export default function App() {
   // Routing states
-  const [mode, setMode] = useState('night'); // 'standard' | 'night' | 'rain'
+  const [mode, setMode] = useState('night'); // 'standard' | 'night'
   const [sensitivity, setSensitivity] = useState(0.65); // 0.0 to 1.0 (default 65%)
   
   // High-precision geographic start and target locations
-  const [startPoint, setStartPoint] = useState({
-    name: '해운대역 3번 출구',
-    roadAddress: '부산광역시 해운대구 구남로 1',
-    lat: 35.1636,
-    lng: 129.1586
-  });
-
-  const [targetPoint, setTargetPoint] = useState({
-    name: '해운대 해수욕장 이벤트광장',
-    roadAddress: '부산광역시 해운대구 해운대해변로 264',
-    lat: 35.1592,
-    lng: 129.1615
-  });
+  const [startPoint, setStartPoint] = useState(DEFAULT_START);
+  const [targetPoint, setTargetPoint] = useState(DEFAULT_TARGET);
 
   const [startNodeId, setStartNodeId] = useState('N_HAE_STATION_3');
   const [targetNodeId, setTargetNodeId] = useState('N_BEACH_EVENT');
   const [pinSelectMode, setPinSelectMode] = useState(null); // null | 'start' | 'target'
-  const [activeScenario, setActiveScenario] = useState('scenario_1');
   const [mapTheme, setMapTheme] = useState('dark'); // 'dark' | 'light'
 
   // User GPS state
@@ -41,16 +43,12 @@ export default function App() {
   // Computed Routes Container
   const [computedRoutes, setComputedRoutes] = useState({
     standard: null,
-    night: null,
-    rain: null
+    night: null
   });
 
-  // Visualization layer toggles (2.3)
+  // Visualization layer toggles
   const [layers, setLayers] = useState({
-    streetlights: true,
-    cctv: true,
-    covered: true,
-    deadZones: true,
+    cctv: true
   });
 
   // Solve real-world pedestrian routes whenever points or sensitivity changes
@@ -115,58 +113,26 @@ export default function App() {
 
   const standardRoute = computedRoutes.standard;
   const nightRoute = computedRoutes.night;
-  const rainRoute = computedRoutes.rain;
 
   // Current active recommended route based on selected mode
   const recommendedRoute = useMemo(() => {
     if (mode === 'night') return nightRoute || standardRoute;
-    if (mode === 'rain') return rainRoute || standardRoute;
     return standardRoute;
-  }, [mode, nightRoute, rainRoute, standardRoute]);
+  }, [mode, nightRoute, standardRoute]);
 
-  // Scenario selection handler
-  const handleSelectScenario = (scenarioId) => {
-    const sc = PRESET_SCENARIOS.find((s) => s.id === scenarioId);
-    if (!sc) return;
-    setActiveScenario(scenarioId);
-    setStartNodeId(sc.startNode);
-    setTargetNodeId(sc.endNode);
-
-    const sNode = NODES[sc.startNode];
-    const tNode = NODES[sc.endNode];
-    if (sNode && tNode) {
-      setStartPoint({
-        name: sNode.roadAddress || sNode.name,
-        roadAddress: sNode.roadAddress || sNode.name,
-        lat: sNode.lat,
-        lng: sNode.lng
-      });
-      setTargetPoint({
-        name: tNode.roadAddress || tNode.name,
-        roadAddress: tNode.roadAddress || tNode.name,
-        lat: tNode.lat,
-        lng: tNode.lng
-      });
-    }
-
-    if (scenarioId === 'scenario_2') {
-      setMode('rain');
-    } else {
-      setMode('night');
-    }
-  };
-
-  // Reset to default scenario
+  // Reset to default location
   const handleResetPins = () => {
-    handleSelectScenario('scenario_1');
+    setStartPoint(DEFAULT_START);
+    setTargetPoint(DEFAULT_TARGET);
+    setStartNodeId('N_HAE_STATION_3');
+    setTargetNodeId('N_BEACH_EVENT');
+    setMode('night');
   };
 
   return (
     <div className="app-container">
       {/* Top Header */}
       <Header
-        activeScenario={activeScenario}
-        onSelectScenario={handleSelectScenario}
         onResetPins={handleResetPins}
         mapTheme={mapTheme}
         setMapTheme={setMapTheme}
@@ -192,14 +158,13 @@ export default function App() {
           recommendedRoute={recommendedRoute}
           standardRoute={standardRoute}
           nightRoute={nightRoute}
-          rainRoute={rainRoute}
           layers={layers}
           mapTheme={mapTheme}
         />
 
         {/* Floating Left Overlay: Route Search & Control Panel */}
         <div className="floating-overlay-left">
-          {/* New Route Search & Recommendation Component */}
+          {/* Route Search & Recommendation Component */}
           <RouteSearch
             userGps={userGps}
             onRequestGps={requestGpsLocation}
@@ -216,7 +181,6 @@ export default function App() {
             setMode={setMode}
             standardRoute={standardRoute}
             nightRoute={nightRoute}
-            rainRoute={rainRoute}
           />
 
           {/* Infrastructure Layer & Weighting Controls */}
@@ -227,6 +191,8 @@ export default function App() {
             setSensitivity={setSensitivity}
             layers={layers}
             setLayers={setLayers}
+            startPoint={startPoint}
+            targetPoint={targetPoint}
             startNodeId={startNodeId}
             targetNodeId={targetNodeId}
             pinSelectMode={pinSelectMode}
