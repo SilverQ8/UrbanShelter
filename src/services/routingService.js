@@ -65,7 +65,7 @@ export function analyzeRouteSafety(latlngs, mode, sensitivity = 0.5) {
     };
   }
 
-  const cctvs = cctvData.cctvs || [];
+  const cctvs = Array.isArray(cctvData) ? cctvData : (cctvData.cctvs || []);
   let matchedCctvs = 0;
   const visitedCctvs = new Set();
 

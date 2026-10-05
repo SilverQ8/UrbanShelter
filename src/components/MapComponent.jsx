@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { Crosshair } from 'lucide-react';
@@ -29,6 +29,12 @@ export default function MapComponent({
   const mapContainerRef = useRef(null);
   const mapInstanceRef = useRef(null);
   const tileLayerRef = useRef(null);
+  const [cctvState, setCctvState] = useState({
+    count: 0,
+    displayedCount: 0,
+    isZoomTooLow: false,
+    zoom: 16
+  });
 
   // Layer groups refs
   const networkLayerRef = useRef(null);
@@ -209,45 +215,7 @@ export default function MapComponent({
       }
     }
 
-    // 2. Real CCTV & 20m safety zone
-    const cctvLayer = cctvLayerRef.current;
-    cctvLayer.clearLayers();
-    if (layers.cctv) {
-      for (const cam of CCTVS) {
-        const circle = L.circle([cam.lat, cam.lng], {
-          radius: cam.radius,
-          color: '#0284c7',
-          weight: 1.2,
-          opacity: 0.6,
-          fillColor: '#38bdf8',
-          fillOpacity: 0.16
-        });
-
-        const tooltipContent = `
-          <strong>📹 ${cam.name}</strong><br/>
-          <span style="color:#94a3b8; font-size:11px;">${cam.address || ''}</span><br/>
-          <div style="margin-top:4px; font-size:11px;">
-            설치목적: <span style="color:#38bdf8;">${cam.purpose || '방범'}</span> | 
-            카메라: <span style="color:#34d399;">${cam.cameraCount || 1}대</span><br/>
-            관리기관: ${cam.manager || '해운대구청'} (안전반경 20m)
-          </div>
-        `;
-        circle.bindTooltip(tooltipContent, { className: 'route-tooltip-custom' });
-        cctvLayer.addLayer(circle);
-
-        const cctvIcon = L.divIcon({
-          className: 'cctv-badge',
-          html: `<div style="background: #0284c7; color: white; width: 18px; height: 18px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 9px; font-weight: bold; border: 1.5px solid #ffffff; box-shadow: 0 0 8px rgba(56,189,248,0.8);">📹</div>`,
-          iconSize: [18, 18],
-          iconAnchor: [9, 9]
-        });
-        const marker = L.marker([cam.lat, cam.lng], { icon: cctvIcon });
-        marker.bindTooltip(tooltipContent, { className: 'route-tooltip-custom' });
-        cctvLayer.addLayer(marker);
-      }
-    }
-
-    // 3. Covered / Underground Corridors
+    // 2. Covered / Underground Corridors
     const covLayer = coveredLayerRef.current;
     covLayer.clearLayers();
     if (layers.covered) {
@@ -269,7 +237,7 @@ export default function MapComponent({
       }
     }
 
-    // 4. Dead Zones (암흑 구간)
+    // 3. Dead Zones (암흑 구간)
     const deadLayer = deadZonesLayerRef.current;
     deadLayer.clearLayers();
     if (layers.deadZones) {
@@ -290,7 +258,114 @@ export default function MapComponent({
         }
       }
     }
-  }, [layers]);
+  }, [layers.streetlights, layers.covered, layers.deadZones]);
+
+  // Dynamic CCTV Viewport Rendering (Nationwide Government CCTV Integration)
+  useEffect(() => {
+    const map = mapInstanceRef.current;
+    const cctvLayer = cctvLayerRef.current;
+    if (!map || !cctvLayer) return;
+
+    let abortController = null;
+
+    const renderVisibleCctvs = async () => {
+      cctvLayer.clearLayers();
+      if (!layers.cctv) {
+        setCctvState({ count: 0, displayedCount: 0, isZoomTooLow: false, zoom: map.getZoom() });
+        return;
+      }
+
+      const zoom = map.getZoom();
+
+      // Scale check: only show when scale is large enough (zoom >= 15) to prevent clutter
+      if (zoom < 15) {
+        setCctvState({ count: 0, displayedCount: 0, isZoomTooLow: true, zoom });
+        return;
+      }
+
+      const bounds = map.getBounds().pad(0.08);
+      const center = map.getCenter();
+
+      if (abortController) abortController.abort();
+      abortController = new AbortController();
+
+      try {
+        const params = new URLSearchParams({
+          lat: center.lat.toFixed(6),
+          lng: center.lng.toFixed(6),
+          minLat: bounds.getSouth().toFixed(6),
+          maxLat: bounds.getNorth().toFixed(6),
+          minLng: bounds.getWest().toFixed(6),
+          maxLng: bounds.getEast().toFixed(6),
+          zoom: String(zoom)
+        });
+
+        const resp = await fetch(`/api/cctv/viewport?${params.toString()}`, { signal: abortController.signal });
+        if (!resp.ok) throw new Error('CCTV viewport HTTP error');
+
+        const data = await resp.json();
+        const items = data.cctvs || [];
+
+        setCctvState({
+          count: data.count || items.length,
+          displayedCount: items.length,
+          isZoomTooLow: false,
+          zoom
+        });
+
+        cctvLayer.clearLayers();
+
+        for (const cam of items) {
+          // Draw 20m safety zone when zoomed in closely (zoom >= 16)
+          if (zoom >= 16) {
+            const circle = L.circle([cam.lat, cam.lng], {
+              radius: cam.radius || 20,
+              color: '#0284c7',
+              weight: 1.2,
+              opacity: 0.6,
+              fillColor: '#38bdf8',
+              fillOpacity: 0.16
+            });
+            circle.bindTooltip(`📹 ${cam.name}<br/>안전반경 20m`, { className: 'route-tooltip-custom' });
+            cctvLayer.addLayer(circle);
+          }
+
+          const size = zoom >= 16 ? 18 : 13;
+          const cctvIcon = L.divIcon({
+            className: 'cctv-badge',
+            html: `<div style="background: #0284c7; color: white; width: ${size}px; height: ${size}px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: ${zoom >= 16 ? 9 : 7}px; font-weight: bold; border: 1.5px solid #ffffff; box-shadow: 0 0 8px rgba(56,189,248,0.8); cursor: pointer;">📹</div>`,
+            iconSize: [size, size],
+            iconAnchor: [size / 2, size / 2]
+          });
+
+          const tooltipContent = `
+            <strong>📹 ${cam.name}</strong><br/>
+            <span style="color:#94a3b8; font-size:11px;">${cam.address || ''}</span><br/>
+            <div style="margin-top:4px; font-size:11px;">
+              설치목적: <span style="color:#38bdf8;">${cam.purpose || '방범'}</span> | 
+              카메라: <span style="color:#34d399;">${cam.cameraCount || 1}대</span><br/>
+              관리기관: ${cam.manager || '관할구청'} (안전반경 20m)
+            </div>
+          `;
+          const marker = L.marker([cam.lat, cam.lng], { icon: cctvIcon });
+          marker.bindTooltip(tooltipContent, { className: 'route-tooltip-custom' });
+          cctvLayer.addLayer(marker);
+        }
+      } catch (err) {
+        if (err.name !== 'AbortError') {
+          console.warn('CCTV dynamic fetch fallback error:', err);
+        }
+      }
+    };
+
+    renderVisibleCctvs();
+    map.on('moveend zoomend', renderVisibleCctvs);
+
+    return () => {
+      if (abortController) abortController.abort();
+      map.off('moveend zoomend', renderVisibleCctvs);
+    };
+  }, [layers.cctv]);
 
   // Render 2.2 다중 경로 시각화 (Polyline Overlay)
   useEffect(() => {
@@ -513,6 +588,20 @@ export default function MapComponent({
         className={`map-viewport ${mapTheme === 'dark' ? 'map-theme-dark' : 'map-theme-light'}`}
         style={{ cursor: pinSelectMode ? 'crosshair' : 'grab' }}
       />
+
+      {/* Real-time CCTV Visible Counter Pill on Map */}
+      {layers.cctv && (
+        <div className={`map-cctv-counter-pill ${cctvState.isZoomTooLow ? 'zoom-hint' : ''}`}>
+          {cctvState.isZoomTooLow ? (
+            <span>🔍 지도를 확대하면(골목·거리 축척) 해당 지역의 방범 CCTV가 표시됩니다</span>
+          ) : (
+            <>
+              <span className="live-dot-pulse"></span>
+              <span>현재 화면 내 방범 CCTV <strong>{cctvState.count}</strong>개소 안전보호구역 작동 중</span>
+            </>
+          )}
+        </div>
+      )}
 
       {/* Floating GPS Button on Map */}
       <button
