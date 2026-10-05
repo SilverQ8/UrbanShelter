@@ -1970,6 +1970,10 @@ input:checked + .switch-slider:before {
 
 .route-guide-live.live-off-route {
   color: #fcd34d;
+  background: rgba(245, 158, 11, 0.12);
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  border: 1px solid rgba(245, 158, 11, 0.3);
 }
 
 .route-guide-arrival {

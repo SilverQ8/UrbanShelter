@@ -15,9 +15,13 @@ import {
   Footprints,
   ChevronLeft,
   ChevronRight,
-  Square
+  Square,
+  Volume2,
+  VolumeX,
+  RotateCw
 } from 'lucide-react';
 import { formatDistance, formatDuration } from '../utils/format';
+import { speakGuide, isTtsEnabled, toggleTts } from '../utils/ttsService';
 
 const ICONS = {
   depart: MapPin,
@@ -45,10 +49,12 @@ export default function RouteGuide({
   isCar = false,
   onClose,
   liveStatus = 'off',
-  nearDestination = false
+  nearDestination = false,
+  onReroute
 }) {
   const [open, setOpen] = useState(true);
   const [activeIdx, setActiveIdx] = useState(null);
+  const [voiceOn, setVoiceOn] = useState(isTtsEnabled());
 
   const hasSteps = Array.isArray(steps) && steps.length > 0;
   // 걸음 수 추정: 느린 걸음(50m/분)은 보폭 0.5m, 보통 걸음은 0.7m 정도로 본다
@@ -57,6 +63,31 @@ export default function RouteGuide({
 
   const currentStep = navigating && hasSteps ? steps[navIndex] : null;
   const nextStep = navigating && hasSteps ? steps[navIndex + 1] : null;
+
+  // 음성 안내 토글
+  const handleToggleVoice = (e) => {
+    e.stopPropagation();
+    const next = toggleTts();
+    setVoiceOn(next);
+    if (next) speakGuide('음성 안내를 켭니다.');
+  };
+
+  // 단계 변경 시 자동 음성 안내
+  React.useEffect(() => {
+    if (navigating && currentStep) {
+      let speechText = currentStep.text;
+      if (currentStep.name) speechText += `, ${currentStep.name} 방면`;
+      if (currentStep.distance > 0) speechText = `${formatDistance(currentStep.distance)} 앞, ${speechText}`;
+      speakGuide(speechText);
+    }
+  }, [navIndex, navigating]);
+
+  // 목적지 부근 도착 시 안내
+  React.useEffect(() => {
+    if (navigating && nearDestination) {
+      speakGuide('목적지 부근에 도착했습니다. 안내를 종료합니다.');
+    }
+  }, [nearDestination, navigating]);
 
   const handleSelect = (idx, step) => {
     if (navigating) {
@@ -85,9 +116,22 @@ export default function RouteGuide({
           </span>
           {open ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
         </button>
-        <button type="button" className="route-guide-close" onClick={onClose} aria-label="길 안내 닫기" title="닫기">
-          <X size={18} />
-        </button>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+          <button
+            type="button"
+            className="route-guide-close"
+            onClick={handleToggleVoice}
+            aria-label={voiceOn ? '음성 안내 끄기' : '음성 안내 켜기'}
+            title={voiceOn ? '음성 안내 켜짐 (클릭 시 끄기)' : '음성 안내 꺼짐 (클릭 시 켜기)'}
+            style={{ color: voiceOn ? '#34d399' : '#94a3b8' }}
+          >
+            {voiceOn ? <Volume2 size={17} /> : <VolumeX size={17} />}
+          </button>
+          <button type="button" className="route-guide-close" onClick={onClose} aria-label="길 안내 닫기" title="닫기">
+            <X size={18} />
+          </button>
+        </div>
       </div>
 
       {open && (
@@ -97,7 +141,14 @@ export default function RouteGuide({
           {/* 탐색 시작 / 보행자 시점 안내 */}
           {hasSteps && !navigating && !isCar && (
             <div className="route-guide-startbar">
-              <button type="button" className="route-guide-start" onClick={onStartNav}>
+              <button
+                type="button"
+                className="route-guide-start"
+                onClick={() => {
+                  onStartNav();
+                  speakGuide('보행 길 안내를 시작합니다.');
+                }}
+              >
                 <Footprints size={20} />
                 보행자 시점으로 걷기
               </button>
@@ -114,7 +165,34 @@ export default function RouteGuide({
               <div className={`route-guide-live live-${liveStatus}`} role="status">
                 {liveStatus === 'following' && '📡 내 위치를 따라가는 중'}
                 {liveStatus === 'searching' && '📡 내 위치 확인 중…'}
-                {liveStatus === 'off-route' && '⚠️ 경로에서 떨어져 있어요 · 아래 버튼으로 직접 넘겨 보세요'}
+                {liveStatus === 'off-route' && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', alignItems: 'center' }}>
+                    <span>⚠️ 경로를 벗어났습니다</span>
+                    {onReroute && (
+                      <button
+                        type="button"
+                        onClick={onReroute}
+                        style={{
+                          background: 'linear-gradient(135deg, #0284c7 0%, #38bdf8 100%)',
+                          color: '#ffffff',
+                          border: 'none',
+                          borderRadius: '6px',
+                          padding: '6px 12px',
+                          fontSize: '0.78rem',
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '6px',
+                          boxShadow: '0 2px 8px rgba(2, 132, 199, 0.4)'
+                        }}
+                      >
+                        <RotateCw size={13} /> 현재 위치에서 경로 재탐색
+                      </button>
+                    )}
+                  </div>
+                )}
                 {liveStatus === 'manual' && '위치를 쓸 수 없어요 · 아래 버튼으로 직접 넘겨 주세요'}
               </div>
               <div className="route-guide-nav-now">

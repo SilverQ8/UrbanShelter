@@ -24,6 +24,7 @@ import { decideAutoMode } from './utils/autoRouting';
 import { fetchCurrentWeather } from './services/weatherService';
 import { fetchOsmShadeData } from './services/osmService';
 import { computeProgress } from './utils/navProgress';
+import { speakGuide } from './utils/ttsService';
 import PoiPanel from './components/PoiPanel';
 import { fetchPoisForBounds } from './services/poiService';
 import { POI_CATEGORIES } from './data/poiCategories';
@@ -554,6 +555,32 @@ export default function App() {
       : 'off-route'
     : 'manual';
 
+  // 경로 이탈 시 현재 위치 기반 재탐색 핸들러
+  const handleReroute = useCallback(() => {
+    if (!livePos || !targetPoint) return;
+    speakGuide('경로를 벗어났습니다. 현재 위치에서 다시 탐색합니다.');
+    const nearestNodeId = findNearestNode(livePos.lat, livePos.lng);
+    setStartPoint({
+      name: '내 현재 위치',
+      roadAddress: '실시간 GPS 위치',
+      lat: livePos.lat,
+      lng: livePos.lng
+    });
+    if (nearestNodeId) {
+      setStartNodeId(nearestNodeId);
+    }
+    setNavIndex(0);
+  }, [livePos, targetPoint]);
+
+  // 경로 이탈(off-route)이 3.5초 이상 지속되면 자동으로 재탐색 실행
+  useEffect(() => {
+    if (!navigating || liveStatus !== 'off-route' || !livePos || !targetPoint) return;
+    const timer = setTimeout(() => {
+      handleReroute();
+    }, 3500);
+    return () => clearTimeout(timer);
+  }, [navigating, liveStatus, livePos, targetPoint, handleReroute]);
+
   const closeGuide = () => {
     if (navigating) {
       setNavigating(false);
@@ -763,6 +790,7 @@ export default function App() {
               walkSpeed={walkSpeed}
               isCar={isCar}
               onClose={closeGuide}
+              onReroute={handleReroute}
             />
           )}
         </div>
