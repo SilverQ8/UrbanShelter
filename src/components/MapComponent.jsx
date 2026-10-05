@@ -103,10 +103,23 @@ export default function MapComponent({
     };
   }, []);
 
-  // Fit bounds when Start and Target change or when Route is updated
+  const lastFittedKeyRef = useRef('');
+
+  // Fit bounds ONLY when Start and Target endpoints change (prevents map from jumping when sliding time/sensitivity!)
   useEffect(() => {
     const map = mapInstanceRef.current;
     if (!map) return;
+
+    const sLat = startPoint?.lat;
+    const sLng = startPoint?.lng;
+    const tLat = targetPoint?.lat;
+    const tLng = targetPoint?.lng;
+
+    if (!sLat || !sLng || !tLat || !tLng) return;
+
+    const currentKey = `${sLat.toFixed(4)}_${sLng.toFixed(4)}_${tLat.toFixed(4)}_${tLng.toFixed(4)}`;
+    if (lastFittedKeyRef.current === currentKey) return; // Skip if already fitted for this origin-destination pair!
+    lastFittedKeyRef.current = currentKey;
 
     if (recommendedRoute && recommendedRoute.latlngs && recommendedRoute.latlngs.length > 1) {
       const bounds = L.latLngBounds(recommendedRoute.latlngs);
@@ -114,11 +127,9 @@ export default function MapComponent({
       return;
     }
 
-    if (startPoint?.lat && startPoint?.lng && targetPoint?.lat && targetPoint?.lng) {
-      const bounds = L.latLngBounds([[startPoint.lat, startPoint.lng], [targetPoint.lat, targetPoint.lng]]);
-      map.fitBounds(bounds, { padding: [100, 100], maxZoom: 17 });
-    }
-  }, [startPoint, targetPoint, recommendedRoute]);
+    const bounds = L.latLngBounds([[sLat, sLng], [tLat, tLng]]);
+    map.fitBounds(bounds, { padding: [100, 100], maxZoom: 17 });
+  }, [startPoint?.lat, startPoint?.lng, targetPoint?.lat, targetPoint?.lng, recommendedRoute]);
 
   // 1. Render 3D Building Shadows (High-contrast Gneul-ro Solar Simulation)
   useEffect(() => {
@@ -450,22 +461,6 @@ export default function MapComponent({
           { className: 'route-tooltip-custom', sticky: true }
         );
         routeLayer.addLayer(mainPoly);
-      }
-    }
-
-    // Auto-fit bounds
-    const targetLatLngs = (recLatLngs.length > 1 && mode !== 'standard') ? recLatLngs : stdLatLngs;
-    const map = mapInstanceRef.current;
-    if (map && targetLatLngs.length > 1) {
-      try {
-        const bounds = L.latLngBounds(targetLatLngs);
-        map.fitBounds(bounds, {
-          padding: [60, 60],
-          maxZoom: 17,
-          animate: true
-        });
-      } catch (err) {
-        console.warn('fitBounds error:', err);
       }
     }
   }, [mode, recommendedRoute, standardRoute, mapTheme]);
