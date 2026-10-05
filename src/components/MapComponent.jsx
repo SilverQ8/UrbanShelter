@@ -120,7 +120,7 @@ export default function MapComponent({
     }
   }, [startPoint, targetPoint, recommendedRoute]);
 
-  // 1. Render 3D Building Shadows (Gneul-ro Solar Simulation)
+  // 1. Render 3D Building Shadows (High-contrast Gneul-ro Solar Simulation)
   useEffect(() => {
     const shadowLayer = shadowLayerRef.current;
     if (!shadowLayer) return;
@@ -128,25 +128,34 @@ export default function MapComponent({
 
     if (!layers.shadows || !sunPos || !sunPos.isDaylight) return;
 
-    // Semi-transparent deep shadow color
-    const shadowFillColor = mapTheme === 'dark' ? '#090d16' : '#1e293b';
-    const shadowOpacity = Math.min(0.55, Math.max(0.25, (sunPos.altitudeDeg / 90) * 0.65));
+    // High-visibility contrasting shadow styling
+    const shadowFillColor = mapTheme === 'dark' ? '#020617' : '#0f172a';
+    const shadowStrokeColor = mapTheme === 'dark' ? 'rgba(56, 189, 248, 0.45)' : 'rgba(15, 23, 42, 0.4)';
+    const shadowOpacity = mapTheme === 'dark' ? 0.75 : 0.48;
 
     for (const s of shadows) {
       if (!s.polygon || s.polygon.length < 3) continue;
 
       const poly = L.polygon(s.polygon, {
-        color: 'transparent',
-        weight: 0,
+        color: shadowStrokeColor,
+        weight: 1.5,
+        opacity: 0.6,
+        dashArray: '3, 4',
         fillColor: shadowFillColor,
-        fillOpacity: shadowOpacity,
-        interactive: false
+        fillOpacity: shadowOpacity
       });
+
+      poly.bindTooltip(
+        `<strong>🌑 ${s.name}</strong><br/>` +
+        `<span style="color:#38bdf8; font-size:11px;">건물 높이: ${s.height}m</span><br/>` +
+        `<span style="color:#f59e0b; font-size:11px;">태양 방위: ${sunPos.azimuthDeg}° | 고도: ${sunPos.altitudeDeg}°</span>`,
+        { className: 'route-tooltip-custom' }
+      );
       shadowLayer.addLayer(poly);
     }
   }, [shadows, layers.shadows, sunPos, mapTheme]);
 
-  // 2. Render 3D Building Footprints
+  // 2. Render 3D Building Footprints (Elevated Glowing Blocks)
   useEffect(() => {
     const buildingLayer = buildingLayerRef.current;
     if (!buildingLayer) return;
@@ -156,24 +165,40 @@ export default function MapComponent({
 
     for (const b of HAEUNDAE_BUILDINGS) {
       const poly = L.polygon(b.polygon, {
-        color: mapTheme === 'dark' ? '#38bdf8' : '#0284c7',
-        weight: 1.5,
-        opacity: 0.65,
-        fillColor: mapTheme === 'dark' ? '#1e293b' : '#cbd5e1',
+        color: '#38bdf8',
+        weight: 2,
+        opacity: 0.85,
+        fillColor: mapTheme === 'dark' ? '#0369a1' : '#0284c7',
         fillOpacity: 0.45
       });
 
       poly.bindTooltip(
         `<strong>🏢 ${b.name}</strong><br/>` +
-        `<span style="color:#38bdf8; font-size:11px;">건물 높이: ${b.height}m</span><br/>` +
-        `<span style="color:#94a3b8; font-size:10px;">그늘로 태양광 3D 차폐 시뮬레이션 적용</span>`,
+        `<span style="color:#38bdf8; font-size:11px;">건물 높이: ${b.height}m (~${Math.round(b.height / 3)}층)</span><br/>` +
+        `<span style="color:#34d399; font-size:10px;">그늘로 3D 차폐 시뮬레이션 적용</span>`,
         { className: 'route-tooltip-custom' }
       );
       buildingLayer.addLayer(poly);
+
+      // Building Center Badge Icon
+      const centerLat = b.polygon.reduce((sum, p) => sum + p[0], 0) / b.polygon.length;
+      const centerLng = b.polygon.reduce((sum, p) => sum + p[1], 0) / b.polygon.length;
+      const bldIcon = L.divIcon({
+        className: 'building-height-badge',
+        html: `
+          <div style="background: rgba(15, 23, 42, 0.85); color: #38bdf8; padding: 1px 4px; border-radius: 4px; font-size: 9px; font-weight: 700; border: 1px solid rgba(56,189,248,0.5); white-space: nowrap; pointer-events: none; box-shadow: 0 2px 6px rgba(0,0,0,0.5);">
+            🏢 ${b.height}m
+          </div>
+        `,
+        iconSize: [40, 16],
+        iconAnchor: [20, 8]
+      });
+      const badgeMarker = L.marker([centerLat, centerLng], { icon: bldIcon, interactive: false });
+      buildingLayer.addLayer(badgeMarker);
     }
   }, [layers.buildings, mapTheme]);
 
-  // 3. Render Roadside Trees & Canopy Shade
+  // 3. Render Roadside Trees & Dynamic Canopy Shadows
   useEffect(() => {
     const treeLayer = treeLayerRef.current;
     if (!treeLayer) return;
@@ -181,31 +206,39 @@ export default function MapComponent({
 
     if (!layers.trees) return;
 
+    // Shift tree shadow slightly according to sun azimuth
+    const shadowAzimuthDeg = sunPos ? (sunPos.azimuthDeg + 180) % 360 : 0;
+    const shadowRad = (shadowAzimuthDeg * Math.PI) / 180;
+    const treeShadowDist = sunPos && sunPos.altitudeDeg > 0 ? Math.min(18, 7.5 / Math.tan(Math.max(10, sunPos.altitudeDeg) * Math.PI / 180)) : 0;
+    const dLat = (treeShadowDist * Math.cos(shadowRad)) / 111320;
+    const dLng = (treeShadowDist * Math.sin(shadowRad)) / (111320 * Math.cos(35.161 * Math.PI / 180));
+
     for (const t of GUNAM_RO_TREES) {
-      // Tree canopy shadow circle
-      const shadowCircle = L.circle([t.lat, t.lng], {
-        radius: t.radius || 4.5,
-        color: 'transparent',
-        weight: 0,
-        fillColor: '#064e3b',
-        fillOpacity: 0.35,
-        interactive: false
-      });
-      treeLayer.addLayer(shadowCircle);
+      if (sunPos && sunPos.isDaylight) {
+        const shadowCircle = L.circle([t.lat + dLat, t.lng + dLng], {
+          radius: t.radius || 4.5,
+          color: 'transparent',
+          weight: 0,
+          fillColor: '#022c22',
+          fillOpacity: 0.55,
+          interactive: false
+        });
+        treeLayer.addLayer(shadowCircle);
+      }
 
       // Tree Marker Icon
       const treeIcon = L.divIcon({
         className: 'tree-canopy-icon',
-        html: `<div style="font-size: 11px; filter: drop-shadow(0 0 4px rgba(16,185,129,0.7));">🌳</div>`,
-        iconSize: [14, 14],
-        iconAnchor: [7, 7]
+        html: `<div style="font-size: 13px; filter: drop-shadow(0 0 5px rgba(16,185,129,0.9));">🌳</div>`,
+        iconSize: [16, 16],
+        iconAnchor: [8, 8]
       });
 
       const marker = L.marker([t.lat, t.lng], { icon: treeIcon });
       marker.bindTooltip(`🌳 가로수 그늘 캐노피 (반경 ${(t.radius || 4.5).toFixed(1)}m)`, { className: 'route-tooltip-custom' });
       treeLayer.addLayer(marker);
     }
-  }, [layers.trees]);
+  }, [layers.trees, sunPos]);
 
   // 4. Dynamic CCTV Viewport Rendering (Nationwide Government CCTV Integration)
   useEffect(() => {
@@ -345,15 +378,15 @@ export default function MapComponent({
           lineJoin: 'round'
         });
         standardPoly.bindTooltip(
-          `<strong>기본 최단 도보 경로</strong><br/>거리: ${standardRoute.totalDistance}m | 소요시간: ${standardRoute.estimatedMinutes}분<br/>그늘 비율: ${standardRoute.shadeRatio}%`,
+          `<strong>기본 최단 도보 경로</strong><br/>거리: ${standardRoute.totalDistance}m | 소요: ${standardRoute.estimatedMinutes}분<br/>그늘 비율: ${standardRoute.shadeRatio}%`,
           { className: 'route-tooltip-custom', sticky: true }
         );
         routeLayer.addLayer(standardPoly);
       } else {
         const standardPoly = L.polyline(stdLatLngs, {
-          color: mapTheme === 'dark' ? '#94a3b8' : '#64748b',
-          weight: 4,
-          opacity: 0.65,
+          color: mapTheme === 'dark' ? '#64748b' : '#94a3b8',
+          weight: 3.5,
+          opacity: 0.55,
           dashArray: '6, 8',
           lineCap: 'round',
           lineJoin: 'round'
@@ -367,19 +400,19 @@ export default function MapComponent({
     const recLatLngs = getRouteLatLngs(recommendedRoute);
     if (recLatLngs.length > 1 && mode !== 'standard') {
       if (mode === 'shade') {
-        // Gneul-ro Shade-Safe Route (Dual Segment visualization: Cool Teal for shade, warm dashed amber for exposed)
+        // Gneul-ro Shade-Safe Route (Vibrant Emerald/Teal Glow)
         const glowPoly = L.polyline(recLatLngs, {
-          color: '#06b6d4',
-          weight: 13,
-          opacity: 0.45,
+          color: '#10b981',
+          weight: 14,
+          opacity: 0.5,
           lineCap: 'round',
           lineJoin: 'round'
         });
         routeLayer.addLayer(glowPoly);
 
         const mainPoly = L.polyline(recLatLngs, {
-          color: '#10b981',
-          weight: 6.5,
+          color: '#059669',
+          weight: 7,
           opacity: 0.95,
           lineCap: 'round',
           lineJoin: 'round'
@@ -545,52 +578,53 @@ export default function MapComponent({
           top: '16px',
           right: '54px',
           zIndex: 1000,
-          background: 'rgba(15, 23, 42, 0.85)',
-          backdropFilter: 'blur(10px)',
-          border: '1px solid rgba(255, 255, 255, 0.12)',
+          background: 'rgba(15, 23, 42, 0.90)',
+          backdropFilter: 'blur(12px)',
+          border: '1.5px solid rgba(245, 158, 11, 0.4)',
           borderRadius: '12px',
-          padding: '8px 12px',
+          padding: '8px 14px',
           display: 'flex',
           alignItems: 'center',
-          gap: '10px',
-          boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
+          gap: '12px',
+          boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
           pointerEvents: 'auto'
         }}>
           {/* Rotating Sun Direction Dial */}
           <div style={{
             position: 'relative',
-            width: '32px',
-            height: '32px',
+            width: '36px',
+            height: '36px',
             borderRadius: '50%',
-            background: 'rgba(245, 158, 11, 0.15)',
-            border: '1.5px solid rgba(245, 158, 11, 0.4)',
+            background: 'rgba(245, 158, 11, 0.20)',
+            border: '2px solid #f59e0b',
             display: 'flex',
             alignItems: 'center',
-            justifyContent: 'center'
+            justifyContent: 'center',
+            boxShadow: '0 0 12px rgba(245,158,11,0.5)'
           }}>
             <div style={{
               transform: `rotate(${sunPos.azimuthDeg}deg)`,
-              transition: 'transform 0.4s ease-out',
+              transition: 'transform 0.15s ease-out',
               display: 'flex',
               flexDirection: 'column',
               alignItems: 'center'
             }}>
-              <span style={{ fontSize: '10px', lineHeight: 1 }}>☀️</span>
-              <span style={{ width: '2px', height: '6px', background: '#f59e0b', borderRadius: '1px' }}></span>
+              <span style={{ fontSize: '11px', lineHeight: 1 }}>☀️</span>
+              <span style={{ width: '2.5px', height: '8px', background: '#f59e0b', borderRadius: '1px' }}></span>
             </div>
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <span style={{ fontSize: '0.74rem', fontWeight: 700, color: '#f59e0b' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span style={{ fontSize: '0.8rem', fontWeight: 800, color: '#f59e0b' }}>
                 태양 고도 {sunPos.altitudeDeg}°
               </span>
-              <span style={{ fontSize: '0.68rem', color: 'var(--text-dim)' }}>
+              <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
                 방위 {sunPos.azimuthDeg}°
               </span>
             </div>
-            <div style={{ fontSize: '0.68rem', color: sunPos.uvEstimate >= 7 ? '#f43f5e' : '#34d399', fontWeight: 600 }}>
-              {sunPos.sunStatus}
+            <div style={{ fontSize: '0.7rem', color: sunPos.uvEstimate >= 7 ? '#f43f5e' : '#34d399', fontWeight: 700 }}>
+              {sunPos.sunStatus} (자외선 {sunPos.uvEstimate})
             </div>
           </div>
         </div>

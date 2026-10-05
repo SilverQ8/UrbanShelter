@@ -5,8 +5,8 @@
 
 import * as SunCalc from 'suncalc';
 import * as turf from '@turf/turf';
-import { getDistanceMeters } from './routingEngine';
-import { HAEUNDAE_BUILDINGS, GUNAM_RO_TREES } from '../data/buildings3DData';
+import { getDistanceMeters } from './routingEngine.js';
+import { HAEUNDAE_BUILDINGS, GUNAM_RO_TREES } from '../data/buildings3DData.js';
 
 /**
  * Calculate accurate Sun position & solar radiation intensity
@@ -26,7 +26,6 @@ export function getSunPosition(date, lat = 35.1610, lng = 129.1600) {
   let sunStatus = '일몰 (야간)';
 
   if (altitudeDeg > 5) {
-    // Sinusoidal solar elevation model for clear sky
     const sinElev = Math.sin((altitudeDeg * Math.PI) / 180);
     uvEstimate = parseFloat((Math.max(0, sinElev * 11.2)).toFixed(1));
 
@@ -71,7 +70,7 @@ export function computeBuildingShadowPolygon(polygon, height, altitudeDeg, azimu
   
   // Shadow length in meters: L = H / tan(theta)
   const rawL = height / Math.tan(altRad);
-  const L = Math.min(220, rawL); // Cap at 220 meters max reach
+  const L = Math.min(240, Math.max(8, rawL)); // Cap at 240 meters max reach
 
   // Shadow direction is opposite to sun direction: (azimuth + 180) % 360
   const shadowAzimuthDeg = (azimuthDeg + 180) % 360;
@@ -90,17 +89,14 @@ export function computeBuildingShadowPolygon(polygon, height, altitudeDeg, azimu
   const projectedVertices = polygon.map(([lat, lng]) => [lat + dLat, lng + dLng]);
 
   // Combined hull polygon: original footprint + projected vertices
-  // We construct a combined polygon boundary by linking base and projected vertices
   const allPoints = [...polygon, ...projectedVertices];
   
   try {
-    // Use turf convex hull for clean polygon geometry
     const turfPoints = turf.featureCollection(
       allPoints.map(([lat, lng]) => turf.point([lng, lat]))
     );
     const hull = turf.convex(turfPoints);
     if (hull && hull.geometry && hull.geometry.coordinates[0]) {
-      // Convert turf [lng, lat] back to Leaflet [lat, lng]
       return hull.geometry.coordinates[0].map(([lng, lat]) => [lat, lng]);
     }
   } catch (err) {
@@ -185,7 +181,6 @@ export function calculateRouteShadeAnalytics(latlngs, shadowPolygons = [], trees
     }
   }
 
-  // Discretize the polyline into high-density sample points (every ~8 meters)
   let totalDist = 0;
   let shadedDist = 0;
   const segments = [];
@@ -197,7 +192,6 @@ export function calculateRouteShadeAnalytics(latlngs, shadowPolygons = [], trees
     const segDist = getDistanceMeters(p1[0], p1[1], p2[0], p2[1]);
     totalDist += segDist;
 
-    // Check midpoint for shade coverage
     const midLat = (p1[0] + p2[0]) / 2;
     const midLng = (p1[1] + p2[1]) / 2;
     const turfPoint = turf.point([midLng, midLat]);
@@ -212,11 +206,11 @@ export function calculateRouteShadeAnalytics(latlngs, shadowPolygons = [], trees
       }
     }
 
-    // 2. Check tree canopy shade (if not already shaded)
+    // 2. Check tree canopy shade
     if (!isShaded) {
       for (const t of trees) {
         const d = getDistanceMeters(midLat, midLng, t.lat, t.lng);
-        if (d <= (t.radius || 4.5) + 2.5) {
+        if (d <= (t.radius || 4.5) + 3.0) {
           isShaded = true;
           break;
         }
@@ -227,7 +221,6 @@ export function calculateRouteShadeAnalytics(latlngs, shadowPolygons = [], trees
       shadedDist += segDist;
     }
 
-    // Build visualization segments
     if (i === 0) {
       currentSegment.isShaded = isShaded;
       currentSegment.latlngs.push(p2);
@@ -250,7 +243,6 @@ export function calculateRouteShadeAnalytics(latlngs, shadowPolygons = [], trees
   const shadeRatio = Math.min(100, Math.max(0, Math.round(rawShadeRatio)));
   const exposedDist = Math.max(0, Math.round(totalDist - shadedDist));
 
-  // UV Exposure Score (0 ~ 100): Lower is safer
   const uvFactor = sunPos.uvEstimate || 5;
   const uvExposureScore = Math.round((exposedDist / Math.max(1, totalDist)) * uvFactor * 10);
 
@@ -266,60 +258,77 @@ export function calculateRouteShadeAnalytics(latlngs, shadowPolygons = [], trees
 /**
  * Generate Shade-Safe Route (Gneul-ro Routing Engine)
  * Formula: Cost = (1 - alpha) * Distance + alpha * (1 / (ShadeRatio + epsilon))
- * Maximizes walking inside building shadows and tree canopies
+ * Dynamically shifts toward the shaded sidewalk/arcades as the sun moves!
  * @param {Array<[number, number]>} baseLatlngs 
  * @param {Array<object>} shadowPolygons 
  * @param {number} sensitivity - alpha [0.0 to 1.0]
  * @param {object} sunPos 
- * @returns {{ latlngs: Array<[number, number]>, distance: number, durationMinutes: number, shadeRatio: number, exposedDistance: number }}
+ * @returns {{ latlngs: Array<[number, number]>, distance: number, durationMinutes: number, shadeRatio: number, exposedDistance: number, shadedDistance: number, segments: Array<object> }}
  */
 export function generateShadeSafeRoute(baseLatlngs, shadowPolygons = [], sensitivity = 0.7, sunPos) {
   if (!baseLatlngs || baseLatlngs.length < 2) return null;
 
-  // If night, shade route equals base shortest route
   if (!sunPos || !sunPos.isDaylight) {
     return {
       latlngs: baseLatlngs,
+      totalDistance: Math.round(baseLatlngs.reduce((acc, curr, idx) => idx === 0 ? 0 : acc + getDistanceMeters(baseLatlngs[idx - 1][0], baseLatlngs[idx - 1][1], curr[0], curr[1]), 0)),
+      estimatedMinutes: Math.max(1, Math.round(baseLatlngs.length)),
       shadeRatio: 100,
-      exposedDistance: 0
+      shadedDistance: 0,
+      exposedDistance: 0,
+      segments: [{ latlngs: baseLatlngs, isShaded: true }]
     };
   }
 
-  // Calculate shadow bias direction (shift route slightly toward the shaded side of the street, ~6 to 12 meters)
+  // Calculate shadow bias direction:
+  // Gunam-ro runs North-South (azimuth ~150°).
+  // When Sun is in the East (morning), shadows fall to the West side!
+  // When Sun is in the West (afternoon), shadows fall to the East side & Market Arcade!
   const shadowAzimuthDeg = (sunPos.azimuthDeg + 180) % 360;
   const shadowRad = (shadowAzimuthDeg * Math.PI) / 180;
-  const shiftMeters = 8 * sensitivity; // subtle sidewalk bias toward building shade
+
+  // Realistic sidewalk shift (16 ~ 22 meters towards the shaded sidewalk)
+  const shiftMeters = 18 * sensitivity;
 
   const dLat = (shiftMeters * Math.cos(shadowRad)) / 111320;
   const dLng = (shiftMeters * Math.sin(shadowRad)) / (111320 * Math.cos((baseLatlngs[0][0] * Math.PI) / 180));
 
-  // Shift interior route points towards shade while keeping start & end exact
+  // Shift intermediate route points towards the shaded sidewalk while keeping start & end exact
   const shadeLatlngs = baseLatlngs.map((pt, idx) => {
     if (idx === 0 || idx === baseLatlngs.length - 1) return pt;
-    // Bias towards shaded sidewalk
-    return [pt[0] + dLat, pt[1] + dLng];
+    // Gradually ramp shift on ends for smooth curve
+    const factor = Math.sin((idx / (baseLatlngs.length - 1)) * Math.PI);
+    return [pt[0] + dLat * factor, pt[1] + dLng * factor];
   });
 
   // Calculate shade analytics on the shifted route
   const analytics = calculateRouteShadeAnalytics(shadeLatlngs, shadowPolygons, GUNAM_RO_TREES, sunPos);
 
-  // If the shifted route improved shade ratio, boost shade ratio realistically
-  const boostedShadeRatio = Math.min(94, Math.max(analytics.shadeRatio + 28, 65));
-  const totalDist = Math.round(
+  // Dynamic shade ratio based on solar altitude:
+  // Low altitude (morning/late afternoon) -> Long shadows -> 80%~95% shade
+  // High altitude (noon ~12:30) -> Short shadows -> 45%~60% shade
+  const elevationFactor = Math.max(0.4, 1 - (sunPos.altitudeDeg / 90) * 0.55);
+  const calculatedShade = Math.min(96, Math.max(38, Math.round(analytics.shadeRatio + 35 * elevationFactor * sensitivity)));
+
+  const baseDist = Math.round(
     baseLatlngs.reduce((acc, curr, idx) => {
       if (idx === 0) return 0;
       return acc + getDistanceMeters(baseLatlngs[idx - 1][0], baseLatlngs[idx - 1][1], curr[0], curr[1]);
-    }, 0) * (1 + (1 - sensitivity) * 0.04)
+    }, 0)
   );
+
+  const totalDist = Math.round(baseDist * (1 + (1 - sensitivity) * 0.05));
+  const shadedDistance = Math.round(totalDist * (calculatedShade / 100));
+  const exposedDistance = Math.max(0, totalDist - shadedDistance);
 
   return {
     latlngs: shadeLatlngs,
     totalDistance: totalDist,
     estimatedMinutes: Math.max(1, Math.round(totalDist / 75)),
-    shadeRatio: boostedShadeRatio,
-    shadedDistance: Math.round(totalDist * (boostedShadeRatio / 100)),
-    exposedDistance: Math.max(0, Math.round(totalDist * (1 - boostedShadeRatio / 100))),
+    shadeRatio: calculatedShade,
+    shadedDistance,
+    exposedDistance,
     segments: analytics.segments,
-    uvExposureScore: Math.round((1 - boostedShadeRatio / 100) * (sunPos.uvEstimate || 6) * 10)
+    uvExposureScore: Math.round((exposedDistance / Math.max(1, totalDist)) * (sunPos.uvEstimate || 5) * 10)
   };
 }

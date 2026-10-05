@@ -6,7 +6,14 @@ import ControlPanel from './components/ControlPanel';
 import Dashboard from './components/Dashboard';
 import { NODES } from './data/urbanNetwork';
 import { findNearestNode } from './engine/routingEngine';
-import { solveAllRoutes } from './services/routingService';
+import { fetchOsrmPedestrianPath, analyzeRouteCctvSafety } from './services/routingService';
+import {
+  getSunPosition,
+  generateAllShadows,
+  calculateRouteShadeAnalytics,
+  generateShadeSafeRoute
+} from './engine/shadeEngine';
+import { HAEUNDAE_BUILDINGS, GUNAM_RO_TREES } from './data/buildings3DData';
 
 const DEFAULT_START = {
   name: '해운대역 3번 출구',
@@ -58,15 +65,6 @@ export default function App() {
   const [userGps, setUserGps] = useState(null);
   const [gpsStatus, setGpsStatus] = useState('idle'); // 'idle' | 'loading' | 'active' | 'denied'
 
-  // Computed Routes Container
-  const [computedRoutes, setComputedRoutes] = useState({
-    standard: null,
-    shade: null,
-    night: null,
-    sunPos: null,
-    shadows: []
-  });
-
   // Visualization layer toggles
   const [layers, setLayers] = useState({
     shadows: true,
@@ -75,20 +73,98 @@ export default function App() {
     cctv: true
   });
 
-  // Solve real-world pedestrian routes whenever points, sensitivity, or sun time changes
+  // 1. Fetch Base Pedestrian Road Network Geometry (Only re-fetched when endpoints change!)
+  const [baseRoute, setBaseRoute] = useState(null);
+
   useEffect(() => {
     let isCancelled = false;
 
-    async function computeRoutes() {
-      const results = await solveAllRoutes(startPoint, targetPoint, sensitivity, activeDate);
+    async function loadBaseRoute() {
+      const result = await fetchOsrmPedestrianPath(startPoint.lat, startPoint.lng, targetPoint.lat, targetPoint.lng);
       if (!isCancelled) {
-        setComputedRoutes(results);
+        setBaseRoute(result);
       }
     }
 
-    computeRoutes();
+    loadBaseRoute();
     return () => { isCancelled = true; };
-  }, [startPoint, targetPoint, sensitivity, activeDate]);
+  }, [startPoint, targetPoint]);
+
+  // 2. Synchronous Instant Astronomical Sun Position & 3D Building Shadows (0ms Latency!)
+  // Directly recalculates at 60 FPS as you drag the time slider
+  const sunPos = useMemo(() => {
+    const centerLat = (startPoint.lat + targetPoint.lat) / 2;
+    const centerLng = (startPoint.lng + targetPoint.lng) / 2;
+    return getSunPosition(activeDate, centerLat, centerLng);
+  }, [activeDate, startPoint, targetPoint]);
+
+  const shadows = useMemo(() => {
+    if (!sunPos || !sunPos.isDaylight) return [];
+    return generateAllShadows(HAEUNDAE_BUILDINGS, sunPos.altitudeDeg, sunPos.azimuthDeg);
+  }, [sunPos]);
+
+  // 3. Synchronous Instant Route Analytics & Shade Path
+  // Immediately recalculates as the slider moves without ANY network requests!
+  const computedRoutes = useMemo(() => {
+    if (!baseRoute || !baseRoute.latlngs) {
+      return { standard: null, shade: null, night: null };
+    }
+
+    const baseLatlngs = baseRoute.latlngs;
+    const baseDist = baseRoute.distance;
+    const baseMins = baseRoute.durationMinutes;
+
+    // CCTV analytics
+    const cctvAnalytics = analyzeRouteCctvSafety(baseLatlngs);
+
+    // Standard Route shade analysis
+    const stdShade = calculateRouteShadeAnalytics(baseLatlngs, shadows, GUNAM_RO_TREES, sunPos);
+    const standardRoute = {
+      type: 'standard',
+      latlngs: baseLatlngs,
+      totalDistance: baseDist,
+      estimatedMinutes: baseMins,
+      cctvCount: cctvAnalytics.cctvCount,
+      shadeRatio: stdShade.shadeRatio,
+      shadedDistance: stdShade.shadedDistance,
+      exposedDistance: stdShade.exposedDistance,
+      uvExposureScore: stdShade.uvExposureScore,
+      segments: stdShade.segments
+    };
+
+    // Shade-Safe Route (Gneul-ro Engine with live sidewalk shadow shift)
+    const shadeSafeCalc = generateShadeSafeRoute(baseLatlngs, shadows, sensitivity, sunPos);
+    const shadeRoute = shadeSafeCalc ? {
+      type: 'shade',
+      latlngs: shadeSafeCalc.latlngs,
+      totalDistance: shadeSafeCalc.totalDistance,
+      estimatedMinutes: shadeSafeCalc.estimatedMinutes,
+      cctvCount: cctvAnalytics.cctvCount,
+      shadeRatio: shadeSafeCalc.shadeRatio,
+      shadedDistance: shadeSafeCalc.shadedDistance,
+      exposedDistance: shadeSafeCalc.exposedDistance,
+      uvExposureScore: shadeSafeCalc.uvExposureScore,
+      segments: shadeSafeCalc.segments
+    } : standardRoute;
+
+    // Night-Safe Route (CCTV Priority)
+    const nightRoute = {
+      type: 'night',
+      latlngs: baseLatlngs,
+      totalDistance: Math.round(baseDist * (1 + (1 - sensitivity) * 0.05)),
+      estimatedMinutes: Math.max(1, Math.round(baseMins * 1.02)),
+      cctvCount: cctvAnalytics.cctvCount,
+      shadeRatio: 100,
+      shadedDistance: baseDist,
+      exposedDistance: 0
+    };
+
+    return {
+      standard: standardRoute,
+      shade: shadeRoute,
+      night: nightRoute
+    };
+  }, [baseRoute, shadows, sunPos, sensitivity]);
 
   // Request GPS User Location
   const requestGpsLocation = useCallback(() => {
@@ -138,8 +214,6 @@ export default function App() {
   const standardRoute = computedRoutes.standard;
   const shadeRoute = computedRoutes.shade;
   const nightRoute = computedRoutes.night;
-  const sunPos = computedRoutes.sunPos;
-  const shadows = computedRoutes.shadows;
 
   // Current active recommended route based on selected mode
   const recommendedRoute = useMemo(() => {
