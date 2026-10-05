@@ -1,12 +1,17 @@
 import React from 'react';
-import { Shield, RotateCcw, MapPin, Moon, Sun, SunMedium } from 'lucide-react';
+import { Shield, RotateCcw, MapPin, Moon, Sun, SunMoon, SunMedium, Settings, Box, Map as MapIcon } from 'lucide-react';
 
 export default function Header({
   onResetPins,
-  mapTheme,
-  setMapTheme,
+  onOpenSettings,
+  viewMode,
+  setViewMode,
+  mapThemeSetting = 'auto',
+  setMapThemeSetting,
   sunPos,
-  simulatedHour
+  simulatedHour,
+  isLiveTime = true,
+  onResetLive
 }) {
   const formattedHour = `${String(Math.floor(simulatedHour)).padStart(2, '0')}:${String(Math.round((simulatedHour % 1) * 60)).padStart(2, '0')}`;
 
@@ -58,8 +63,11 @@ export default function Header({
 
       <div className="header-actions">
         {/* Real-time Sun Condition Quick Pill */}
-        {sunPos && (
-          <div style={{
+        {sunPos && !isLiveTime && (
+          <button type="button" onClick={onResetLive} title="미리 보기를 끝내고 현재 시각으로" aria-label="미리 보기를 끝내고 현재 시각으로" style={{
+            cursor: 'pointer',
+            fontFamily: 'inherit',
+            color: 'inherit',
             display: 'flex',
             alignItems: 'center',
             gap: '6px',
@@ -70,23 +78,45 @@ export default function Header({
             fontSize: '0.74rem'
           }}>
             <SunMedium size={13} color="#f59e0b" />
-            <span style={{ color: 'var(--text-muted)' }}>시뮬레이션:</span>
+            <span style={{ color: 'var(--text-muted)' }}>미리 보기</span>
             <strong style={{ color: '#f59e0b' }}>{formattedHour}</strong>
             <span style={{ color: 'var(--text-dim)' }}>|</span>
             <span style={{ color: 'var(--text-main)', fontSize: '0.72rem' }}>
-              고도 {sunPos.altitudeDeg}° (자외선 {sunPos.uvEstimate})
+              {sunPos.isDaylight ? `고도 ${sunPos.altitudeDeg}° (자외선 ${sunPos.uvEstimate})` : '해 없음'}
             </span>
-          </div>
+            <span style={{ color: 'var(--text-dim)' }}>✕</span>
+          </button>
         )}
+
+        {/* 2D / 3D 지도 전환 */}
+        <button
+          className="reset-btn"
+          onClick={() => setViewMode(viewMode === '3d' ? '2d' : '3d')}
+          title={viewMode === '3d' ? '2D 지도로 전환' : '입체(3D) 지도로 전환'}
+          aria-label={viewMode === '3d' ? '2D 지도로 전환' : '입체(3D) 지도로 전환'}
+          aria-pressed={viewMode === '3d'}
+        >
+          {viewMode === '3d' ? <MapIcon size={18} color="#38bdf8" /> : <Box size={18} color="#10b981" />}
+        </button>
 
         {/* Map Theme Toggle */}
         <button
           className="reset-btn"
-          onClick={() => setMapTheme(mapTheme === 'dark' ? 'light' : 'dark')}
-          title={mapTheme === 'dark' ? '밝은 일반 지도로 전환' : '다크 모드 지도로 전환'}
+          onClick={() => setMapThemeSetting({ auto: 'light', light: 'dark', dark: 'auto' }[mapThemeSetting])}
+          title={`지도 테마: ${{ auto: '자동(시간에 따라)', light: '밝게', dark: '어둡게' }[mapThemeSetting]} (누르면 변경)`}
+          aria-label={`지도 테마: ${{ auto: '자동(시간에 따라)', light: '밝게', dark: '어둡게' }[mapThemeSetting]}`}
         >
-          {mapTheme === 'dark' ? <Sun size={14} color="#f59e0b" /> : <Moon size={14} color="#38bdf8" />}
-          <span>{mapTheme === 'dark' ? '밝은 지도' : '다크 지도'}</span>
+          {mapThemeSetting === 'auto' ? <SunMoon size={18} color="#a78bfa" /> : mapThemeSetting === 'light' ? <Sun size={18} color="#f59e0b" /> : <Moon size={18} color="#38bdf8" />}
+        </button>
+
+        {/* 이용자 맞춤 설정 */}
+        <button
+          className="reset-btn"
+          onClick={onOpenSettings}
+          title="내 설정 (이동에 필요한 도움 변경)"
+          aria-label="내 설정 (이동에 필요한 도움 변경)"
+        >
+          <Settings size={18} />
         </button>
 
         {/* Reset Button */}
@@ -94,9 +124,9 @@ export default function Header({
           className="reset-btn"
           onClick={onResetPins}
           title="출발/도착지 기본값 초기화"
+          aria-label="출발/도착지 기본값 초기화"
         >
-          <RotateCcw size={14} />
-          <span>초기화</span>
+          <RotateCcw size={18} />
         </button>
       </div>
     </header>
