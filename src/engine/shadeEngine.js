@@ -175,6 +175,15 @@ export function calculateRouteShadeAnalytics(latlngs, shadowPolygons = [], trees
         closedCoords.push(closedCoords[0]);
       }
       const poly = turf.polygon([closedCoords.map(([lat, lng]) => [lng, lat])]);
+      // 점-다각형 검사 전에 사각 범위로 먼저 걸러 건물이 많아도 빠르게 계산한다.
+      let minLat = Infinity, maxLat = -Infinity, minLng = Infinity, maxLng = -Infinity;
+      for (const [lat, lng] of closedCoords) {
+        if (lat < minLat) minLat = lat;
+        if (lat > maxLat) maxLat = lat;
+        if (lng < minLng) minLng = lng;
+        if (lng > maxLng) maxLng = lng;
+      }
+      poly.bbox = [minLng, minLat, maxLng, maxLat];
       turfShadowPolys.push(poly);
     } catch (e) {
       // ignore invalid polygon
@@ -200,6 +209,8 @@ export function calculateRouteShadeAnalytics(latlngs, shadowPolygons = [], trees
 
     // 1. Check building shadows
     for (const poly of turfShadowPolys) {
+      const [bMinLng, bMinLat, bMaxLng, bMaxLat] = poly.bbox;
+      if (midLng < bMinLng || midLng > bMaxLng || midLat < bMinLat || midLat > bMaxLat) continue;
       if (turf.booleanPointInPolygon(turfPoint, poly)) {
         isShaded = true;
         break;
@@ -265,7 +276,7 @@ export function calculateRouteShadeAnalytics(latlngs, shadowPolygons = [], trees
  * @param {object} sunPos 
  * @returns {{ latlngs: Array<[number, number]>, distance: number, durationMinutes: number, shadeRatio: number, exposedDistance: number, shadedDistance: number, segments: Array<object> }}
  */
-export function generateShadeSafeRoute(baseLatlngs, shadowPolygons = [], sensitivity = 0.7, sunPos) {
+export function generateShadeSafeRoute(baseLatlngs, shadowPolygons = [], sensitivity = 0.7, sunPos, trees = GUNAM_RO_TREES) {
   if (!baseLatlngs || baseLatlngs.length < 2) return null;
 
   if (!sunPos || !sunPos.isDaylight) {
@@ -302,7 +313,7 @@ export function generateShadeSafeRoute(baseLatlngs, shadowPolygons = [], sensiti
   });
 
   // Calculate shade analytics on the shifted route
-  const analytics = calculateRouteShadeAnalytics(shadeLatlngs, shadowPolygons, GUNAM_RO_TREES, sunPos);
+  const analytics = calculateRouteShadeAnalytics(shadeLatlngs, shadowPolygons, trees, sunPos);
 
   // Dynamic shade ratio based on solar altitude:
   // Low altitude (morning/late afternoon) -> Long shadows -> 80%~95% shade

@@ -11,13 +11,14 @@ import {
   Building2,
   Loader2,
   X,
-  Sparkles,
   CornerDownLeft,
   SunMedium
 } from 'lucide-react';
 import { NODES } from '../data/urbanNetwork';
 import { findNearestNode } from '../engine/routingEngine';
 import { searchAddressLive } from '../services/addressService';
+import { formatDistance, formatDuration } from '../utils/format';
+import TravelModeToggle from './TravelModeToggle';
 
 export default function RouteSearch({
   userGps,
@@ -35,7 +36,11 @@ export default function RouteSearch({
   setMode,
   standardRoute,
   shadeRoute,
-  nightRoute
+  nightRoute,
+  travelMode = 'foot',
+  setTravelMode,
+  onShowGuide,
+  guideOpen = false
 }) {
   const [startQuery, setStartQuery] = useState('');
   const [destQuery, setDestQuery] = useState('');
@@ -297,7 +302,7 @@ export default function RouteSearch({
             <Navigation size={13} />
           </div>
           <span style={{ fontSize: '0.86rem', fontWeight: 700, color: 'var(--text-main)' }}>
-            도보 길찾기 (실시간 주소·건물 자동 검색)
+            길찾기
           </span>
         </div>
 
@@ -311,6 +316,8 @@ export default function RouteSearch({
         </button>
       </div>
 
+      <TravelModeToggle travelMode={travelMode} setTravelMode={setTravelMode} />
+
       {/* Origin & Destination Search Rows with Swap Button */}
       <div className="route-inputs-container">
         {/* 1. 출발지 도로명주소 검색 */}
@@ -318,7 +325,7 @@ export default function RouteSearch({
           <div className="input-indicator green-dot" />
           <div className="input-content" style={{ position: 'relative' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <span className="input-label">출발지 (건물명 또는 도로명 입력 시 자동 검색)</span>
+              <span className="input-label">출발지</span>
               <button
                 onClick={handleUseGpsAsStart}
                 style={{
@@ -342,7 +349,7 @@ export default function RouteSearch({
               <input
                 ref={startInputRef}
                 type="text"
-                placeholder="출발 건물명 또는 도로명 (예: 해운대자이, 구남로 20)"
+                placeholder="출발지 검색 (건물명·도로명)"
                 value={startQuery}
                 onChange={handleStartChange}
                 onKeyDown={handleStartKeyDown}
@@ -375,7 +382,7 @@ export default function RouteSearch({
                   <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                     <Search size={12} color="var(--accent-cyan)" />
                     <span style={{ fontSize: '0.74rem', fontWeight: 700, color: 'var(--text-main)' }}>
-                      백엔드 실시간 검색결과 ({startResults.length}건)
+                      검색 결과 ({startResults.length}건)
                     </span>
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -427,7 +434,7 @@ export default function RouteSearch({
                       {isSearching ? (
                         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                           <Loader2 size={15} className="spin-anim" color="var(--accent-cyan)" />
-                          <span>백엔드에서 실시간 건물 및 도로명주소 검색 중...</span>
+                          <span>검색 중...</span>
                         </div>
                       ) : (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', alignItems: 'center' }}>
@@ -462,14 +469,14 @@ export default function RouteSearch({
           <div className="input-indicator red-dot" />
           <div className="input-content" style={{ position: 'relative' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <span className="input-label">도착지 (건물명 또는 도로명 입력 시 자동 검색)</span>
+              <span className="input-label">도착지</span>
             </div>
 
             <div className="search-input-wrapper">
               <input
                 ref={destInputRef}
                 type="text"
-                placeholder="도착 건물명 또는 도로명 (예: 센텀 신세계, 해운대자이)"
+                placeholder="도착지 검색 (건물명·도로명)"
                 value={destQuery}
                 onChange={handleDestChange}
                 onKeyDown={handleDestKeyDown}
@@ -502,7 +509,7 @@ export default function RouteSearch({
                   <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                     <Search size={12} color="var(--accent-rose)" />
                     <span style={{ fontSize: '0.74rem', fontWeight: 700, color: 'var(--text-main)' }}>
-                      백엔드 실시간 검색결과 ({destResults.length}건)
+                      검색 결과 ({destResults.length}건)
                     </span>
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -554,7 +561,7 @@ export default function RouteSearch({
                       {isSearching ? (
                         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                           <Loader2 size={15} className="spin-anim" color="var(--accent-cyan)" />
-                          <span>백엔드에서 실시간 건물 및 도로명주소 검색 중...</span>
+                          <span>검색 중...</span>
                         </div>
                       ) : (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', alignItems: 'center' }}>
@@ -573,19 +580,25 @@ export default function RouteSearch({
         </div>
       </div>
 
-      {/* Real-time search hint badge */}
-      <div className="live-search-hint">
-        <Sparkles size={11} color="var(--accent-cyan)" />
-        <span>백엔드 검색엔진을 통해 전국의 모든 건물명과 도로명주소를 실시간으로 검색하여 노출합니다.</span>
-      </div>
-
       {/* 3대 추천 루트 카드 */}
       <div style={{ marginTop: '12px' }}>
         <div style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '8px' }}>
-          추천 경로 비교 (클릭하여 선택)
+          경로 비교 (눌러서 선택)
         </div>
 
-        <div className="recommend-routes-grid" style={{ gridTemplateColumns: 'repeat(3, 1fr)' }}>
+        {travelMode === 'car' && standardRoute && (
+          <div className="recommend-route-card selected standard-active" style={{ cursor: 'default' }}>
+            <div className="card-top-row">
+              <span className="route-card-title">🚗 차량 기준 경로</span>
+            </div>
+            <div className="route-card-metrics">
+              <strong>{formatDistance(standardRoute.totalDistance)}</strong>
+              <span className="route-card-time">{formatDuration(standardRoute.estimatedMinutes)}</span>
+            </div>
+          </div>
+        )}
+
+        <div className="recommend-routes-grid" style={{ gridTemplateColumns: 'repeat(3, 1fr)', display: travelMode === 'car' ? 'none' : undefined }}>
           {/* 1. 일반 최단 경로 */}
           {standardRoute && (
             <div
@@ -595,15 +608,16 @@ export default function RouteSearch({
               <div className="card-top-row">
                 <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
                   <Compass size={14} color="#94a3b8" />
-                  <span className="route-card-title">일반 최단</span>
+                  <span className="route-card-title">가장 짧은 길</span>
                 </div>
                 {mode === 'standard' && <CheckCircle2 size={13} color="#94a3b8" />}
               </div>
               <div className="route-card-metrics">
-                <strong>{standardRoute.totalDistance}m</strong> · {standardRoute.estimatedMinutes}분
+                <strong>{formatDistance(standardRoute.totalDistance)}</strong>
+                <span className="route-card-time">{formatDuration(standardRoute.estimatedMinutes)}</span>
               </div>
               <div className="route-card-desc">
-                그늘 {standardRoute.shadeRatio || 35}% (직사광선 {standardRoute.exposedDistance || Math.round(standardRoute.totalDistance * 0.65)}m)
+                그늘 {standardRoute.shadeRatio || 35}% (직사광선 {formatDistance(standardRoute.exposedDistance || Math.round(standardRoute.totalDistance * 0.65))})
               </div>
             </div>
           )}
@@ -626,7 +640,8 @@ export default function RouteSearch({
                 {mode === 'shade' && <CheckCircle2 size={13} color="#10b981" />}
               </div>
               <div className="route-card-metrics">
-                <strong>{shadeRoute.totalDistance}m</strong> · {shadeRoute.estimatedMinutes}분
+                <strong>{formatDistance(shadeRoute.totalDistance)}</strong>
+                <span className="route-card-time">{formatDuration(shadeRoute.estimatedMinutes)}</span>
               </div>
               <div className="route-card-desc">
                 <span style={{ color: '#10b981', fontWeight: 700 }}>그늘 {shadeRoute.shadeRatio}% 도보</span> (땡볕 최소화)
@@ -648,7 +663,8 @@ export default function RouteSearch({
                 {mode === 'night' && <CheckCircle2 size={13} color="#38bdf8" />}
               </div>
               <div className="route-card-metrics">
-                <strong>{nightRoute.totalDistance}m</strong> · {nightRoute.estimatedMinutes}분
+                <strong>{formatDistance(nightRoute.totalDistance)}</strong>
+                <span className="route-card-time">{formatDuration(nightRoute.estimatedMinutes)}</span>
               </div>
               <div className="route-card-desc">
                 CCTV <span style={{ color: '#38bdf8', fontWeight: 700 }}>{nightRoute.cctvCount}대</span> 안전존
@@ -657,6 +673,18 @@ export default function RouteSearch({
           )}
         </div>
       </div>
+
+      {/* 탐색: 눌러야 길 안내 창이 열린다 */}
+      <button
+        type="button"
+        className="route-explore-btn"
+        onClick={onShowGuide}
+        disabled={!standardRoute}
+        aria-pressed={guideOpen}
+      >
+        <Navigation size={18} />
+        탐색
+      </button>
     </div>
   );
 }

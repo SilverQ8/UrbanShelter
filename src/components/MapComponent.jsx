@@ -1,9 +1,11 @@
 import React, { useEffect, useRef, useState } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import { Crosshair, SunMedium, Shield } from 'lucide-react';
+import { SunMedium, Shield } from 'lucide-react';
+import { MapLibreBasemap } from '../utils/MapLibreBasemap';
 import { NODES, MAP_CENTER, DEFAULT_ZOOM } from '../data/urbanNetwork';
 import { findNearestNode } from '../engine/routingEngine';
+import { formatDistance, formatDuration } from '../utils/format';
 
 export default function MapComponent({
   userGps,
@@ -25,11 +27,21 @@ export default function MapComponent({
   nightRoute,
   sunPos,
   layers,
-  mapTheme = 'dark'
+  mapTheme = 'dark',
+  focusPoint = null,
+  buildings = [],
+  trees = [],
+  travelMode = 'foot',
+  locateTarget = null,
+  poiSelected = {}
 }) {
   const mapContainerRef = useRef(null);
   const mapInstanceRef = useRef(null);
-  const tileLayerRef = useRef(null);
+  const basemapRef = useRef(null);
+  const latestThemeRef = useRef(mapTheme);
+  const latestPoiRef = useRef(poiSelected);
+  latestThemeRef.current = mapTheme;
+  latestPoiRef.current = poiSelected;
   const [cctvState, setCctvState] = useState({
     count: 0,
     displayedCount: 0,
@@ -38,6 +50,8 @@ export default function MapComponent({
   });
 
   // Layer groups refs (Clean & uncluttered: CCTV, Routes, Markers)
+  const buildingLayerRef = useRef(null);
+  const treeLayerRef = useRef(null);
   const routeLayerRef = useRef(null);
   const cctvLayerRef = useRef(null);
   const markersLayerRef = useRef(null);
@@ -50,29 +64,31 @@ export default function MapComponent({
       center: userGps ? [userGps.lat, userGps.lng] : MAP_CENTER,
       zoom: DEFAULT_ZOOM,
       zoomControl: false,
-      attributionControl: false
+      attributionControl: false,
+      zoomAnimation: false, // 바닥 벡터 지도가 같은 시점에 맞춰 바뀌도록
+      fadeAnimation: false,
+      markerZoomAnimation: false
     });
 
-    const tileLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      maxZoom: 19,
-      subdomains: ['a', 'b', 'c'],
-      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-    }).addTo(map);
-
-    tileLayerRef.current = tileLayer;
+    // 이미지 타일 대신 3D 지도와 같은 벡터 지도를 바닥에 깐다(장소 아이콘 선택·테마가 3D와 동일)
+    const basemap = new MapLibreBasemap({ theme: latestThemeRef.current, poiSelected: latestPoiRef.current }).addTo(map);
+    basemapRef.current = basemap;
 
     // Controls
     L.control.zoom({ position: 'topright' }).addTo(map);
     L.control.attribution({ position: 'bottomright' }).addTo(map);
 
     // Initialize Layer Groups in proper z-order
+    // 건물 윤곽·가로수는 CCTV·경로보다 아래에 깐다
+    buildingLayerRef.current = L.layerGroup().addTo(map);
+    treeLayerRef.current = L.layerGroup().addTo(map);
     cctvLayerRef.current = L.layerGroup().addTo(map);
     routeLayerRef.current = L.layerGroup().addTo(map);
     markersLayerRef.current = L.layerGroup().addTo(map);
 
     mapInstanceRef.current = map;
 
-    setTimeout(() => {
+    const sizeTimer = setTimeout(() => {
       map.invalidateSize();
     }, 150);
 
@@ -82,6 +98,7 @@ export default function MapComponent({
     window.addEventListener('resize', handleResize);
 
     return () => {
+      clearTimeout(sizeTimer); // 지도가 정리된 뒤에 크기 보정이 호출되지 않도록
       window.removeEventListener('resize', handleResize);
       map.remove();
       mapInstanceRef.current = null;
@@ -105,6 +122,13 @@ export default function MapComponent({
     const currentKey = `${sLat.toFixed(4)}_${sLng.toFixed(4)}_${tLat.toFixed(4)}_${tLng.toFixed(4)}`;
     if (lastFittedKeyRef.current === currentKey) return; // Skip if already fitted for this origin-destination pair!
     lastFittedKeyRef.current = currentKey;
+    // 컨테이너 크기가 확정되기 전에 맞추면 축척이 너무 작게 잡히는 경우가 있다.
+    // 지도가 아직 준비되지 않았거나 이미 정리된 경우에는 건너뛴다.
+    try {
+      if (map._loaded) map.invalidateSize();
+    } catch {
+      // 크기 보정은 보조 동작이라 실패해도 지도를 계속 쓸 수 있다
+    }
 
     if (recommendedRoute && recommendedRoute.latlngs && recommendedRoute.latlngs.length > 1) {
       const bounds = L.latLngBounds(recommendedRoute.latlngs);
@@ -116,7 +140,136 @@ export default function MapComponent({
     map.fitBounds(bounds, { padding: [100, 100], maxZoom: 17 });
   }, [startPoint?.lat, startPoint?.lng, targetPoint?.lat, targetPoint?.lng, recommendedRoute]);
 
-  // 1. Dynamic CCTV Viewport Rendering (Nationwide Government CCTV Integration)
+  // 오른쪽 아래 '내 위치' 버튼: 출발지는 바꾸지 않고 지도만 현재 위치로 옮긴다.
+  useEffect(() => {
+    const map = mapInstanceRef.current;
+    if (!map || !locateTarget) return;
+    map.setView([locateTarget.lat, locateTarget.lng], Math.max(map.getZoom(), 17), { animate: true });
+  }, [locateTarget]);
+
+  // 길 안내 목록에서 단계를 누르면 해당 지점으로 이동하고 강조 표시한다.
+  const focusMarkerRef = useRef(null);
+  useEffect(() => {
+    const map = mapInstanceRef.current;
+    if (!map || !focusPoint) return;
+
+    if (focusMarkerRef.current) {
+      focusMarkerRef.current.remove();
+      focusMarkerRef.current = null;
+    }
+    focusMarkerRef.current = L.circleMarker([focusPoint.lat, focusPoint.lng], {
+      radius: 14,
+      color: '#f59e0b',
+      weight: 4,
+      fillColor: '#fbbf24',
+      fillOpacity: 0.35
+    }).addTo(map);
+    map.setView([focusPoint.lat, focusPoint.lng], Math.max(map.getZoom(), 18), { animate: true });
+  }, [focusPoint]);
+
+  // 테마·고른 장소 종류가 바뀌면 바닥 지도에 반영한다
+  useEffect(() => {
+    if (basemapRef.current) basemapRef.current.setTheme(mapTheme);
+  }, [mapTheme]);
+
+  useEffect(() => {
+    if (basemapRef.current) basemapRef.current.setPoiSelected(poiSelected);
+  }, [poiSelected]);
+
+  // 건물 그림자는 2D 지도에서 그리지 않는다. 보행자 시점(3D)에서만 표시한다.
+
+  // 2. Render 3D Building Footprints (Elevated Glowing Blocks)
+  useEffect(() => {
+    const buildingLayer = buildingLayerRef.current;
+    if (!buildingLayer) return;
+    buildingLayer.clearLayers();
+
+    if (!layers.buildings) return;
+
+    let badgeCount = 0;
+    for (const b of buildings) {
+      // 실제 건물이 수백 채일 때는 지도가 파랗게 뒤덮이지 않도록 윤곽선과 채움을 옅게 한다
+      const dense = buildings.length > 100;
+      const poly = L.polygon(b.polygon, {
+        color: '#38bdf8',
+        weight: dense ? 1 : 2,
+        opacity: dense ? 0.45 : 0.85,
+        fillColor: mapTheme === 'dark' ? '#0369a1' : '#0284c7',
+        fillOpacity: dense ? 0.18 : 0.45
+      });
+
+      poly.bindTooltip(
+        `<strong>🏢 ${b.name}</strong><br/>` +
+        `<span style="color:#38bdf8; font-size:11px;">건물 높이: ${b.height}m (~${Math.round(b.height / 3)}층)${b.heightSource === 'estimate' ? ' · 추정값' : ''}</span><br/>` +
+        `<span style="color:#34d399; font-size:10px;">그늘로 3D 차폐 시뮬레이션 적용</span>`,
+        { className: 'route-tooltip-custom' }
+      );
+      buildingLayer.addLayer(poly);
+
+      // 높이 라벨은 지도가 복잡해지지 않도록 높이를 확인했거나 높은 건물에만 붙인다
+      if (b.heightSource === 'estimate' && b.height < 30) continue;
+      if (badgeCount >= 80) continue;
+      badgeCount += 1;
+      const centerLat = b.polygon.reduce((sum, p) => sum + p[0], 0) / b.polygon.length;
+      const centerLng = b.polygon.reduce((sum, p) => sum + p[1], 0) / b.polygon.length;
+      const bldIcon = L.divIcon({
+        className: 'building-height-badge',
+        html: `
+          <div style="background: rgba(15, 23, 42, 0.85); color: #38bdf8; padding: 1px 4px; border-radius: 4px; font-size: 9px; font-weight: 700; border: 1px solid rgba(56,189,248,0.5); white-space: nowrap; pointer-events: none; box-shadow: 0 2px 6px rgba(0,0,0,0.5);">
+            🏢 ${b.height}m
+          </div>
+        `,
+        iconSize: [40, 16],
+        iconAnchor: [20, 8]
+      });
+      const badgeMarker = L.marker([centerLat, centerLng], { icon: bldIcon, interactive: false });
+      buildingLayer.addLayer(badgeMarker);
+    }
+  }, [layers.buildings, mapTheme, buildings]);
+
+  // 3. Render Roadside Trees & Dynamic Canopy Shadows
+  useEffect(() => {
+    const treeLayer = treeLayerRef.current;
+    if (!treeLayer) return;
+    treeLayer.clearLayers();
+
+    if (!layers.trees) return;
+
+    // Shift tree shadow slightly according to sun azimuth
+    const shadowAzimuthDeg = sunPos ? (sunPos.azimuthDeg + 180) % 360 : 0;
+    const shadowRad = (shadowAzimuthDeg * Math.PI) / 180;
+    const treeShadowDist = sunPos && sunPos.altitudeDeg > 0 ? Math.min(18, 7.5 / Math.tan(Math.max(10, sunPos.altitudeDeg) * Math.PI / 180)) : 0;
+    const dLat = (treeShadowDist * Math.cos(shadowRad)) / 111320;
+    const dLng = (treeShadowDist * Math.sin(shadowRad)) / (111320 * Math.cos(35.161 * Math.PI / 180));
+
+    for (const t of trees) {
+      if (sunPos && sunPos.isDaylight) {
+        const shadowCircle = L.circle([t.lat + dLat, t.lng + dLng], {
+          radius: t.radius || 4.5,
+          color: 'transparent',
+          weight: 0,
+          fillColor: '#022c22',
+          fillOpacity: 0.55,
+          interactive: false
+        });
+        treeLayer.addLayer(shadowCircle);
+      }
+
+      // Tree Marker Icon
+      const treeIcon = L.divIcon({
+        className: 'tree-canopy-icon',
+        html: `<div style="font-size: 13px; filter: drop-shadow(0 0 5px rgba(16,185,129,0.9));">🌳</div>`,
+        iconSize: [16, 16],
+        iconAnchor: [8, 8]
+      });
+
+      const marker = L.marker([t.lat, t.lng], { icon: treeIcon });
+      marker.bindTooltip(`🌳 가로수 그늘 캐노피 (반경 ${(t.radius || 4.5).toFixed(1)}m)`, { className: 'route-tooltip-custom' });
+      treeLayer.addLayer(marker);
+    }
+  }, [layers.trees, sunPos, trees]);
+
+  // 4. Dynamic CCTV Viewport Rendering (Nationwide Government CCTV Integration)
   useEffect(() => {
     const map = mapInstanceRef.current;
     const cctvLayer = cctvLayerRef.current;
@@ -254,7 +407,7 @@ export default function MapComponent({
           lineJoin: 'round'
         });
         standardPoly.bindTooltip(
-          `<strong>기본 최단 도보 경로</strong><br/>거리: ${standardRoute.totalDistance}m | 소요: ${standardRoute.estimatedMinutes}분<br/>그늘 비율: ${standardRoute.shadeRatio}%`,
+          `<strong>${travelMode === 'car' ? '차량 기준 경로' : '가장 짧은 도보 경로'}</strong><br/>거리: ${formatDistance(standardRoute.totalDistance)} | 소요: ${formatDuration(standardRoute.estimatedMinutes)}${travelMode === 'car' ? '' : `<br/>그늘 비율: ${standardRoute.shadeRatio}%`}`,
           { className: 'route-tooltip-custom', sticky: true }
         );
         routeLayer.addLayer(standardPoly);
@@ -262,12 +415,11 @@ export default function MapComponent({
         const standardPoly = L.polyline(stdLatLngs, {
           color: mapTheme === 'dark' ? '#64748b' : '#94a3b8',
           weight: 3.5,
-          opacity: 0.55,
-          dashArray: '6, 8',
+          opacity: 0.45,
           lineCap: 'round',
           lineJoin: 'round'
         });
-        standardPoly.bindTooltip(`기본 최단 경로 (${standardRoute.totalDistance}m)`, { className: 'route-tooltip-custom' });
+        standardPoly.bindTooltip(`${travelMode === 'car' ? '차량 기준 경로' : '가장 짧은 도보 경로'} (${formatDistance(standardRoute.totalDistance)})`, { className: 'route-tooltip-custom' });
         routeLayer.addLayer(standardPoly);
       }
     }
@@ -308,7 +460,7 @@ export default function MapComponent({
             mainPoly.bindTooltip(
               `<strong>🌿 시원한 그늘 도보 구간</strong><br/>` +
               `건물 및 수목 그늘 차폐 · 체감온도 -2.5℃ 저감<br/>` +
-              `<span style="color:#34d399; font-weight:700;">전체 경로 그늘율: ${recommendedRoute.shadeRatio}% (${recommendedRoute.shadedDistance}m)</span>`,
+              `<span style="color:#34d399; font-weight:700;">전체 경로 그늘율: ${recommendedRoute.shadeRatio}% (${formatDistance(recommendedRoute.shadedDistance)})</span>`,
               { className: 'route-tooltip-custom', sticky: true }
             );
             routeLayer.addLayer(mainPoly);
@@ -327,14 +479,13 @@ export default function MapComponent({
               color: '#f59e0b',
               weight: 6.0,
               opacity: 0.95,
-              dashArray: '8, 8',
               lineCap: 'round',
               lineJoin: 'round'
             });
             mainPoly.bindTooltip(
               `<strong>☀️ 직사광선 노출 구간 (땡볕)</strong><br/>` +
               `자외선 주의 · 양산/선글라스 착용 권장<br/>` +
-              `<span style="color:#fbbf24; font-weight:700;">직사광선 노출 거리: ${recommendedRoute.exposedDistance}m</span>`,
+              `<span style="color:#fbbf24; font-weight:700;">직사광선 노출 거리: ${formatDistance(recommendedRoute.exposedDistance)}</span>`,
               { className: 'route-tooltip-custom', sticky: true }
             );
             routeLayer.addLayer(mainPoly);
@@ -360,13 +511,13 @@ export default function MapComponent({
         });
 
         mainPoly.bindTooltip(
-          `<strong>야간 안심 추천 경로 (방범 CCTV 안전구역 연계)</strong><br/>거리: ${recommendedRoute.totalDistance}m | 소요: ${recommendedRoute.estimatedMinutes}분`,
+          `<strong>야간 안심 추천 경로 (방범 CCTV 안전구역 연계)</strong><br/>거리: ${formatDistance(recommendedRoute.totalDistance)} | 소요: ${formatDuration(recommendedRoute.estimatedMinutes)}`,
           { className: 'route-tooltip-custom', sticky: true }
         );
         routeLayer.addLayer(mainPoly);
       }
     }
-  }, [mode, recommendedRoute, standardRoute, mapTheme]);
+  }, [mode, recommendedRoute, standardRoute, mapTheme, travelMode]);
 
   // 3. Interactive Markers (User GPS, Start A, Target B)
   useEffect(() => {
@@ -493,11 +644,11 @@ export default function MapComponent({
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <span style={{ width: '22px', height: '5px', borderRadius: '3px', background: '#10b981', display: 'inline-block', boxShadow: '0 0 8px rgba(16,185,129,0.8)' }}></span>
-            <span style={{ color: '#34d399', fontWeight: 600 }}>시원한 그늘 구간 (실선)</span>
+            <span style={{ color: '#34d399', fontWeight: 600 }}>시원한 그늘 구간 (초록)</span>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <span style={{ width: '22px', height: '4px', borderRadius: '2px', borderBottom: '3px dashed #f59e0b', display: 'inline-block' }}></span>
-            <span style={{ color: '#fbbf24', fontWeight: 600 }}>직사광선 땡볕 구간 (점선)</span>
+            <span style={{ width: '22px', height: '4px', borderRadius: '2px', background: '#f59e0b', display: 'inline-block' }}></span>
+            <span style={{ color: '#fbbf24', fontWeight: 600 }}>직사광선 땡볕 구간 (주황)</span>
           </div>
         </div>
       )}
@@ -575,14 +726,6 @@ export default function MapComponent({
         </div>
       )}
 
-      {/* Floating GPS Button on Map */}
-      <button
-        className="floating-map-gps-btn"
-        onClick={onRequestGps}
-        title="내 현재 GPS 위치로 지도 이동"
-      >
-        <Crosshair size={18} />
-      </button>
     </div>
   );
 }

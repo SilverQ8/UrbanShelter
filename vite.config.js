@@ -280,10 +280,19 @@ export default defineConfig(({ mode }) => {
             'Accept-Language': 'ko-KR,ko;q=0.9',
           },
         },
-        '/api/route/foot': {
-          target: 'https://router.project-osrm.org/route/v1/foot',
+        // 보행자 전용 라우팅 서버(FOSSGIS routed-foot) 및 차량 기준 서버
+        '/api/route/car': {
+          target: 'https://routing.openstreetmap.de/routed-car/route/v1',
           changeOrigin: true,
-          rewrite: (path) => path.replace(/^\/api\/route\/foot/, ''),
+          rewrite: (path) => path.replace(/^\/api\/route\/car/, '/driving'),
+          headers: {
+            'User-Agent': 'UrbanShelter-PedestrianApp/1.0',
+          },
+        },
+        '/api/route/foot': {
+          target: 'https://routing.openstreetmap.de/routed-foot/route/v1',
+          changeOrigin: true,
+          rewrite: (path) => path.replace(/^\/api\/route\/foot/, '/foot'),
           headers: {
             'User-Agent': 'UrbanShelter-PedestrianApp/1.0',
           },

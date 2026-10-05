@@ -1205,7 +1205,11 @@ input:checked + .switch-slider:before {
 .map-cctv-counter-pill {
   position: absolute;
   top: 18px;
-  right: 60px;
+  left: 440px;
+  max-width: calc(100% - 440px - 380px);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -1252,3 +1256,863 @@ input:checked + .switch-slider:before {
 }
 
 
+
+/* Onboarding (이용자 맞춤 설정) */
+.onboarding-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 3000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: rgba(5, 8, 16, 0.78);
+  backdrop-filter: blur(4px);
+}
+
+.onboarding-card {
+  width: 100%;
+  max-width: 520px;
+  max-height: 100%;
+  overflow-y: auto;
+  padding: 28px 24px 22px;
+}
+
+.onboarding-title {
+  font-size: 1.35rem;
+  font-weight: 800;
+  line-height: 1.4;
+  margin-bottom: 8px;
+}
+
+.onboarding-desc {
+  font-size: 0.9rem;
+  line-height: 1.55;
+  color: var(--text-muted);
+  margin-bottom: 18px;
+}
+
+.onboarding-options {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 20px;
+}
+
+.onboarding-option {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  min-height: 64px;
+  padding: 12px 14px;
+  text-align: left;
+  font-family: inherit;
+  color: var(--text-main);
+  background: rgba(255, 255, 255, 0.05);
+  border: 2px solid var(--bg-glass-border);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.onboarding-option:hover:not(:disabled) {
+  border-color: var(--accent-cyan);
+}
+
+.onboarding-option.selected {
+  border-color: var(--accent-emerald);
+  background: rgba(16, 185, 129, 0.14);
+}
+
+.onboarding-option:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.onboarding-option:focus-visible,
+.onboarding-btn:focus-visible {
+  outline: 3px solid var(--accent-amber);
+  outline-offset: 2px;
+}
+
+.onboarding-check {
+  flex: 0 0 28px;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid var(--text-dim);
+  border-radius: 8px;
+  color: #04120d;
+}
+
+.onboarding-option.selected .onboarding-check {
+  background: var(--accent-emerald);
+  border-color: var(--accent-emerald);
+}
+
+.onboarding-option-text {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.onboarding-option-text strong {
+  font-size: 1rem;
+}
+
+.onboarding-option-text span {
+  font-size: 0.82rem;
+  color: var(--text-muted);
+}
+
+.onboarding-actions {
+  display: flex;
+  gap: 10px;
+}
+
+.onboarding-btn {
+  flex: 1;
+  min-height: 52px;
+  font-family: inherit;
+  font-size: 1rem;
+  font-weight: 700;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  border: 2px solid var(--bg-glass-border);
+}
+
+.onboarding-btn.secondary {
+  background: transparent;
+  color: var(--text-main);
+}
+
+.onboarding-btn.primary {
+  background: var(--accent-emerald);
+  border-color: var(--accent-emerald);
+  color: #04120d;
+}
+
+/* Route Guide (길 안내) */
+.floating-overlay-right {
+  position: absolute;
+  top: 96px;
+  right: 20px;
+  bottom: 100px;
+  width: 340px;
+  z-index: 500;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  pointer-events: none;
+}
+
+.floating-overlay-right > * {
+  pointer-events: auto;
+  flex: 0 0 auto;
+}
+
+.route-guide {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.route-guide-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 12px 14px;
+  font-family: inherit;
+  color: var(--text-main);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+}
+
+.route-guide-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 1rem;
+  font-weight: 800;
+}
+
+.route-guide-summary {
+  margin-left: auto;
+  font-size: 0.85rem;
+  color: var(--accent-emerald);
+  font-weight: 700;
+}
+
+.route-guide-list {
+  list-style: none;
+  margin: 0;
+  padding: 0 8px 8px;
+  overflow-y: auto;
+  min-height: 0;
+}
+
+.route-guide-step {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 56px;
+  padding: 8px 10px;
+  margin-bottom: 4px;
+  font-family: inherit;
+  text-align: left;
+  color: var(--text-main);
+  background: rgba(255, 255, 255, 0.04);
+  border: 2px solid transparent;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+}
+
+.route-guide-step:hover {
+  border-color: var(--accent-cyan);
+}
+
+.route-guide-step.active {
+  border-color: var(--accent-amber);
+  background: rgba(245, 158, 11, 0.12);
+}
+
+.route-guide-step:focus-visible,
+.route-guide-header:focus-visible {
+  outline: 3px solid var(--accent-amber);
+  outline-offset: -2px;
+}
+
+.route-guide-icon {
+  flex: 0 0 40px;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: rgba(56, 189, 248, 0.16);
+  color: var(--accent-cyan);
+}
+
+.route-guide-step.edge .route-guide-icon {
+  background: rgba(16, 185, 129, 0.2);
+  color: var(--accent-emerald);
+}
+
+.route-guide-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.route-guide-text strong {
+  font-size: 1rem;
+}
+
+.route-guide-road {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.route-guide-dist {
+  margin-left: auto;
+  flex: 0 0 auto;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--text-main);
+}
+
+.route-guide-empty,
+.route-guide-note {
+  padding: 4px 14px 12px;
+  font-size: 0.82rem;
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+
+@media (max-width: 1100px) {
+  .floating-overlay-right {
+    display: none;
+  }
+}
+
+/* 3D 지도 (MapLibre) */
+.map3d-viewport {
+  width: 100%;
+  height: 100%;
+  background: #090e1a;
+}
+
+/* 설정 패널 */
+.settings-card {
+  max-width: 560px;
+}
+
+.settings-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+
+.settings-close {
+  width: 44px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-main);
+  background: transparent;
+  border: 2px solid var(--bg-glass-border);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+}
+
+.settings-section {
+  padding: 14px 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.settings-section h3 {
+  font-size: 1rem;
+  font-weight: 800;
+  margin-bottom: 10px;
+}
+
+.settings-segment {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+}
+
+.settings-segment button {
+  min-height: 48px;
+  font-family: inherit;
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--text-main);
+  background: rgba(255, 255, 255, 0.05);
+  border: 2px solid var(--bg-glass-border);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+}
+
+.settings-segment button.active {
+  border-color: var(--accent-emerald);
+  background: rgba(16, 185, 129, 0.16);
+  color: var(--accent-emerald);
+}
+
+.settings-help {
+  margin-top: 8px;
+  font-size: 0.85rem;
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+
+.settings-time-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+  font-size: 1.1rem;
+}
+
+.settings-chip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 40px;
+  padding: 0 12px;
+  font-family: inherit;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--text-main);
+  background: rgba(255, 255, 255, 0.06);
+  border: 2px solid var(--bg-glass-border);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+}
+
+.settings-chip.active {
+  background: #f59e0b;
+  border-color: #f59e0b;
+  color: #000;
+}
+
+/* 자동 경로 안내 배너 */
+.auto-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  font-size: 0.88rem;
+  line-height: 1.45;
+}
+
+.auto-banner-icon {
+  flex: 0 0 auto;
+  font-size: 1.4rem;
+}
+
+.auto-banner-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.auto-banner-text strong {
+  display: block;
+}
+
+.auto-banner-text span {
+  color: var(--text-muted);
+}
+
+.auto-banner-reset {
+  flex: 0 0 auto;
+  min-height: 36px;
+  padding: 0 10px;
+  font-family: inherit;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--accent-cyan);
+  background: transparent;
+  border: 2px solid var(--accent-cyan);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+}
+
+/* 경로 비교 카드: 거리·시간이 길어져도 각각 한 덩어리로 유지 */
+.route-card-metrics {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  column-gap: 6px;
+}
+
+.route-card-metrics strong,
+.route-card-time {
+  white-space: nowrap;
+}
+
+/* 탐색 시작 / 보행자 시점 */
+.route-guide-startbar {
+  padding: 0 12px 10px;
+}
+
+.route-guide-start {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 52px;
+  font-family: inherit;
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: #04120d;
+  background: var(--accent-emerald);
+  border: none;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+}
+
+.route-guide-nav {
+  margin: 0 12px 10px;
+  padding: 12px;
+  background: rgba(37, 99, 235, 0.14);
+  border: 2px solid #3b82f6;
+  border-radius: var(--radius-md);
+}
+
+.route-guide-nav-now {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin-bottom: 10px;
+}
+
+.route-guide-nav-now strong {
+  font-size: 1.35rem;
+}
+
+.route-guide-nav-count {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #93c5fd;
+}
+
+.route-guide-nav-dist {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--accent-emerald);
+}
+
+.route-guide-nav-next {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+.route-guide-nav-buttons {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.route-guide-nav-buttons button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-height: 52px;
+  font-family: inherit;
+  font-size: 1rem;
+  font-weight: 800;
+  color: var(--text-main);
+  background: rgba(255, 255, 255, 0.08);
+  border: 2px solid var(--bg-glass-border);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+}
+
+.route-guide-nav-buttons button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.route-guide-stop {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  min-height: 44px;
+  margin-top: 8px;
+  font-family: inherit;
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: #fecaca;
+  background: transparent;
+  border: 2px solid #f87171;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+}
+
+.route-guide-steps-count {
+  padding: 0 14px 8px;
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--text-muted);
+}
+
+.route-guide-text strong {
+  word-break: keep-all;
+}
+
+/* 이동 수단 선택 (도보 / 차량) */
+.travel-toggle {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.travel-toggle button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 44px;
+  font-family: inherit;
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--text-main);
+  background: rgba(255, 255, 255, 0.05);
+  border: 2px solid var(--bg-glass-border);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+}
+
+.travel-toggle button.active {
+  border-color: var(--accent-emerald);
+  background: rgba(16, 185, 129, 0.16);
+  color: var(--accent-emerald);
+}
+
+/* 경로 추천 세부 내용: 왼쪽 패널 안에서 작게 */
+.floating-overlay-left .dashboard-card {
+  gap: 8px;
+  padding: 12px;
+}
+
+.floating-overlay-left .dashboard-header {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  padding-bottom: 8px;
+}
+
+.floating-overlay-left .route-type-badge {
+  font-size: 0.74rem;
+  padding: 3px 8px;
+}
+
+.floating-overlay-left .metrics-comparison-grid {
+  gap: 8px;
+}
+
+.floating-overlay-left .metric-box {
+  padding: 8px 10px;
+}
+
+.floating-overlay-left .metric-value {
+  font-size: 1.15rem;
+}
+
+.floating-overlay-left .hazard-banner {
+  font-size: 0.74rem;
+  padding: 6px 10px;
+}
+
+/* 길 안내 창 머리줄 + 닫기 / 길찾기 카드의 탐색 버튼 */
+.route-guide-headrow {
+  display: flex;
+  align-items: center;
+}
+
+.route-guide-headrow .route-guide-header {
+  flex: 1;
+  width: auto;
+  min-width: 0;
+}
+
+.route-guide-close {
+  flex: 0 0 auto;
+  width: 40px;
+  height: 40px;
+  margin-right: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-main);
+  background: transparent;
+  border: 2px solid var(--bg-glass-border);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+}
+
+.route-explore-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 48px;
+  margin-top: 12px;
+  font-family: inherit;
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: #04120d;
+  background: var(--accent-emerald);
+  border: none;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+}
+
+.route-explore-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* 실시간 위치 따라가기 상태 / 도착 알림 */
+.route-guide-live {
+  margin-bottom: 8px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  line-height: 1.4;
+  color: var(--text-muted);
+}
+
+.route-guide-live.live-following {
+  color: #86efac;
+}
+
+.route-guide-live.live-off-route {
+  color: #fcd34d;
+}
+
+.route-guide-arrival {
+  margin-bottom: 8px;
+  padding: 10px 12px;
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: #04120d;
+  background: #facc15;
+  border-radius: var(--radius-md);
+}
+
+/* 오른쪽 아래 '현재 위치로 이동' 버튼 (2D·3D 공통) */
+.locate-btn {
+  position: absolute;
+  bottom: 28px;
+  right: 20px;
+  z-index: 700;
+  width: 52px;
+  height: 52px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--accent-cyan);
+  background: rgba(15, 23, 42, 0.92);
+  border: 2px solid var(--accent-cyan);
+  border-radius: 50%;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
+  cursor: pointer;
+}
+
+.locate-btn:hover:not(:disabled) {
+  background: var(--accent-cyan);
+  color: #0a0f1d;
+}
+
+.locate-btn:disabled {
+  opacity: 0.7;
+  cursor: progress;
+}
+
+.locate-msg {
+  position: absolute;
+  bottom: 90px;
+  right: 20px;
+  z-index: 700;
+  max-width: 260px;
+  padding: 10px 14px;
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: #fde68a;
+  background: rgba(15, 23, 42, 0.95);
+  border: 1px solid rgba(245, 158, 11, 0.5);
+  border-radius: var(--radius-md);
+}
+
+/* 3D 지도 확대·나침반 버튼이 '현재 위치' 버튼과 겹치지 않도록 위로 올린다 */
+.maplibregl-ctrl-bottom-right {
+  bottom: 88px;
+  right: 10px;
+}
+
+/* 주변 장소 선택 패널과 지도 위 장소 아이콘 */
+.poi-panel {
+  padding: 0;
+  overflow: hidden;
+}
+
+.poi-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 12px 14px;
+  font-family: inherit;
+  font-size: 1rem;
+  font-weight: 800;
+  color: var(--text-main);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+}
+
+.poi-panel-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.poi-panel-badge {
+  min-width: 22px;
+  padding: 0 6px;
+  font-size: 0.78rem;
+  line-height: 22px;
+  text-align: center;
+  color: #04120d;
+  background: var(--accent-emerald);
+  border-radius: 999px;
+}
+
+.poi-chip-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  padding: 0 12px 10px;
+}
+
+.poi-chip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 44px;
+  padding: 0 10px;
+  font-family: inherit;
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: var(--text-main);
+  background: rgba(255, 255, 255, 0.05);
+  border: 2px solid var(--bg-glass-border);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+}
+
+.poi-chip.on {
+  border-color: var(--c);
+  background: color-mix(in srgb, var(--c) 22%, transparent);
+}
+
+.poi-chip-label {
+  flex: 1;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.poi-chip-count {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+
+.poi-panel-note {
+  padding: 0 14px 12px;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.poi-badge {
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  line-height: 1;
+  background: #ffffff;
+  border: 3px solid var(--c);
+  border-radius: 50%;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.45);
+  cursor: default;
+}
+
+.poi-badge-wrap {
+  background: transparent;
+  border: none;
+}

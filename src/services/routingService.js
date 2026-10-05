@@ -1,7 +1,7 @@
 // Advanced Pedestrian Routing Service
 // Computes real-world walking paths between ANY two coordinates nationwide
 // Supports:
-// 1. OSRM real-world pedestrian road network routing (walkways, crossings, alleys)
+// 1. OSRM 보행자 전용 서버 라우팅 (인도·횡단보도·골목·계단 등 보행 가능한 길만 사용)
 // 2. Solar Radiation & 3D Shadow Simulation (Gneul-ro Shade-Safe pedestrian routing)
 // 3. Night Safe weighting (Nationwide public CCTV protection zone analytics)
 
@@ -17,6 +17,75 @@ import cctvData from '../data/cctvRealData.json';
 
 const WALKING_SPEED_METERS_PER_MIN = 75;
 
+const MODIFIER_TEXT = {
+  left: { text: '왼쪽으로 돌기', icon: 'left' },
+  right: { text: '오른쪽으로 돌기', icon: 'right' },
+  'slight left': { text: '왼쪽 방향으로 걷기', icon: 'slight-left' },
+  'slight right': { text: '오른쪽 방향으로 걷기', icon: 'slight-right' },
+  'sharp left': { text: '왼쪽으로 크게 돌기', icon: 'left' },
+  'sharp right': { text: '오른쪽으로 크게 돌기', icon: 'right' },
+  uturn: { text: '뒤로 돌아 걷기', icon: 'uturn' },
+  straight: { text: '계속 걷기', icon: 'straight' }
+};
+
+/**
+ * OSRM 경로 단계(steps)를 이용자가 읽기 쉬운 한국어 안내 목록으로 변환한다.
+ * 각 항목의 distance는 "이 지점에서 다음 지점까지" 걷는 거리(m)다.
+ * 방향 변화가 없는 직진·도로명 변경 단계는 앞 단계의 거리에 합쳐 목록을 짧게 만든다.
+ */
+const CAR_MODIFIER_TEXT = {
+  left: { text: '좌회전', icon: 'left' },
+  right: { text: '우회전', icon: 'right' },
+  'slight left': { text: '약간 좌측', icon: 'slight-left' },
+  'slight right': { text: '약간 우측', icon: 'slight-right' },
+  'sharp left': { text: '급좌회전', icon: 'left' },
+  'sharp right': { text: '급우회전', icon: 'right' },
+  uturn: { text: '유턴', icon: 'uturn' },
+  straight: { text: '직진', icon: 'straight' }
+};
+
+function buildGuideSteps(legs, profile = 'foot') {
+  const textMap = profile === 'car' ? CAR_MODIFIER_TEXT : MODIFIER_TEXT;
+  const raw = (legs || []).flatMap((leg) => leg.steps || []);
+  const guide = [];
+
+  raw.forEach((step) => {
+    const { type, modifier, location } = step.maneuver || {};
+    const name = step.name || '';
+    const distance = Math.round(step.distance || 0);
+    const point = location ? [location[1], location[0]] : null;
+
+    if (type === 'arrive') {
+      guide.push({ icon: 'arrive', text: '목적지 도착', name, distance: 0, point });
+      return;
+    }
+
+    const isStraightContinue =
+      guide.length > 0 &&
+      (type === 'continue' || type === 'new name' || type === 'notification') &&
+      (!modifier || modifier === 'straight');
+    if (isStraightContinue) {
+      guide[guide.length - 1].distance += distance;
+      return;
+    }
+
+    if (type === 'depart') {
+      guide.push({ icon: 'depart', text: '출발', name, distance, point });
+      return;
+    }
+
+    if (type === 'roundabout' || type === 'rotary') {
+      guide.push({ icon: 'straight', text: profile === 'car' ? '회전교차로 통과' : '교차로를 따라 걷기', name, distance, point });
+      return;
+    }
+
+    const mapped = textMap[modifier] || textMap.straight;
+    guide.push({ icon: mapped.icon, text: mapped.text, name, distance, point });
+  });
+
+  return guide;
+}
+
 /**
  * Fetch real-world pedestrian route geometry from OSRM via backend proxy
  * @param {number} startLat 
@@ -25,9 +94,9 @@ const WALKING_SPEED_METERS_PER_MIN = 75;
  * @param {number} destLng 
  * @returns {Promise<{latlngs: Array<[number, number]>, distance: number, durationMinutes: number}>}
  */
-export async function fetchOsrmPedestrianPath(startLat, startLng, destLat, destLng) {
+export async function fetchOsrmPedestrianPath(startLat, startLng, destLat, destLng, profile = 'foot') {
   try {
-    const url = `/api/route/foot/${startLng},${startLat};${destLng},${destLat}?overview=full&geometries=geojson`;
+    const url = `/api/route/${profile}/${startLng},${startLat};${destLng},${destLat}?overview=full&geometries=geojson&steps=true`;
     const resp = await fetch(url);
     if (!resp.ok) throw new Error(`OSRM HTTP ${resp.status}`);
 
@@ -36,10 +105,17 @@ export async function fetchOsrmPedestrianPath(startLat, startLng, destLat, destL
       const route = data.routes[0];
       // Convert OSRM GeoJSON [lng, lat] to Leaflet [lat, lng]
       const latlngs = route.geometry.coordinates.map(([lng, lat]) => [lat, lng]);
+      // OSRM 공개 서버는 foot 프로파일을 지원하지 않고 자동차 속도로 duration을 계산하므로,
+      // 거리 기준 도보 속도(75m/분)로 직접 산출해 다른 경로 모드와 기준을 맞춘다.
+      const distance = Math.round(route.distance);
       return {
         latlngs,
-        distance: Math.round(route.distance),
-        durationMinutes: Math.max(1, Math.round(route.duration / 60))
+        distance,
+        // 도보는 이용자의 걸음 속도로 App에서 다시 계산하고, 자동차는 서버가 준 시간을 쓴다
+        durationMinutes: profile === 'car'
+          ? Math.max(1, Math.round(route.duration / 60))
+          : Math.max(1, Math.round(distance / WALKING_SPEED_METERS_PER_MIN)),
+        steps: buildGuideSteps(route.legs, profile)
       };
     }
   } catch (err) {
@@ -51,7 +127,8 @@ export async function fetchOsrmPedestrianPath(startLat, startLng, destLat, destL
   return {
     latlngs: [[startLat, startLng], [destLat, destLng]],
     distance: dist,
-    durationMinutes: Math.max(1, Math.round(dist / WALKING_SPEED_METERS_PER_MIN))
+    durationMinutes: Math.max(1, Math.round(dist / WALKING_SPEED_METERS_PER_MIN)),
+    steps: []
   };
 }
 
