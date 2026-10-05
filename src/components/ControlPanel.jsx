@@ -286,7 +286,7 @@ export default function ControlPanel({
         </div>
       )}
 
-      {/* 5. 안전 & 그늘 인프라 시각화 레이어 토글 */}
+      {/* 5. 안전 인프라 시각화 레이어 설정 */}
       <div style={{ marginTop: '14px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '8px' }}>
           <Layers size={14} color="var(--accent-cyan)" />
@@ -296,69 +296,6 @@ export default function ControlPanel({
         </div>
 
         <div className="layer-toggle-grid">
-          {/* 3D 건물 그림자 레이어 (그늘로 핵심) */}
-          <div className="toggle-item" onClick={() => toggleLayer('shadows')}>
-            <div className={`toggle-info ${layers.shadows ? 'active' : ''}`}>
-              <div className="toggle-icon-wrap" style={{ background: 'rgba(245, 158, 11, 0.15)', color: '#f59e0b' }}>
-                <Sun size={13} />
-              </div>
-              <div>
-                <div>실시간 3D 건물 그림자 (그늘로 엔진)</div>
-                <div style={{ fontSize: '10px', color: '#f59e0b', opacity: 0.85 }}>태양 고도/방위각 기반 투영 연산</div>
-              </div>
-            </div>
-            <label className="switch" onClick={(e) => e.stopPropagation()}>
-              <input
-                type="checkbox"
-                checked={layers.shadows}
-                onChange={() => toggleLayer('shadows')}
-              />
-              <span className="switch-slider" />
-            </label>
-          </div>
-
-          {/* 3D 건물 외곽 레이어 */}
-          <div className="toggle-item" onClick={() => toggleLayer('buildings')}>
-            <div className={`toggle-info ${layers.buildings ? 'active' : ''}`}>
-              <div className="toggle-icon-wrap" style={{ background: 'rgba(56, 189, 248, 0.15)', color: '#38bdf8' }}>
-                <Building size={13} />
-              </div>
-              <div>
-                <div>3D 건물 폴리곤 및 높이 데이터</div>
-                <div style={{ fontSize: '10px', color: '#38bdf8', opacity: 0.85 }}>높이(H) 기반 그림자 길이 계산</div>
-              </div>
-            </div>
-            <label className="switch" onClick={(e) => e.stopPropagation()}>
-              <input
-                type="checkbox"
-                checked={layers.buildings}
-                onChange={() => toggleLayer('buildings')}
-              />
-              <span className="switch-slider" />
-            </label>
-          </div>
-
-          {/* 가로수 그늘 캐노피 레이어 */}
-          <div className="toggle-item" onClick={() => toggleLayer('trees')}>
-            <div className={`toggle-info ${layers.trees ? 'active' : ''}`}>
-              <div className="toggle-icon-wrap" style={{ background: 'rgba(16, 185, 129, 0.15)', color: '#10b981' }}>
-                <Trees size={13} />
-              </div>
-              <div>
-                <div>가로수 그늘 캐노피 (보행로 차양)</div>
-                <div style={{ fontSize: '10px', color: '#10b981', opacity: 0.85 }}>반경 4.5m 수목 자연 그늘</div>
-              </div>
-            </div>
-            <label className="switch" onClick={(e) => e.stopPropagation()}>
-              <input
-                type="checkbox"
-                checked={layers.trees}
-                onChange={() => toggleLayer('trees')}
-              />
-              <span className="switch-slider" />
-            </label>
-          </div>
-
           {/* 방범 CCTV 레이어 (전국 실시간 공공데이터) */}
           <div className="toggle-item" onClick={() => toggleLayer('cctv')}>
             <div className={`toggle-info ${layers.cctv ? 'active' : ''}`}>
