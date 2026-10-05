@@ -1,7 +1,5 @@
-// CCTV Data Service integrating 행정안전부_CCTV정보 조회서비스 (공공데이터포털)
-// Uses VITE_CCTV_API_KEY from .env.local securely via proxy
-
 import fallbackCctvs from '../data/cctvRealData.json';
+import { supabase } from './supabaseClient';
 
 const HAEUNDAE_BOUNDS = {
   minLat: 35.155,
@@ -10,7 +8,54 @@ const HAEUNDAE_BOUNDS = {
   maxLng: 129.170
 };
 
+/**
+ * Supabase 클라우드 PostGIS 데이터베이스에서 CCTV 조회
+ * @param {Object} [bounds] - { minLat, maxLat, minLng, maxLng }
+ * @returns {Promise<Array|null>}
+ */
+export async function fetchCctvsFromSupabase(bounds = null) {
+  try {
+    let query = supabase.from('cctv_locations').select('cctv_id, name, address, lat, lng, purpose, camera_count, manager');
+    if (bounds) {
+      query = query
+        .gte('lat', bounds.minLat)
+        .lte('lat', bounds.maxLat)
+        .gte('lng', bounds.minLng)
+        .lte('lng', bounds.maxLng);
+    }
+    const { data, error } = await query.limit(300);
+    if (error || !data || data.length === 0) return null;
+
+    return data.map(c => ({
+      id: c.cctv_id,
+      name: c.name,
+      address: c.address,
+      lat: c.lat,
+      lng: c.lng,
+      purpose: c.purpose,
+      cameraCount: c.camera_count,
+      manager: c.manager,
+      radius: 20
+    }));
+  } catch (err) {
+    console.warn('Supabase CCTV fetch failed, using fallback:', err);
+    return null;
+  }
+}
+
 export async function fetchRealTimeCctvs() {
+  // 1. Supabase 클라우드 데이터베이스 우선 조회
+  const supabaseCctvs = await fetchCctvsFromSupabase();
+  if (supabaseCctvs && supabaseCctvs.length > 0) {
+    return {
+      cctvs: supabaseCctvs,
+      isLive: true,
+      isSupabase: true,
+      count: supabaseCctvs.length,
+      lastSync: new Date().toLocaleTimeString('ko-KR')
+    };
+  }
+
   const apiKey = import.meta.env.VITE_CCTV_API_KEY;
 
   if (!apiKey) {
