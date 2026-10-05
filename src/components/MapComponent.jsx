@@ -167,7 +167,7 @@ export default function MapComponent({
     map.setView([focusPoint.lat, focusPoint.lng], Math.max(map.getZoom(), 18), { animate: true });
   }, [focusPoint]);
 
-  // 테마·고른 장소 종류가 바뀌면 바닥 지도에 반영한다
+  // 테마가 바뀌면 바닥 지도에 반영한다
   useEffect(() => {
     if (basemapRef.current) basemapRef.current.setTheme(mapTheme);
   }, [mapTheme]);
@@ -198,10 +198,22 @@ export default function MapComponent({
         fillOpacity: dense ? 0.18 : 0.45
       });
 
+      const floorText = b.groundFloors
+        ? `지상 ${b.groundFloors}층 (공식 표제부)`
+        : `~${Math.max(1, Math.round(b.height / 3.2))}층${b.heightSource === 'estimate' ? ' (추정)' : ''}`;
+
+      const sourceTag = b.heightSource === 'official_heit'
+        ? ' · 국토교통부 실측'
+        : b.heightSource === 'official_floor_calc'
+        ? ' · 건축HUB 층수 계산'
+        : b.heightSource === 'estimate'
+        ? ' · 추정값'
+        : '';
+
       poly.bindTooltip(
         `<strong>🏢 ${b.name}</strong><br/>` +
-        `<span style="color:#38bdf8; font-size:11px;">건물 높이: ${b.height}m (~${Math.round(b.height / 3)}층)${b.heightSource === 'estimate' ? ' · 추정값' : ''}</span><br/>` +
-        `<span style="color:#34d399; font-size:10px;">그늘로 3D 차폐 시뮬레이션 적용</span>`,
+        `<span style="color:#38bdf8; font-size:11px;">건물 높이: ${b.height}m (${floorText}${sourceTag})</span><br/>` +
+        `<span style="color:#34d399; font-size:10px;">실시간 태양 위치 기반 그늘 분석 적용</span>`,
         { className: 'route-tooltip-custom' }
       );
       buildingLayer.addLayer(poly);
@@ -407,7 +419,7 @@ export default function MapComponent({
           lineJoin: 'round'
         });
         standardPoly.bindTooltip(
-          `<strong>${travelMode === 'car' ? '차량 기준 경로' : '가장 짧은 도보 경로'}</strong><br/>거리: ${formatDistance(standardRoute.totalDistance)} | 소요: ${formatDuration(standardRoute.estimatedMinutes)}${travelMode === 'car' ? '' : `<br/>그늘 비율: ${standardRoute.shadeRatio}%`}`,
+          `<strong>${travelMode === 'car' ? '차량 기준 경로' : '가장 짧은 도보 경로'}</strong><br/>거리: ${formatDistance(standardRoute.totalDistance)} | 소요: ${formatDuration(standardRoute.estimatedMinutes)}${travelMode === 'car' || standardRoute.shadeRatio == null ? '' : `<br/>그늘 비율: ${standardRoute.shadeRatio}%`}`,
           { className: 'route-tooltip-custom', sticky: true }
         );
         routeLayer.addLayer(standardPoly);
@@ -459,8 +471,8 @@ export default function MapComponent({
             });
             mainPoly.bindTooltip(
               `<strong>🌿 시원한 그늘 도보 구간</strong><br/>` +
-              `건물 및 수목 그늘 차폐 · 체감온도 -2.5℃ 저감<br/>` +
-              `<span style="color:#34d399; font-weight:700;">전체 경로 그늘율: ${recommendedRoute.shadeRatio}% (${formatDistance(recommendedRoute.shadedDistance)})</span>`,
+              `건물 및 수목 그늘 차폐 · 체감온도 저감<br/>` +
+              (recommendedRoute.shadeRatio != null ? `<span style="color:#34d399; font-weight:700;">전체 경로 그늘율: ${recommendedRoute.shadeRatio}% (${formatDistance(recommendedRoute.shadedDistance)})</span>` : ''),
               { className: 'route-tooltip-custom', sticky: true }
             );
             routeLayer.addLayer(mainPoly);

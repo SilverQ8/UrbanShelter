@@ -153,12 +153,13 @@ export function calculateRouteShadeAnalytics(latlngs, shadowPolygons = [], trees
   }
 
   if (!sunPos || !sunPos.isDaylight) {
-    // Nighttime: 100% shade from sun (no solar radiation)
+    // 일몰 후 또는 야간: 직사광선이 없으므로 그늘 계산 대상이 아님
     return {
-      shadeRatio: 100,
+      shadeRatio: null,
+      isNight: true,
       shadedDistance: 0,
       exposedDistance: 0,
-      segments: [{ latlngs, isShaded: true }],
+      segments: [{ latlngs, isShaded: false }],
       uvExposureScore: 0
     };
   }
@@ -254,7 +255,9 @@ export function calculateRouteShadeAnalytics(latlngs, shadowPolygons = [], trees
   const shadeRatio = Math.min(100, Math.max(0, Math.round(rawShadeRatio)));
   const exposedDist = Math.max(0, Math.round(totalDist - shadedDist));
 
-  const uvFactor = sunPos.uvEstimate || 5;
+  const uvFactor = (sunPos && typeof sunPos.realUvIndex === 'number')
+    ? sunPos.realUvIndex
+    : (sunPos?.uvEstimate || 5);
   const uvExposureScore = Math.round((exposedDist / Math.max(1, totalDist)) * uvFactor * 10);
 
   return {
@@ -280,14 +283,16 @@ export function generateShadeSafeRoute(baseLatlngs, shadowPolygons = [], sensiti
   if (!baseLatlngs || baseLatlngs.length < 2) return null;
 
   if (!sunPos || !sunPos.isDaylight) {
+    const baseDist = Math.round(baseLatlngs.reduce((acc, curr, idx) => idx === 0 ? 0 : acc + getDistanceMeters(baseLatlngs[idx - 1][0], baseLatlngs[idx - 1][1], curr[0], curr[1]), 0));
     return {
       latlngs: baseLatlngs,
-      totalDistance: Math.round(baseLatlngs.reduce((acc, curr, idx) => idx === 0 ? 0 : acc + getDistanceMeters(baseLatlngs[idx - 1][0], baseLatlngs[idx - 1][1], curr[0], curr[1]), 0)),
-      estimatedMinutes: Math.max(1, Math.round(baseLatlngs.length)),
-      shadeRatio: 100,
+      totalDistance: baseDist,
+      estimatedMinutes: Math.max(1, Math.round(baseDist / 75)),
+      shadeRatio: null,
+      isNight: true,
       shadedDistance: 0,
       exposedDistance: 0,
-      segments: [{ latlngs: baseLatlngs, isShaded: true }]
+      segments: [{ latlngs: baseLatlngs, isShaded: false }]
     };
   }
 
@@ -312,14 +317,8 @@ export function generateShadeSafeRoute(baseLatlngs, shadowPolygons = [], sensiti
     return [pt[0] + dLat * factor, pt[1] + dLng * factor];
   });
 
-  // Calculate shade analytics on the shifted route
+  // 실제 보행로 횡단 쉬프트 경로의 물리적 그림자 분석 계산값(인위적 가산 보정식 제거)
   const analytics = calculateRouteShadeAnalytics(shadeLatlngs, shadowPolygons, trees, sunPos);
-
-  // Dynamic shade ratio based on solar altitude:
-  // Low altitude (morning/late afternoon) -> Long shadows -> 80%~95% shade
-  // High altitude (noon ~12:30) -> Short shadows -> 45%~60% shade
-  const elevationFactor = Math.max(0.4, 1 - (sunPos.altitudeDeg / 90) * 0.55);
-  const calculatedShade = Math.min(96, Math.max(38, Math.round(analytics.shadeRatio + 35 * elevationFactor * sensitivity)));
 
   const baseDist = Math.round(
     baseLatlngs.reduce((acc, curr, idx) => {
@@ -329,8 +328,13 @@ export function generateShadeSafeRoute(baseLatlngs, shadowPolygons = [], sensiti
   );
 
   const totalDist = Math.round(baseDist * (1 + (1 - sensitivity) * 0.05));
-  const shadedDistance = Math.round(totalDist * (calculatedShade / 100));
+  const calculatedShade = analytics.shadeRatio;
+  const shadedDistance = Math.min(totalDist, Math.round(totalDist * (calculatedShade / 100)));
   const exposedDistance = Math.max(0, totalDist - shadedDistance);
+
+  const uvFactor = (sunPos && typeof sunPos.realUvIndex === 'number')
+    ? sunPos.realUvIndex
+    : (sunPos?.uvEstimate || 5);
 
   return {
     latlngs: shadeLatlngs,
@@ -340,6 +344,6 @@ export function generateShadeSafeRoute(baseLatlngs, shadowPolygons = [], sensiti
     shadedDistance,
     exposedDistance,
     segments: analytics.segments,
-    uvExposureScore: Math.round((exposedDistance / Math.max(1, totalDist)) * (sunPos.uvEstimate || 5) * 10)
+    uvExposureScore: Math.round((exposedDistance / Math.max(1, totalDist)) * uvFactor * 10)
   };
 }

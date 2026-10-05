@@ -35,8 +35,11 @@ export default function Dashboard({
   const totalDistParts = formatDistanceParts(recommendedRoute.totalDistance);
   const totalTimeParts = formatDurationParts(recommendedRoute.estimatedMinutes);
   const timeDiff = recommendedRoute.estimatedMinutes - standardRoute.estimatedMinutes;
-  const cctvDiff = recommendedRoute.cctvCount - standardRoute.cctvCount;
-  const shadeDiff = (recommendedRoute.shadeRatio || 0) - (standardRoute.shadeRatio || 0);
+  const isNight = !sunPos?.isDaylight || recommendedRoute.shadeRatio === null;
+  const shadeDiff = (!isNight && typeof recommendedRoute.shadeRatio === 'number' && typeof standardRoute.shadeRatio === 'number')
+    ? recommendedRoute.shadeRatio - standardRoute.shadeRatio
+    : 0;
+  const cctvDiff = (recommendedRoute.cctvCount || 0) - (standardRoute.cctvCount || 0);
 
   return (
     <div className="glass-panel dashboard-card">
@@ -52,7 +55,7 @@ export default function Dashboard({
           {mode === 'shade' && (
             <span className="route-type-badge badge-rain" style={{ background: 'rgba(16, 185, 129, 0.18)', color: '#10b981', border: '1px solid rgba(16, 185, 129, 0.35)' }}>
               <SunMedium size={13} />
-              <span>폭염 안심 그늘 경로 (그늘로 3D 태양광 시뮬레이션 적용)</span>
+              <span>폭염 안심 그늘 경로 (실시간 태양 위치 및 건물 그늘 분석)</span>
             </span>
           )}
           {mode === 'night' && (
@@ -114,18 +117,31 @@ export default function Dashboard({
         </div>
 
         {!isCar && (<>
-        {/* 3. 그늘 보행 비율 & 직사광선 회피 (그늘로 핵심 지표) */}
-        <div className={`metric-box ${recommendedRoute.shadeRatio >= 60 ? 'green' : 'amber'}`}>
+        {/* 3. 그늘 보행 비율 & 직사광선 회피 */}
+        <div className={`metric-box ${isNight ? '' : (recommendedRoute.shadeRatio >= 60 ? 'green' : 'amber')}`}>
           <div className="metric-title">
-            <SunMedium size={12} color="#10b981" />
+            <SunMedium size={12} color={isNight ? 'var(--text-muted)' : '#10b981'} />
             <span>그늘 보행 비율</span>
           </div>
           <div className="metric-value-wrap">
-            <span className="metric-value" style={{ color: '#10b981' }}>{recommendedRoute.shadeRatio || 0}</span>
-            <span className="metric-unit">%</span>
+            {isNight ? (
+              <>
+                <span className="metric-value" style={{ color: 'var(--text-muted)', fontSize: '1.25rem' }}>-</span>
+                <span className="metric-unit" style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>일몰 후</span>
+              </>
+            ) : (
+              <>
+                <span className="metric-value" style={{ color: '#10b981' }}>{recommendedRoute.shadeRatio ?? 0}</span>
+                <span className="metric-unit">%</span>
+              </>
+            )}
           </div>
           <div className="metric-comparison">
-            {mode === 'shade' && shadeDiff > 0 ? (
+            {isNight ? (
+              <span className="comparison-neutral">
+                야간에는 햇빛 직사광선이 없습니다
+              </span>
+            ) : mode === 'shade' && shadeDiff > 0 ? (
               <span className="comparison-better">
                 <TrendingUp size={11} style={{ display: 'inline' }} /> +{shadeDiff}% 그늘 증가 (땡볕 {formatDistance(recommendedRoute.exposedDistance)} 최소화)
               </span>
@@ -175,7 +191,7 @@ export default function Dashboard({
             )}
             <span>
               {mode === 'shade'
-                ? `☀️ [그늘로 폭염 안심]: 태양 고도(${sunPos?.altitudeDeg || 65}°)와 3D 건물 그림자를 실시간 시뮬레이션하여 ${formatDistance(recommendedRoute.shadedDistance)}(${recommendedRoute.shadeRatio}%)를 그늘로 보행합니다. 체감 온도 약 2.5℃ 저감 및 자외선 노출을 대폭 줄여줍니다.`
+                ? `☀️ [폭염 안심 그늘]: 현재 태양 고도(${sunPos?.altitudeDeg || 65}°)와 주변 건물 그늘을 분석하여 ${formatDistance(recommendedRoute.shadedDistance)}${recommendedRoute.shadeRatio != null ? `(${recommendedRoute.shadeRatio}%)` : ''}를 그늘로 보행합니다. 체감 온도 저감 및 자외선 노출을 최소화합니다.`
                 : mode === 'night'
                 ? `🌙 [야간 안심 경로]: 전국 실시간 방범 CCTV 공공데이터 기반으로 안전구역을 최대 경유하는 안심 도보 경로입니다 (CCTV ${recommendedRoute.cctvCount}대 연계).`
                 : isCar

@@ -246,8 +246,12 @@ export default function App() {
   const sunPos = useMemo(() => {
     const centerLat = (startPoint.lat + targetPoint.lat) / 2;
     const centerLng = (startPoint.lng + targetPoint.lng) / 2;
-    return getSunPosition(activeDate, centerLat, centerLng);
-  }, [activeDate, startPoint, targetPoint]);
+    const pos = getSunPosition(activeDate, centerLat, centerLng);
+    if (weather && typeof weather.uv === 'number') {
+      pos.realUvIndex = weather.uv;
+    }
+    return pos;
+  }, [activeDate, startPoint, targetPoint, weather]);
 
   const shadows = useMemo(() => {
     if (!sunPos || !sunPos.isDaylight) return [];
@@ -339,8 +343,8 @@ export default function App() {
       totalDistance: nightDist,
       estimatedMinutes: toMinutes(nightDist),
       cctvCount: cctvAnalytics.cctvCount,
-      shadeRatio: 100,
-      shadedDistance: baseDist,
+      shadeRatio: null,
+      shadedDistance: 0,
       exposedDistance: 0
     };
 
@@ -722,6 +726,7 @@ export default function App() {
             nightRoute={nightRoute}
             travelMode={travelMode}
             setTravelMode={setTravelMode}
+            sunPos={sunPos}
             onShowGuide={() => setShowGuide(true)}
             guideOpen={showGuide}
           />

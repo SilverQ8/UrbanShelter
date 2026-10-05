@@ -39,6 +39,7 @@ export default function RouteSearch({
   nightRoute,
   travelMode = 'foot',
   setTravelMode,
+  sunPos,
   onShowGuide,
   guideOpen = false
 }) {
@@ -617,7 +618,13 @@ export default function RouteSearch({
                 <span className="route-card-time">{formatDuration(standardRoute.estimatedMinutes)}</span>
               </div>
               <div className="route-card-desc">
-                그늘 {standardRoute.shadeRatio || 35}% (직사광선 {formatDistance(standardRoute.exposedDistance || Math.round(standardRoute.totalDistance * 0.65))})
+                {travelMode === 'car' ? (
+                  '자동차 전용 도로 기준'
+                ) : !sunPos?.isDaylight || standardRoute.shadeRatio == null ? (
+                  '일몰 후 (햇빛 직사광선 없음)'
+                ) : (
+                  `그늘 ${standardRoute.shadeRatio}% (직사광선 ${formatDistance(standardRoute.exposedDistance)})`
+                )}
               </div>
             </div>
           )}
@@ -644,7 +651,13 @@ export default function RouteSearch({
                 <span className="route-card-time">{formatDuration(shadeRoute.estimatedMinutes)}</span>
               </div>
               <div className="route-card-desc">
-                <span style={{ color: '#10b981', fontWeight: 700 }}>그늘 {shadeRoute.shadeRatio}% 도보</span> (땡볕 최소화)
+                {!sunPos?.isDaylight || shadeRoute.shadeRatio == null ? (
+                  '일몰 후 (야간 안심 모드 권장)'
+                ) : (
+                  <>
+                    <span style={{ color: '#10b981', fontWeight: 700 }}>그늘 {shadeRoute.shadeRatio}% 도보</span> (땡볕 최소화)
+                  </>
+                )}
               </div>
             </div>
           )}

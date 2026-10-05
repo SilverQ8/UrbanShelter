@@ -259,14 +259,30 @@ export default function Map3D({
       map.addSource('nav-position', { type: 'geojson', data: emptyLine });
       map.addSource('me-position', { type: 'geojson', data: emptyLine });
 
-      // 그림자는 건물 아래(땅 위)에 깔고, 길과 함께 보이도록 반투명하게 칠한다
+      // 그림자는 건물 아래(땅 위)에 깔고, 길과 함께 보이도록 반투명하게 칠한다 (어두운 지도 대비 보강)
       const firstExtrusion = map.getStyle().layers.find((l) => l.type === 'fill-extrusion')?.id;
       map.addLayer(
         {
           id: 'shadow-fill',
           type: 'fill',
           source: 'shadows',
-          paint: { 'fill-color': '#0f172a', 'fill-opacity': 0.38 }
+          paint: {
+            'fill-color': isDark ? '#020617' : '#0f172a',
+            'fill-opacity': isDark ? 0.65 : 0.38
+          }
+        },
+        firstExtrusion
+      );
+      map.addLayer(
+        {
+          id: 'shadow-stroke',
+          type: 'line',
+          source: 'shadows',
+          paint: {
+            'line-color': isDark ? '#38bdf8' : '#334155',
+            'line-opacity': isDark ? 0.28 : 0.15,
+            'line-width': 1
+          }
         },
         firstExtrusion
       );

@@ -56,7 +56,7 @@ export default function Header({
             </span>
           </div>
           <span className="brand-tagline">
-            3D 건물 그림자 시뮬레이션 기반 폭염 그늘 회피 & 방범 CCTV 안심 스마트 도보 라우팅
+            실시간 건물 그늘 분석 기반 폭염 회피 & 방범 CCTV 안심 스마트 도보 라우팅
           </span>
         </div>
       </div>

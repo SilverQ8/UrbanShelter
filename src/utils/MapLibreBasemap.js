@@ -30,15 +30,24 @@ export const MapLibreBasemap = L.Layer.extend({
       })
       .catch((err) => console.warn('Basemap style load failed:', err));
 
-    map.on('move zoom viewreset resize', this._sync, this);
+    map.on('move zoom viewreset', this._syncPosition, this);
+    map.on('resize', this._syncResize, this);
   },
 
   onRemove(map) {
     this._destroyed = true;
-    map.off('move zoom viewreset resize', this._sync, this);
-    if (this._gl) this._gl.remove();
+    if (this._resizeTimer) clearTimeout(this._resizeTimer);
+    map.off('move zoom viewreset', this._syncPosition, this);
+    map.off('resize', this._syncResize, this);
+    if (this._gl) {
+      try {
+        this._gl.remove();
+      } catch (e) {
+        // ignore
+      }
+    }
     this._gl = null;
-    this._container.remove();
+    this._container?.remove();
   },
 
   _create(style) {
@@ -52,6 +61,19 @@ export const MapLibreBasemap = L.Layer.extend({
       attributionControl: false,
       fadeDuration: 0
     });
+
+    const canvas = gl.getCanvas();
+    if (canvas) {
+      canvas.addEventListener('webglcontextlost', (e) => {
+        e.preventDefault();
+        console.warn('MapLibre WebGL context lost, waiting for restore...');
+      });
+      canvas.addEventListener('webglcontextrestored', () => {
+        console.info('MapLibre WebGL context restored.');
+        if (this._gl && !this._destroyed) this._syncPosition();
+      });
+    }
+
     gl.on('style.load', () => {
       applyPedestrianTweaks(gl, this._theme);
       // 2D 지도이므로 입체 건물은 끄고 평면 건물 윤곽을 모든 확대 단계에서 보여준다
@@ -66,14 +88,24 @@ export const MapLibreBasemap = L.Layer.extend({
       this._ready = true;
     });
     this._gl = gl;
-    this._sync();
+    this._syncPosition();
   },
 
-  _sync() {
+  _syncPosition() {
     if (!this._gl) return;
-    this._gl.resize();
     const c = this._map.getCenter();
     this._gl.jumpTo({ center: [c.lng, c.lat], zoom: this._map.getZoom() - 1 });
+  },
+
+  _syncResize() {
+    if (!this._gl) return;
+    if (this._resizeTimer) clearTimeout(this._resizeTimer);
+    this._resizeTimer = setTimeout(() => {
+      if (this._gl && !this._destroyed) {
+        this._gl.resize();
+        this._syncPosition();
+      }
+    }, 120);
   },
 
   setTheme(theme) {

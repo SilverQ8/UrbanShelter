@@ -1545,7 +1545,25 @@ input:checked + .switch-slider:before {
 
 @media (max-width: 1100px) {
   .floating-overlay-right {
-    display: none;
+    top: auto;
+    bottom: 24px;
+    right: 16px;
+    left: 16px;
+    width: auto;
+    max-width: 440px;
+    margin: 0 auto;
+    max-height: 48vh;
+    z-index: 950;
+  }
+}
+
+@media (max-width: 640px) {
+  .floating-overlay-right {
+    left: 10px;
+    right: 10px;
+    bottom: 16px;
+    max-width: none;
+    max-height: 52vh;
   }
 }
 

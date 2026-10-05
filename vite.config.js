@@ -169,7 +169,7 @@ function fetchGovCctvsByDistrict(district, apiKey) {
   });
 }
 
-function addressSearchPlugin(cctvApiKey) {
+function addressSearchPlugin(cctvApiKey, buildingApiKey) {
   return {
     name: 'address-search-plugin',
     configureServer(server) {
@@ -252,16 +252,236 @@ function addressSearchPlugin(cctvApiKey) {
           isZoomTooLow: false
         }));
       });
+
+      // 국토교통부 건축HUB 건축물대장 표제부 엔드포인트
+      server.middlewares.use('/api/building/hub', async (req, res) => {
+        res.setHeader('Content-Type', 'application/json; charset=utf-8');
+        res.setHeader('Access-Control-Allow-Origin', '*');
+
+        const reqUrl = new URL(req.url, 'http://localhost');
+        const address = reqUrl.searchParams.get('address') || '';
+        let sigunguCd = reqUrl.searchParams.get('sigunguCd');
+        let bjdongCd = reqUrl.searchParams.get('bjdongCd');
+        let bun = reqUrl.searchParams.get('bun');
+        let ji = reqUrl.searchParams.get('ji') || '0';
+
+        if (address && (!sigunguCd || !bjdongCd)) {
+          const parsed = await parseAddressToCodes(address);
+          if (parsed) {
+            sigunguCd = sigunguCd || parsed.sigunguCd;
+            bjdongCd = bjdongCd || parsed.bjdongCd;
+            bun = bun || parsed.bun;
+            ji = ji || parsed.ji;
+          }
+        }
+
+        if (!sigunguCd || !bjdongCd) {
+          res.end(JSON.stringify({
+            success: false,
+            message: 'sigunguCd 및 bjdongCd 파라미터 또는 주소가 필요합니다.'
+          }));
+          return;
+        }
+
+        const buildingData = await fetchBuildingHubBackend({
+          sigunguCd,
+          bjdongCd,
+          bun: bun ? String(bun).padStart(4, '0') : undefined,
+          ji: ji !== undefined ? String(ji).padStart(4, '0') : '0000'
+        }, buildingApiKey || cctvApiKey);
+
+        res.end(JSON.stringify(buildingData));
+      });
     }
   };
+}
+
+// 부산 및 전국 주요 랜드마크 사전 (건축물대장 100% 매칭 보장)
+const LANDMARK_PARCELS = {
+  '신세계': { sigunguCd: '26350', bjdongCd: '10500', bun: '1495', ji: '0000' },
+  '센텀시티몰': { sigunguCd: '26350', bjdongCd: '10500', bun: '1495', ji: '0000' },
+  '롯데백화점': { sigunguCd: '26350', bjdongCd: '10500', bun: '1496', ji: '0000' },
+  '벡스코': { sigunguCd: '26350', bjdongCd: '10500', bun: '1500', ji: '0000' },
+  '엘시티': { sigunguCd: '26350', bjdongCd: '10200', bun: '1058', ji: '0002' },
+  '청운벽산': { sigunguCd: '11110', bjdongCd: '10100', bun: '0001', ji: '0000' }
+};
+
+function getJibunFromRoad(roadAddr) {
+  return new Promise((resolve) => {
+    const url = `https://m.map.kakao.com/actions/searchView?q=${encodeURIComponent(roadAddr)}`;
+    https.get(url, { headers: { 'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X)' } }, (res) => {
+      let html = '';
+      res.on('data', c => html += c);
+      res.on('end', () => {
+        const m = html.match(/data-reladdress="([^"]+)"/);
+        resolve(m ? m[1] : null);
+      });
+    }).on('error', () => resolve(null));
+  });
+}
+
+// 부산 및 서울 주요 지역 법정동 코드 사전 (건축HUB 연동용)
+const BJDONG_MAP = {
+  '해운대구': {
+    code: '26350',
+    dongs: {
+      '우동': '10500', '중동': '10200', '좌동': '10300',
+      '송정동': '10400', '재송동': '10100', '반여동': '10600', '반송동': '10700'
+    }
+  },
+  '수영구': {
+    code: '26500',
+    dongs: { '민락동': '10100', '광안동': '10200', '남천동': '10300' }
+  },
+  '부산진구': {
+    code: '26230',
+    dongs: { '부전동': '10300', '전포동': '10400', '양정동': '10100' }
+  },
+  '종로구': {
+    code: '11110',
+    dongs: { '청운동': '10100', '신교동': '10200', '사직동': '11500', '효자동': '10400' }
+  },
+  '강남구': {
+    code: '11680',
+    dongs: { '역삼동': '10100', '삼성동': '10500', '대치동': '10600', '압구정동': '11000' }
+  }
+};
+
+async function parseAddressToCodes(addr) {
+  if (!addr) return null;
+
+  // 1. 랜드마크 키워드 우선 검사
+  for (const [kw, parcel] of Object.entries(LANDMARK_PARCELS)) {
+    if (addr.includes(kw)) {
+      return parcel;
+    }
+  }
+
+  // 2. 도로명 주소인 경우(로/길 포함) 지번 주소로 변환 시도
+  let targetAddr = addr;
+  if (addr.includes('로') || addr.includes('길')) {
+    const jibun = await getJibunFromRoad(addr);
+    if (jibun) targetAddr = jibun;
+  }
+
+  let sigunguCd = '26350';
+  let bjdongCd = null;
+
+  for (const [gu, info] of Object.entries(BJDONG_MAP)) {
+    if (targetAddr.includes(gu)) {
+      sigunguCd = info.code;
+      for (const [dong, code] of Object.entries(info.dongs)) {
+        if (targetAddr.includes(dong)) {
+          bjdongCd = code;
+          break;
+        }
+      }
+      break;
+    }
+  }
+
+  if (!bjdongCd) {
+    for (const [gu, info] of Object.entries(BJDONG_MAP)) {
+      for (const [dong, code] of Object.entries(info.dongs)) {
+        if (targetAddr.includes(dong)) {
+          sigunguCd = info.code;
+          bjdongCd = code;
+          break;
+        }
+      }
+      if (bjdongCd) break;
+    }
+  }
+
+  let bun = '0001';
+  let ji = '0000';
+  // targetAddr에서 지번 추출
+  const bunJiMatch = targetAddr.match(/(\d+)(?:-(\d+))?(?:\s*번지)?/);
+  if (bunJiMatch) {
+    bun = bunJiMatch[1].padStart(4, '0');
+    ji = (bunJiMatch[2] || '0').padStart(4, '0');
+  }
+
+  return { sigunguCd, bjdongCd, bun, ji };
+}
+
+const buildingCache = new Map();
+
+async function fetchBuildingHubBackend({ sigunguCd, bjdongCd, bun, ji }, apiKey) {
+  const cacheKey = `${sigunguCd}_${bjdongCd}_${bun || ''}_${ji || ''}`;
+  if (buildingCache.has(cacheKey)) {
+    return buildingCache.get(cacheKey);
+  }
+
+  let queryUrl = `http://apis.data.go.kr/1613000/BldRgstHubService/getBrTitleInfo?serviceKey=${encodeURIComponent(apiKey)}&sigunguCd=${sigunguCd}&bjdongCd=${bjdongCd}&platGbCd=0&numOfRows=10&_type=json`;
+  if (bun) queryUrl += `&bun=${bun}`;
+  if (ji) queryUrl += `&ji=${ji}`;
+
+  try {
+    const resp = await fetch(queryUrl);
+    if (!resp.ok) {
+      return { success: false, message: `건축HUB HTTP ${resp.status}` };
+    }
+
+    const json = await resp.json();
+    const items = json?.response?.body?.items?.item;
+
+    if (!items || (Array.isArray(items) && items.length === 0)) {
+      const emptyRes = { success: false, message: '해당 대지 표제부 정보 없음', totalCount: 0 };
+      buildingCache.set(cacheKey, emptyRes);
+      return emptyRes;
+    }
+
+    const itemArr = Array.isArray(items) ? items : [items];
+    // 지상층수가 가장 높은 주건축물을 기본 대표 건물로 선정
+    itemArr.sort((a, b) => (Number(b.grndFlrCnt) || 0) - (Number(a.grndFlrCnt) || 0));
+    const mainBuilding = itemArr[0];
+
+    const grndFlr = Number(mainBuilding.grndFlrCnt) || 0;
+    const ugrndFlr = Number(mainBuilding.ugrndFlrCnt) || 0;
+    const heit = Number(mainBuilding.heit) || 0;
+    const calculatedHeight = heit > 0 ? heit : Math.round(grndFlr * 3.2 * 10) / 10;
+
+    const result = {
+      success: true,
+      totalCount: itemArr.length,
+      building: {
+        bldNm: mainBuilding.bldNm || '일반건축물',
+        grndFlrCnt: grndFlr,
+        ugrndFlrCnt: ugrndFlr,
+        heit,
+        calculatedHeight,
+        mainPurpsCdNm: mainBuilding.mainPurpsCdNm || '일반건축물',
+        strctCdNm: mainBuilding.strctCdNm || '',
+        platPlc: mainBuilding.platPlc || '',
+        newPlatPlc: mainBuilding.newPlatPlc || '',
+        useAprDay: mainBuilding.useAprDay || ''
+      },
+      allBuildings: itemArr.map(b => ({
+        bldNm: b.bldNm,
+        grndFlrCnt: Number(b.grndFlrCnt) || 0,
+        ugrndFlrCnt: Number(b.ugrndFlrCnt) || 0,
+        heit: Number(b.heit) || 0,
+        calculatedHeight: Number(b.heit) > 0 ? Number(b.heit) : Math.round((Number(b.grndFlrCnt) || 0) * 3.2 * 10) / 10,
+        mainPurpsCdNm: b.mainPurpsCdNm
+      }))
+    };
+
+    buildingCache.set(cacheKey, result);
+    return result;
+  } catch (err) {
+    console.error('건축HUB 호출 오류:', err.message);
+    return { success: false, message: err.message };
+  }
 }
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '');
   const cctvApiKey = env.VITE_CCTV_API_KEY || process.env.VITE_CCTV_API_KEY || '';
+  const buildingApiKey = env.VITE_BUILDING_API_KEY || cctvApiKey;
 
   return {
-    plugins: [react(), addressSearchPlugin(cctvApiKey)],
+    plugins: [react(), addressSearchPlugin(cctvApiKey, buildingApiKey)],
     server: {
       port: 5173,
       open: false,
