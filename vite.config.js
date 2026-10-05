@@ -1,6 +1,7 @@
-import { defineConfig } from 'vite';
+import { defineConfig, loadEnv } from 'vite';
 import react from '@vitejs/plugin-react';
 import https from 'https';
+import fs from 'fs';
 import proj4 from 'proj4';
 
 // Define Kakao / Kongnamul TM projection (EPSG:5181) for accurate WGS84 conversion
@@ -83,8 +84,6 @@ function fetchAddressBackend(query) {
   });
 }
 
-const CCTV_API_KEY = '156104a45590707c1dad884a0d5f8ba1d17ffe27573fb3adcccfcdcd0f861cea';
-
 // Load base cache
 let nationwideCctvCache = [];
 try {
@@ -125,12 +124,12 @@ function reverseGeocodeDistrict(lat, lng) {
   });
 }
 
-// Fetch CCTVs from Gov API for a specific district
-function fetchGovCctvsByDistrict(district) {
+// Fetch CCTVs from Gov API for a specific district (uses securely provided API key)
+function fetchGovCctvsByDistrict(district, apiKey) {
   return new Promise((resolve) => {
-    if (!district) return resolve([]);
+    if (!district || !apiKey) return resolve([]);
     const params = new URLSearchParams({
-      serviceKey: CCTV_API_KEY,
+      serviceKey: apiKey,
       pageNo: '1',
       numOfRows: '100',
       returnType: 'JSON',
@@ -170,7 +169,7 @@ function fetchGovCctvsByDistrict(district) {
   });
 }
 
-function addressSearchPlugin() {
+function addressSearchPlugin(cctvApiKey) {
   return {
     name: 'address-search-plugin',
     configureServer(server) {
@@ -227,7 +226,7 @@ function addressSearchPlugin() {
           if (district) {
             let districtItems = districtCctvCache.get(district);
             if (!districtItems) {
-              districtItems = await fetchGovCctvsByDistrict(district);
+              districtItems = await fetchGovCctvsByDistrict(district, cctvApiKey);
               districtCctvCache.set(district, districtItems);
               const existingIds = new Set(nationwideCctvCache.map(c => c.id));
               for (const item of districtItems) {
@@ -257,35 +256,40 @@ function addressSearchPlugin() {
   };
 }
 
-export default defineConfig({
-  plugins: [react(), addressSearchPlugin()],
-  server: {
-    port: 5173,
-    open: false,
-    proxy: {
-      '/api/cctv': {
-        target: 'https://apis.data.go.kr/1741000/cctv_info',
-        changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/api\/cctv/, ''),
-      },
-      '/api/geocode': {
-        target: 'https://nominatim.openstreetmap.org',
-        changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/api\/geocode/, ''),
-        headers: {
-          'User-Agent': 'UrbanShelter-RoadAddressApp/1.0 (dmsrb@antigravity.dev)',
-          'Accept-Language': 'ko-KR,ko;q=0.9',
+export default defineConfig(({ mode }) => {
+  const env = loadEnv(mode, process.cwd(), '');
+  const cctvApiKey = env.VITE_CCTV_API_KEY || process.env.VITE_CCTV_API_KEY || '';
+
+  return {
+    plugins: [react(), addressSearchPlugin(cctvApiKey)],
+    server: {
+      port: 5173,
+      open: false,
+      proxy: {
+        '/api/cctv': {
+          target: 'https://apis.data.go.kr/1741000/cctv_info',
+          changeOrigin: true,
+          rewrite: (path) => path.replace(/^\/api\/cctv/, ''),
         },
-      },
-      '/api/route/foot': {
-        target: 'https://router.project-osrm.org/route/v1/foot',
-        changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/api\/route\/foot/, ''),
-        headers: {
-          'User-Agent': 'UrbanShelter-PedestrianApp/1.0',
+        '/api/geocode': {
+          target: 'https://nominatim.openstreetmap.org',
+          changeOrigin: true,
+          rewrite: (path) => path.replace(/^\/api\/geocode/, ''),
+          headers: {
+            'User-Agent': 'UrbanShelter-RoadAddressApp/1.0 (dmsrb@antigravity.dev)',
+            'Accept-Language': 'ko-KR,ko;q=0.9',
+          },
         },
-      },
+        '/api/route/foot': {
+          target: 'https://router.project-osrm.org/route/v1/foot',
+          changeOrigin: true,
+          rewrite: (path) => path.replace(/^\/api\/route\/foot/, ''),
+          headers: {
+            'User-Agent': 'UrbanShelter-PedestrianApp/1.0',
+          },
+        },
+      }
     }
-  },
+  };
 });
 
