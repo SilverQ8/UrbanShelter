@@ -1,6 +1,7 @@
 import { defineConfig, loadEnv } from 'vite';
 import react from '@vitejs/plugin-react';
 import https from 'https';
+import http from 'http';
 import fs from 'fs';
 import proj4 from 'proj4';
 
@@ -84,10 +85,12 @@ function fetchAddressBackend(query) {
   });
 }
 
+import { fileURLToPath } from 'url';
+
 // Load base cache
 let nationwideCctvCache = [];
 try {
-  const jsonPath = new URL('./src/data/cctvRealData.json', import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1');
+  const jsonPath = fileURLToPath(new URL('./src/data/cctvRealData.json', import.meta.url));
   if (fs.existsSync(jsonPath)) {
     nationwideCctvCache = JSON.parse(fs.readFileSync(jsonPath, 'utf-8'));
   }
@@ -95,7 +98,29 @@ try {
   nationwideCctvCache = [];
 }
 
+let nationwideStreetlightCache = [];
+try {
+  const slJsonPath = fileURLToPath(new URL('./src/data/streetlightRealData.json', import.meta.url));
+  if (fs.existsSync(slJsonPath)) {
+    nationwideStreetlightCache = JSON.parse(fs.readFileSync(slJsonPath, 'utf-8'));
+  }
+} catch {
+  nationwideStreetlightCache = [];
+}
+
 const districtCctvCache = new Map();
+const districtStreetlightCache = new Map();
+
+function isInvalidOceanCoordinate(lat, lng) {
+  if (isNaN(lat) || isNaN(lng) || lat <= 0 || lng <= 0) return true;
+  if (lat < 33.0 || lat > 38.9 || lng < 124.5 || lng > 131.9) return true;
+  if (lng >= 129.138 && lng <= 129.149 && lat < 35.1540) return true;
+  if (lng >= 129.149 && lng <= 129.156 && lat < 35.1510) return true;
+  if (lng >= 129.156 && lng < 129.161 && lat < 35.1582) return true;
+  if (lng >= 129.161 && lng < 129.166 && lat < 35.1586) return true;
+  if (lng >= 129.166 && lng <= 129.172 && lat < 35.1592) return true;
+  return false;
+}
 
 // Reverse geocode lat, lng to district name (e.g. 강남구, 종로구, 해운대구, 수원시)
 function reverseGeocodeDistrict(lat, lng) {
@@ -169,10 +194,125 @@ function fetchGovCctvsByDistrict(district, apiKey) {
   });
 }
 
-function addressSearchPlugin(cctvApiKey, buildingApiKey) {
+// Fetch Streetlights from National / Gov API for a specific district (Nationwide expansion)
+function fetchGovStreetlightsByDistrict(district, apiKey) {
+  return new Promise((resolve) => {
+    if (!district || !apiKey) return resolve([]);
+    try {
+      const params = new URLSearchParams({
+        serviceKey: apiKey,
+        pageNo: '1',
+        numOfRows: '100',
+        type: 'json',
+        'cond[LCTN_ROAD_NM_ADDR::LIKE]': district
+      });
+      const url = `http://api.data.go.kr/openapi/tn_pubr_public_scrty_lght_api?${params.toString()}`;
+      const client = url.startsWith('https:') ? https : http;
+      const req = client.get(url, (res) => {
+        let data = '';
+        res.on('data', chunk => data += chunk);
+        res.on('end', () => {
+          try {
+            const items = JSON.parse(data)?.response?.body?.items || [];
+            if (Array.isArray(items) && items.length > 0) {
+              const formatted = items.map((it, idx) => {
+                const lat = parseFloat(it.latitude || it.WGS84_LAT || 0);
+                const lng = parseFloat(it.longitude || it.WGS84_LOT || 0);
+                const addr = it.lnmadr || it.rdnmadr || it.LCTN_ROAD_NM_ADDR || '';
+                return {
+                  id: `SL_REAL_${it.mngNo || `${lat}_${lng}_${idx}`}`,
+                  name: addr ? `${addr} 보안등` : `${district} 안심가로등`,
+                  address: addr,
+                  lat,
+                  lng,
+                  type: 'smart_security',
+                  lumens: 7000,
+                  radius: 15,
+                  manager: it.institutionNm || `${district} 관할기관`
+                };
+              }).filter(s => !isNaN(s.lat) && !isNaN(s.lng) && s.lat > 0 && s.lng > 0);
+              return resolve(formatted);
+            }
+          } catch {
+            // ignore
+          }
+          resolve([]);
+        });
+      });
+      req.on('error', () => resolve([]));
+      req.setTimeout(3500, () => { req.destroy(); resolve([]); });
+    } catch {
+      resolve([]);
+    }
+  });
+}
+
+// Fetch Streetlights from National Disaster Safety Data Sharing Platform (행정안전부_공통POI_가로등, DSSP-IF-00084)
+function fetchSafetyDataStreetlights(apiKey, dataId = 'DSSP-IF-00084', pageNo = 1, numOfRows = 100) {
+  return new Promise((resolve) => {
+    if (!apiKey) return resolve([]);
+    const url = `https://www.safetydata.go.kr/V2/api/${dataId}?serviceKey=${encodeURIComponent(apiKey)}&pageNo=${pageNo}&numOfRows=${numOfRows}&returnType=json`;
+    const req = https.get(url, (res) => {
+      let data = '';
+      res.on('data', chunk => data += chunk);
+      res.on('end', () => {
+        try {
+          const json = JSON.parse(data);
+          const body = json?.body || [];
+          if (!Array.isArray(body)) return resolve([]);
+
+          const formatted = body.map((item) => {
+            const x = parseFloat(item.XMAP_CRTS);
+            const y = parseFloat(item.YMAP_CRTS);
+            if (isNaN(x) || isNaN(y) || x === 0 || y === 0) return null;
+
+            // Convert EPSG:3857 (Web Mercator) to EPSG:4326 (WGS84 lat, lng)
+            const [lng, lat] = proj4('EPSG:3857', 'EPSG:4326', [x, y]);
+            const addr = item.ROAD_NM_ADDR || item.ADDR || '';
+
+            return {
+              id: `SL_SAFETY_${item.SN || `${lat.toFixed(5)}_${lng.toFixed(5)}`}`,
+              name: addr ? `${addr} 가로등` : `행정안전부 공통 가로등 #${item.SN}`,
+              address: addr,
+              lat: parseFloat(lat.toFixed(6)),
+              lng: parseFloat(lng.toFixed(6)),
+              type: 'smart_led',
+              lumens: 8000,
+              radius: 15,
+              manager: '행정안전부 공통POI_가로등',
+              source: 'safetydata_real'
+            };
+          }).filter(Boolean);
+
+          resolve(formatted);
+        } catch {
+          resolve([]);
+        }
+      });
+    });
+    req.on('error', () => resolve([]));
+    req.setTimeout(4500, () => { req.destroy(); resolve([]); });
+  });
+}
+
+function addressSearchPlugin(cctvApiKey, buildingApiKey, streetlightApiKey, streetlightDataId = 'DSSP-IF-00084') {
   return {
     name: 'address-search-plugin',
-    configureServer(server) {
+    async configureServer(server) {
+      // Pre-warm Safety Data Platform streetlights in background
+      if (streetlightApiKey) {
+        fetchSafetyDataStreetlights(streetlightApiKey, streetlightDataId, 1, 100).then((liveItems) => {
+          if (liveItems && liveItems.length > 0) {
+            const existingIds = new Set(nationwideStreetlightCache.map(s => s.id));
+            for (const item of liveItems) {
+              if (!existingIds.has(item.id)) {
+                nationwideStreetlightCache.push(item);
+                existingIds.add(item.id);
+              }
+            }
+          }
+        }).catch(() => {});
+      }
       server.middlewares.use('/api/address/search', async (req, res) => {
         const reqUrl = new URL(req.url, 'http://localhost');
         const q = reqUrl.searchParams.get('q');
@@ -217,7 +357,7 @@ function addressSearchPlugin(cctvApiKey, buildingApiKey) {
 
         // 1. Check local base cache first
         let matches = nationwideCctvCache.filter(c =>
-          c.lat >= minLat && c.lat <= maxLat && c.lng >= minLng && c.lng <= maxLng
+          c.lat >= minLat && c.lat <= maxLat && c.lng >= minLng && c.lng <= maxLng && !isInvalidOceanCoordinate(c.lat, c.lng)
         );
 
         // 2. If fewer than 5 matches in this viewport, dynamically fetch nationwide district CCTVs
@@ -250,6 +390,69 @@ function addressSearchPlugin(cctvApiKey, buildingApiKey) {
           count: matches.length,
           displayedCount: finalCctvs.length,
           isZoomTooLow: false
+        }));
+      });
+
+      // Nationwide Streetlight dynamic viewport endpoint
+      server.middlewares.use('/api/streetlight/viewport', async (req, res) => {
+        res.setHeader('Content-Type', 'application/json; charset=utf-8');
+        res.setHeader('Access-Control-Allow-Origin', '*');
+
+        const reqUrl = new URL(req.url, 'http://localhost');
+        const zoom = parseInt(reqUrl.searchParams.get('zoom') || '16', 10);
+        const minLat = parseFloat(reqUrl.searchParams.get('minLat') || '0');
+        const maxLat = parseFloat(reqUrl.searchParams.get('maxLat') || '0');
+        const minLng = parseFloat(reqUrl.searchParams.get('minLng') || '0');
+        const maxLng = parseFloat(reqUrl.searchParams.get('maxLng') || '0');
+        const lat = parseFloat(reqUrl.searchParams.get('lat') || '0');
+        const lng = parseFloat(reqUrl.searchParams.get('lng') || '0');
+
+        if (zoom < 15) {
+          res.end(JSON.stringify({
+            streetlights: [],
+            count: 0,
+            isZoomTooLow: true,
+            minZoomRequired: 15,
+            message: '일정 축척 이상 확대 시에만 표시됩니다.'
+          }));
+          return;
+        }
+
+        // 1. Check local base cache first
+        let matches = nationwideStreetlightCache.filter(s =>
+          s.lat >= minLat && s.lat <= maxLat && s.lng >= minLng && s.lng <= maxLng && !isInvalidOceanCoordinate(s.lat, s.lng)
+        );
+
+        // 2. If fewer than 5 matches in this viewport, dynamically fetch nationwide district streetlights
+        if (matches.length < 5 && lat && lng) {
+          const district = await reverseGeocodeDistrict(lat, lng);
+          if (district) {
+            let districtItems = districtStreetlightCache.get(district);
+            if (!districtItems) {
+              districtItems = await fetchGovStreetlightsByDistrict(district, streetlightApiKey);
+              districtStreetlightCache.set(district, districtItems);
+              const existingIds = new Set(nationwideStreetlightCache.map(s => s.id));
+              for (const item of districtItems) {
+                if (!existingIds.has(item.id)) {
+                  nationwideStreetlightCache.push(item);
+                  existingIds.add(item.id);
+                }
+              }
+            }
+            matches = nationwideStreetlightCache.filter(s =>
+              s.lat >= minLat && s.lat <= maxLat && s.lng >= minLng && s.lng <= maxLng
+            );
+          }
+        }
+
+        const finalLights = matches.slice(0, 100);
+
+        res.end(JSON.stringify({
+          streetlights: finalLights,
+          count: matches.length,
+          displayedCount: finalLights.length,
+          isZoomTooLow: false,
+          apiKeyApplied: Boolean(streetlightApiKey)
         }));
       });
 
@@ -479,9 +682,11 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '');
   const cctvApiKey = env.VITE_CCTV_API_KEY || process.env.VITE_CCTV_API_KEY || '';
   const buildingApiKey = env.VITE_BUILDING_API_KEY || cctvApiKey;
+  const streetlightApiKey = env.VITE_STREETLIGHT_API_KEY || process.env.VITE_STREETLIGHT_API_KEY || '1H310859JSVJG543';
+  const streetlightDataId = env.VITE_STREETLIGHT_DATA_ID || process.env.VITE_STREETLIGHT_DATA_ID || 'DSSP-IF-00084';
 
   return {
-    plugins: [react(), addressSearchPlugin(cctvApiKey, buildingApiKey)],
+    plugins: [react(), addressSearchPlugin(cctvApiKey, buildingApiKey, streetlightApiKey, streetlightDataId)],
     server: {
       port: 5173,
       open: false,

@@ -8,6 +8,7 @@ import Dashboard from './components/Dashboard';
 import { NODES } from './data/urbanNetwork';
 import { findNearestNode } from './engine/routingEngine';
 import { fetchOsrmPedestrianPath, analyzeRouteCctvSafety } from './services/routingService';
+import { analyzeRouteStreetlightSafety } from './services/streetlightService';
 import {
   getSunPosition,
   generateAllShadows,
@@ -180,7 +181,8 @@ export default function App() {
   const [layers, setLayers] = useState({
     buildings: false,
     trees: true,
-    cctv: true
+    cctv: true,
+    streetlight: true
   });
 
   // 1. Fetch Base Pedestrian Road Network Geometry (Only re-fetched when endpoints change!)
@@ -303,8 +305,9 @@ export default function App() {
     }
     const toMinutes = (dist) => Math.max(1, Math.round(dist / walkSpeed));
 
-    // CCTV analytics
+    // CCTV & Streetlight safety analytics
     const cctvAnalytics = analyzeRouteCctvSafety(baseLatlngs);
+    const slAnalytics = analyzeRouteStreetlightSafety(baseLatlngs);
 
     // Standard Route shade analysis
     const stdShade = calculateRouteShadeAnalytics(baseLatlngs, shadows, trees, sunPos);
@@ -314,6 +317,8 @@ export default function App() {
       totalDistance: baseDist,
       estimatedMinutes: toMinutes(baseDist),
       cctvCount: cctvAnalytics.cctvCount,
+      streetlightCount: slAnalytics.streetlightCount,
+      lightCoverageRatio: slAnalytics.lightCoverageRatio,
       shadeRatio: stdShade.shadeRatio,
       shadedDistance: stdShade.shadedDistance,
       exposedDistance: stdShade.exposedDistance,
@@ -329,6 +334,8 @@ export default function App() {
       totalDistance: shadeSafeCalc.totalDistance,
       estimatedMinutes: toMinutes(shadeSafeCalc.totalDistance),
       cctvCount: cctvAnalytics.cctvCount,
+      streetlightCount: slAnalytics.streetlightCount,
+      lightCoverageRatio: slAnalytics.lightCoverageRatio,
       shadeRatio: shadeSafeCalc.shadeRatio,
       shadedDistance: shadeSafeCalc.shadedDistance,
       exposedDistance: shadeSafeCalc.exposedDistance,
@@ -336,7 +343,7 @@ export default function App() {
       segments: shadeSafeCalc.segments
     } : standardRoute;
 
-    // Night-Safe Route (CCTV Priority)
+    // Night-Safe Route (CCTV & Streetlight 15m illumination Priority)
     const nightDist = Math.round(baseDist * (1 + (1 - sensitivity) * 0.05));
     const nightRoute = {
       type: 'night',
@@ -344,6 +351,8 @@ export default function App() {
       totalDistance: nightDist,
       estimatedMinutes: toMinutes(nightDist),
       cctvCount: cctvAnalytics.cctvCount,
+      streetlightCount: slAnalytics.streetlightCount,
+      lightCoverageRatio: slAnalytics.lightCoverageRatio,
       shadeRatio: null,
       shadedDistance: 0,
       exposedDistance: 0

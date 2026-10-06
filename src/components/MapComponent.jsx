@@ -4,8 +4,8 @@ import 'leaflet/dist/leaflet.css';
 import { SunMedium, Shield } from 'lucide-react';
 import { MapLibreBasemap } from '../utils/MapLibreBasemap';
 import { NODES, MAP_CENTER, DEFAULT_ZOOM } from '../data/urbanNetwork';
-import { findNearestNode } from '../engine/routingEngine';
 import { formatDistance, formatDuration } from '../utils/format';
+import { filterValidUrbanMarkers, isInvalidOceanCoordinate } from '../utils/geoSanity';
 
 export default function MapComponent({
   userGps,
@@ -49,11 +49,26 @@ export default function MapComponent({
     zoom: 16
   });
 
-  // Layer groups refs (Clean & uncluttered: CCTV, Routes, Markers)
+  const [streetlightState, setStreetlightState] = useState({
+    count: 0,
+    displayedCount: 0,
+    isZoomTooLow: false,
+    zoom: 16
+  });
+
+  const [treeState, setTreeState] = useState({
+    count: 0,
+    displayedCount: 0,
+    isZoomTooLow: false,
+    zoom: 16
+  });
+
+  // Layer groups refs (Clean & uncluttered: CCTV, Streetlights, Routes, Markers)
   const buildingLayerRef = useRef(null);
   const treeLayerRef = useRef(null);
   const routeLayerRef = useRef(null);
   const cctvLayerRef = useRef(null);
+  const streetlightLayerRef = useRef(null);
   const markersLayerRef = useRef(null);
 
   // Initialize Map
@@ -79,10 +94,11 @@ export default function MapComponent({
     L.control.attribution({ position: 'bottomright' }).addTo(map);
 
     // Initialize Layer Groups in proper z-order
-    // 건물 윤곽·가로수는 CCTV·경로보다 아래에 깐다
+    // 건물 윤곽·가로수는 CCTV·가로등·경로보다 아래에 깐다
     buildingLayerRef.current = L.layerGroup().addTo(map);
     treeLayerRef.current = L.layerGroup().addTo(map);
     cctvLayerRef.current = L.layerGroup().addTo(map);
+    streetlightLayerRef.current = L.layerGroup().addTo(map);
     routeLayerRef.current = L.layerGroup().addTo(map);
     markersLayerRef.current = L.layerGroup().addTo(map);
 
@@ -239,46 +255,83 @@ export default function MapComponent({
     }
   }, [layers.buildings, mapTheme, buildings]);
 
-  // 3. Render Roadside Trees & Dynamic Canopy Shadows
+  // 3. Render Roadside Trees & Dynamic Canopy Shadows (Zoom-dependent, consistent with CCTV & Streetlights)
   useEffect(() => {
+    const map = mapInstanceRef.current;
     const treeLayer = treeLayerRef.current;
-    if (!treeLayer) return;
-    treeLayer.clearLayers();
+    if (!map || !treeLayer) return;
 
-    if (!layers.trees) return;
+    const renderTrees = () => {
+      treeLayer.clearLayers();
 
-    // Shift tree shadow slightly according to sun azimuth
-    const shadowAzimuthDeg = sunPos ? (sunPos.azimuthDeg + 180) % 360 : 0;
-    const shadowRad = (shadowAzimuthDeg * Math.PI) / 180;
-    const treeShadowDist = sunPos && sunPos.altitudeDeg > 0 ? Math.min(18, 7.5 / Math.tan(Math.max(10, sunPos.altitudeDeg) * Math.PI / 180)) : 0;
-    const dLat = (treeShadowDist * Math.cos(shadowRad)) / 111320;
-    const dLng = (treeShadowDist * Math.sin(shadowRad)) / (111320 * Math.cos(35.161 * Math.PI / 180));
-
-    for (const t of trees) {
-      if (sunPos && sunPos.isDaylight) {
-        const shadowCircle = L.circle([t.lat + dLat, t.lng + dLng], {
-          radius: t.radius || 4.5,
-          color: 'transparent',
-          weight: 0,
-          fillColor: '#022c22',
-          fillOpacity: 0.55,
-          interactive: false
-        });
-        treeLayer.addLayer(shadowCircle);
+      if (!layers.trees) {
+        setTreeState({ count: 0, displayedCount: 0, isZoomTooLow: false, zoom: map.getZoom() });
+        return;
       }
 
-      // Tree Marker Icon
-      const treeIcon = L.divIcon({
-        className: 'tree-canopy-icon',
-        html: `<div style="font-size: 13px; filter: drop-shadow(0 0 5px rgba(16,185,129,0.9));">🌳</div>`,
-        iconSize: [16, 16],
-        iconAnchor: [8, 8]
+      const zoom = map.getZoom();
+
+      // CCTV, 가로등과 동일한 축척 제한: zoom < 15 일 때 숨김 처리
+      if (zoom < 15) {
+        setTreeState({ count: 0, displayedCount: 0, isZoomTooLow: true, zoom });
+        return;
+      }
+
+      const bounds = map.getBounds().pad(0.08);
+      const visibleTrees = (trees || []).filter(t => {
+        const lat = Number(t.lat);
+        const lng = Number(t.lng);
+        return bounds.contains([lat, lng]) && !isInvalidOceanCoordinate(lat, lng);
       });
 
-      const marker = L.marker([t.lat, t.lng], { icon: treeIcon });
-      marker.bindTooltip(`🌳 가로수 그늘 캐노피 (반경 ${(t.radius || 4.5).toFixed(1)}m)`, { className: 'route-tooltip-custom' });
-      treeLayer.addLayer(marker);
-    }
+      setTreeState({
+        count: visibleTrees.length,
+        displayedCount: visibleTrees.length,
+        isZoomTooLow: false,
+        zoom
+      });
+
+      // Shift tree shadow slightly according to sun azimuth
+      const shadowAzimuthDeg = sunPos ? (sunPos.azimuthDeg + 180) % 360 : 0;
+      const shadowRad = (shadowAzimuthDeg * Math.PI) / 180;
+      const treeShadowDist = sunPos && sunPos.altitudeDeg > 0 ? Math.min(18, 7.5 / Math.tan(Math.max(10, sunPos.altitudeDeg) * Math.PI / 180)) : 0;
+      const dLat = (treeShadowDist * Math.cos(shadowRad)) / 111320;
+      const dLng = (treeShadowDist * Math.sin(shadowRad)) / (111320 * Math.cos(35.161 * Math.PI / 180));
+
+      for (const t of visibleTrees) {
+        if (zoom >= 16 && sunPos && sunPos.isDaylight) {
+          const shadowCircle = L.circle([t.lat + dLat, t.lng + dLng], {
+            radius: t.radius || 4.5,
+            color: 'transparent',
+            weight: 0,
+            fillColor: '#022c22',
+            fillOpacity: 0.55,
+            interactive: false
+          });
+          treeLayer.addLayer(shadowCircle);
+        }
+
+        // Tree Marker Icon (scale icon size with zoom)
+        const size = zoom >= 16 ? 16 : 12;
+        const treeIcon = L.divIcon({
+          className: 'tree-canopy-icon',
+          html: `<div style="font-size: ${size}px; filter: drop-shadow(0 0 5px rgba(16,185,129,0.9)); line-height: 1; text-align: center;">🌳</div>`,
+          iconSize: [size, size],
+          iconAnchor: [size / 2, size / 2]
+        });
+
+        const marker = L.marker([t.lat, t.lng], { icon: treeIcon });
+        marker.bindTooltip(`🌳 ${t.name || '가로수 그늘 캐노피'} (반경 ${(t.radius || 4.5).toFixed(1)}m)`, { className: 'route-tooltip-custom' });
+        treeLayer.addLayer(marker);
+      }
+    };
+
+    renderTrees();
+    map.on('moveend zoomend', renderTrees);
+
+    return () => {
+      map.off('moveend zoomend', renderTrees);
+    };
   }, [layers.trees, sunPos, trees]);
 
   // 4. Dynamic CCTV Viewport Rendering (Nationwide Government CCTV Integration)
@@ -324,10 +377,11 @@ export default function MapComponent({
         if (!resp.ok) throw new Error('CCTV viewport HTTP error');
 
         const data = await resp.json();
-        const items = data.cctvs || [];
+        const rawCctvs = data.cctvs || [];
+        const items = filterValidUrbanMarkers(rawCctvs);
 
         setCctvState({
-          count: data.count || items.length,
+          count: items.length,
           displayedCount: items.length,
           isZoomTooLow: false,
           zoom
@@ -385,6 +439,121 @@ export default function MapComponent({
       map.off('moveend zoomend', renderVisibleCctvs);
     };
   }, [layers.cctv]);
+
+  // 5. Dynamic Streetlight Viewport Rendering (15m Illumination Zone)
+  useEffect(() => {
+    const map = mapInstanceRef.current;
+    const streetlightLayer = streetlightLayerRef.current;
+    if (!map || !streetlightLayer) return;
+
+    let abortController = null;
+
+    const renderVisibleStreetlights = async () => {
+      streetlightLayer.clearLayers();
+      if (!layers.streetlight) {
+        setStreetlightState({ count: 0, displayedCount: 0, isZoomTooLow: false, zoom: map.getZoom() });
+        return;
+      }
+
+      const zoom = map.getZoom();
+
+      if (zoom < 15) {
+        setStreetlightState({ count: 0, displayedCount: 0, isZoomTooLow: true, zoom });
+        return;
+      }
+
+      const bounds = map.getBounds().pad(0.08);
+      const center = map.getCenter();
+
+      if (abortController) abortController.abort();
+      abortController = new AbortController();
+
+      try {
+        const params = new URLSearchParams({
+          lat: center.lat.toFixed(6),
+          lng: center.lng.toFixed(6),
+          minLat: bounds.getSouth().toFixed(6),
+          maxLat: bounds.getNorth().toFixed(6),
+          minLng: bounds.getWest().toFixed(6),
+          maxLng: bounds.getEast().toFixed(6),
+          zoom: String(zoom)
+        });
+
+        const resp = await fetch(`/api/streetlight/viewport?${params.toString()}`, { signal: abortController.signal });
+        if (!resp.ok) throw new Error('Streetlight viewport HTTP error');
+
+        const data = await resp.json();
+        const rawLights = data.streetlights || [];
+        const items = filterValidUrbanMarkers(rawLights);
+
+        setStreetlightState({
+          count: items.length,
+          displayedCount: items.length,
+          isZoomTooLow: false,
+          zoom
+        });
+
+        streetlightLayer.clearLayers();
+
+        for (const light of items) {
+          if (zoom >= 16) {
+            // 15m radius warm illumination buffer (Golden-Amber glow)
+            const circle = L.circle([light.lat, light.lng], {
+              radius: light.radius || 15,
+              color: '#f59e0b',
+              weight: 1.2,
+              opacity: 0.65,
+              fillColor: '#fbbf24',
+              fillOpacity: 0.18
+            });
+            circle.bindTooltip(`💡 ${light.name}<br/>안심 조명반경 15m`, { className: 'route-tooltip-custom' });
+            streetlightLayer.addLayer(circle);
+          }
+
+          const size = zoom >= 16 ? 18 : 13;
+          const lightIcon = L.divIcon({
+            className: 'streetlight-badge',
+            html: `<div style="background: #d97706; color: #fffbeb; width: ${size}px; height: ${size}px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: ${zoom >= 16 ? 10 : 7}px; font-weight: bold; border: 1.5px solid #fef3c7; box-shadow: 0 0 10px rgba(245,158,11,0.9); cursor: pointer;">💡</div>`,
+            iconSize: [size, size],
+            iconAnchor: [size / 2, size / 2]
+          });
+
+          const typeLabel = light.type === 'smart_led' ? '스마트 LED 안심등'
+            : light.type === 'coastal_led' ? '해안 보행로 고효율 LED'
+            : light.type === 'smart_security' ? '스마트 보안등'
+            : light.type === 'security' ? '골목길 안심보안등'
+            : light.type === 'solar_led' ? '친환경 태양광 LED'
+            : '표준 보행 가로등';
+
+          const tooltipContent = `
+            <strong>💡 ${light.name}</strong><br/>
+            <span style="color:#94a3b8; font-size:11px;">${light.address || ''}</span><br/>
+            <div style="margin-top:4px; font-size:11px;">
+              조명종류: <span style="color:#f59e0b;">${typeLabel}</span><br/>
+              조명밝기: <span style="color:#fbbf24; font-weight:600;">${light.lumens ? light.lumens.toLocaleString() + ' lm' : '고조도 LED'}</span> | 
+              조명반경: <span style="color:#34d399;">15m 안심조명구역</span><br/>
+              관리기관: ${light.manager || '관할구청 도로시설과'}
+            </div>
+          `;
+          const marker = L.marker([light.lat, light.lng], { icon: lightIcon });
+          marker.bindTooltip(tooltipContent, { className: 'route-tooltip-custom' });
+          streetlightLayer.addLayer(marker);
+        }
+      } catch (err) {
+        if (err.name !== 'AbortError') {
+          console.warn('Streetlight dynamic fetch fallback error:', err);
+        }
+      }
+    };
+
+    renderVisibleStreetlights();
+    map.on('moveend zoomend', renderVisibleStreetlights);
+
+    return () => {
+      if (abortController) abortController.abort();
+      map.off('moveend zoomend', renderVisibleStreetlights);
+    };
+  }, [layers.streetlight]);
 
   // 2. Render Pedestrian Route with High-contrast Shade vs Sun Differentiation
   useEffect(() => {
@@ -733,6 +902,34 @@ export default function MapComponent({
             <>
               <span className="live-dot-pulse"></span>
               <span>현재 화면 내 방범 CCTV <strong>{cctvState.count}</strong>개소 안전보호구역 작동 중</span>
+            </>
+          )}
+        </div>
+      )}
+
+      {/* Real-time Streetlight Visible Counter Pill on Map */}
+      {layers.streetlight && (
+        <div className={`map-cctv-counter-pill map-streetlight-counter-pill ${streetlightState.isZoomTooLow ? 'zoom-hint' : ''}`}>
+          {streetlightState.isZoomTooLow ? (
+            <span>🔍 지도를 확대하면(골목·거리 축척) 가로등/보안등(15m 조명반경)이 표시됩니다</span>
+          ) : (
+            <>
+              <span className="live-dot-pulse-amber"></span>
+              <span>현재 화면 내 가로등/보안등 <strong>{streetlightState.count}</strong>개소 (15m 안심조도 작동 중)</span>
+            </>
+          )}
+        </div>
+      )}
+
+      {/* Real-time Roadside Trees Visible Counter Pill on Map */}
+      {layers.trees && (
+        <div className={`map-cctv-counter-pill map-tree-counter-pill ${treeState.isZoomTooLow ? 'zoom-hint' : ''}`}>
+          {treeState.isZoomTooLow ? (
+            <span>🔍 지도를 확대하면(골목·거리 축척) 가로수 그늘 캐노피가 표시됩니다</span>
+          ) : (
+            <>
+              <span className="live-dot-pulse-emerald"></span>
+              <span>현재 화면 내 가로수 그늘 <strong>{treeState.count}</strong>그루 작동 중</span>
             </>
           )}
         </div>

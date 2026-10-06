@@ -60,8 +60,8 @@ export const NODES = {
     roadAddress: '부산광역시 해운대구 구남로 9',
     roadName: '구남로 9',
     name: '부산광역시 해운대구 구남로 9 (구남로 상단 입구)',
-    lat: 35.1630,
-    lng: 129.1589,
+    lat: 35.163084,
+    lng: 129.159293,
     type: 'junction'
   },
   'N_GUNAM_MID_1': {
@@ -69,8 +69,8 @@ export const NODES = {
     roadAddress: '부산광역시 해운대구 구남로 24',
     roadName: '구남로 24',
     name: '부산광역시 해운대구 구남로 24 (구남로 중앙 분수광장)',
-    lat: 35.1618,
-    lng: 129.1593,
+    lat: 35.161980,
+    lng: 129.160237,
     type: 'junction'
   },
   'N_GUNAM_MID_2': {
@@ -78,8 +78,8 @@ export const NODES = {
     roadAddress: '부산광역시 해운대구 구남로 36',
     roadName: '구남로 36',
     name: '부산광역시 해운대구 구남로 36 (구남로 미디어월 광장)',
-    lat: 35.1605,
-    lng: 129.1598,
+    lat: 35.160823,
+    lng: 129.161474,
     type: 'junction'
   },
   'N_GUNAM_BEACH': {
@@ -87,8 +87,8 @@ export const NODES = {
     roadAddress: '부산광역시 해운대구 구남로 48',
     roadName: '구남로 48',
     name: '부산광역시 해운대구 구남로 48 (구남로 남단 교차로)',
-    lat: 35.1593,
-    lng: 129.1602,
+    lat: 35.159579,
+    lng: 129.162285,
     type: 'junction'
   },
   'N_BEACH_EVENT': {
@@ -96,8 +96,8 @@ export const NODES = {
     roadAddress: '부산광역시 해운대구 해운대해변로 264',
     roadName: '해운대해변로 264',
     name: '부산광역시 해운대구 해운대해변로 264 (해수욕장 이벤트광장)',
-    lat: 35.1584,
-    lng: 129.1605,
+    lat: 35.159204,
+    lng: 129.161499,
     type: 'junction'
   },
 
@@ -107,8 +107,8 @@ export const NODES = {
     roadAddress: '부산광역시 해운대구 구남로41번길 2',
     roadName: '구남로41번길 2',
     name: '부산광역시 해운대구 구남로41번길 2 (전통시장 북측 아케이드 입구)',
-    lat: 35.1623,
-    lng: 129.1618,
+    lat: 35.160659,
+    lng: 129.161794,
     type: 'arcade'
   },
   'N_MARKET_MID': {
@@ -116,8 +116,8 @@ export const NODES = {
     roadAddress: '부산광역시 해운대구 구남로41번길 22',
     roadName: '구남로41번길 22',
     name: '부산광역시 해운대구 구남로41번길 22 (전통시장 비가림 아케이드 중앙)',
-    lat: 35.1608,
-    lng: 129.1613,
+    lat: 35.161019,
+    lng: 129.161997,
     type: 'arcade'
   },
   'N_MARKET_SOUTH': {
@@ -125,8 +125,8 @@ export const NODES = {
     roadAddress: '부산광역시 해운대구 중동1로 38',
     roadName: '중동1로 38',
     name: '부산광역시 해운대구 중동1로 38 (전통시장 남측 아케이드 출구)',
-    lat: 35.1595,
-    lng: 129.1609,
+    lat: 35.161360,
+    lng: 129.162269,
     type: 'arcade'
   },
   'N_MARKET_ALLEY_E': {
@@ -134,8 +134,8 @@ export const NODES = {
     roadAddress: '부산광역시 해운대구 중동1로 42',
     roadName: '중동1로 42',
     name: '부산광역시 해운대구 중동1로 42 (시장 동편 보행로)',
-    lat: 35.1606,
-    lng: 129.1624,
+    lat: 35.161861,
+    lng: 129.163064,
     type: 'alley'
   },
 
@@ -218,16 +218,16 @@ export const NODES = {
 
 // Streetlights in Haeundae (15m radius illumination buffer)
 export const STREETLIGHTS = [
-  // Gunam-ro Avenue (Extremely bright smart LED pedestrian lights)
-  { id: 'SL_G01', lat: 35.1630, lng: 129.1589, type: 'smart_led', lumens: 9000, radius: 15 },
-  { id: 'SL_G02', lat: 35.1625, lng: 129.1591, type: 'smart_led', lumens: 9000, radius: 15 },
-  { id: 'SL_G03', lat: 35.1620, lng: 129.1592, type: 'smart_led', lumens: 9000, radius: 15 },
-  { id: 'SL_G04', lat: 35.1615, lng: 129.1594, type: 'smart_led', lumens: 9000, radius: 15 },
-  { id: 'SL_G05', lat: 35.1610, lng: 129.1596, type: 'smart_led', lumens: 9000, radius: 15 },
-  { id: 'SL_G06', lat: 35.1605, lng: 129.1598, type: 'smart_led', lumens: 9000, radius: 15 },
-  { id: 'SL_G07', lat: 35.1600, lng: 129.1600, type: 'smart_led', lumens: 9000, radius: 15 },
-  { id: 'SL_G08', lat: 35.1594, lng: 129.1602, type: 'smart_led', lumens: 9000, radius: 15 },
-  { id: 'SL_G09', lat: 35.1586, lng: 129.1604, type: 'smart_led', lumens: 9000, radius: 15 },
+  // Gunam-ro Avenue (Extremely bright smart LED pedestrian lights along promenade axis)
+  { id: 'SL_G01', lat: 35.16325, lng: 129.15915, type: 'smart_led', lumens: 9500, radius: 15 },
+  { id: 'SL_G02', lat: 35.16280, lng: 129.15952, type: 'smart_led', lumens: 9500, radius: 15 },
+  { id: 'SL_G03', lat: 35.16235, lng: 129.15990, type: 'smart_led', lumens: 9500, radius: 15 },
+  { id: 'SL_G04', lat: 35.16190, lng: 129.16030, type: 'smart_led', lumens: 9500, radius: 15 },
+  { id: 'SL_G05', lat: 35.16145, lng: 129.16070, type: 'smart_led', lumens: 9500, radius: 15 },
+  { id: 'SL_G06', lat: 35.16100, lng: 129.16110, type: 'smart_led', lumens: 9500, radius: 15 },
+  { id: 'SL_G07', lat: 35.16055, lng: 129.16150, type: 'smart_led', lumens: 9500, radius: 15 },
+  { id: 'SL_G08', lat: 35.16010, lng: 129.16188, type: 'smart_led', lumens: 9500, radius: 15 },
+  { id: 'SL_G09', lat: 35.15960, lng: 129.16228, type: 'smart_led', lumens: 9500, radius: 15 },
 
   // Haeundae Beach Promenade
   { id: 'SL_B01', lat: 35.1589, lng: 129.1585, type: 'coastal_led', lumens: 7000, radius: 15 },

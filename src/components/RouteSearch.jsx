@@ -680,7 +680,7 @@ export default function RouteSearch({
                 <span className="route-card-time">{formatDuration(nightRoute.estimatedMinutes)}</span>
               </div>
               <div className="route-card-desc">
-                CCTV <span style={{ color: '#38bdf8', fontWeight: 700 }}>{nightRoute.cctvCount}대</span> 안전존
+                CCTV <span style={{ color: '#38bdf8', fontWeight: 700 }}>{nightRoute.cctvCount}대</span> · 가로등 <span style={{ color: '#f59e0b', fontWeight: 700 }}>{nightRoute.streetlightCount || 0}개소</span>
               </div>
             </div>
           )}
