@@ -183,22 +183,19 @@ export function analyzeRouteCctvSafety(latlngs, availableCctvs = null) {
   };
 }
 
-/**
- * Find the most prominent safety waypoint (CCTV + Streetlight dense corridor)
- * to divert pedestrians away from dark alleys toward bright, surveilled streets
- */
-function findBestSafetyWaypoint(baseLatlngs, sLat, sLng, tLat, tLng) {
+export function findBestSafetyWaypoint(baseLatlngs, sLat, sLng, tLat, tLng, activeStreetlights = null) {
   if (!baseLatlngs || baseLatlngs.length < 4) return null;
 
   const totalPoints = baseLatlngs.length;
-  const minIdx = Math.floor(totalPoints * 0.25);
-  const maxIdx = Math.floor(totalPoints * 0.75);
+  const minIdx = Math.floor(totalPoints * 0.20);
+  const maxIdx = Math.floor(totalPoints * 0.80);
 
   const candidates = [];
+  const lights = (activeStreetlights && activeStreetlights.length > 0) ? activeStreetlights : streetlightsDataset;
 
   const safetyHubs = [
     ...cctvsDataset.map(c => ({ lat: c.lat, lng: c.lng, score: 3.5, type: 'cctv' })),
-    ...streetlightsDataset.map(s => ({ lat: s.lat, lng: s.lng, score: 1.5, type: 'light' }))
+    ...lights.map(s => ({ lat: s.lat, lng: s.lng, score: 1.5, type: 'light' }))
   ];
 
   for (const hub of safetyHubs) {

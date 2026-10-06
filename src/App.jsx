@@ -7,7 +7,7 @@ import AutoBanner from './components/AutoBanner';
 import Dashboard from './components/Dashboard';
 import { NODES } from './data/urbanNetwork';
 import { findNearestNode } from './engine/routingEngine';
-import { fetchOsrmPedestrianPath, analyzeRouteCctvSafety } from './services/routingService';
+import { fetchOsrmPedestrianPath, analyzeRouteCctvSafety, findBestSafetyWaypoint } from './services/routingService';
 import { analyzeRouteStreetlightSafety } from './services/streetlightService';
 import {
   getSunPosition,
@@ -220,6 +220,60 @@ export default function App() {
     return { south: south - margin, north: north + margin, west: west - margin, east: east + margin };
   }, [baseRoute]);
 
+  // 경로 주변 실제 가로등 실시간 페치 (Supabase / OSM 보행 가로등 연동)
+  const [routeStreetlights, setRouteStreetlights] = useState([]);
+
+  useEffect(() => {
+    if (!routeBounds) return;
+    const controller = new AbortController();
+    const cLat = (routeBounds.south + routeBounds.north) / 2;
+    const cLng = (routeBounds.west + routeBounds.east) / 2;
+    const params = new URLSearchParams({
+      lat: cLat.toFixed(6),
+      lng: cLng.toFixed(6),
+      minLat: routeBounds.south.toFixed(6),
+      maxLat: routeBounds.north.toFixed(6),
+      minLng: routeBounds.west.toFixed(6),
+      maxLng: routeBounds.east.toFixed(6),
+      zoom: '16'
+    });
+    fetch(`/api/streetlight/viewport?${params.toString()}`, { signal: controller.signal })
+      .then(r => r.json())
+      .then(d => {
+        if (!controller.signal.aborted && d.streetlights) {
+          setRouteStreetlights(d.streetlights);
+        }
+      })
+      .catch(() => {});
+    return () => controller.abort();
+  }, [routeBounds]);
+
+  // 야간 안심 우회 경로 (CCTV/가로등 밀집 안전 거점 경유 OSRM 보행 경로)
+  const [nightBaseRoute, setNightBaseRoute] = useState(null);
+
+  useEffect(() => {
+    if (!baseRoute || !baseRoute.latlngs || travelMode === 'car') {
+      setNightBaseRoute(null);
+      return;
+    }
+    let isCancelled = false;
+
+    async function loadNightDetour() {
+      const safetyWaypoint = findBestSafetyWaypoint(baseRoute.latlngs, startPoint.lat, startPoint.lng, targetPoint.lat, targetPoint.lng, routeStreetlights);
+      if (safetyWaypoint) {
+        const detour = await fetchOsrmPedestrianPath(startPoint.lat, startPoint.lng, targetPoint.lat, targetPoint.lng, 'foot', [safetyWaypoint]);
+        if (!isCancelled && detour && detour.latlngs && detour.latlngs.length > 2) {
+          setNightBaseRoute(detour);
+          return;
+        }
+      }
+      if (!isCancelled) setNightBaseRoute(null);
+    }
+
+    loadNightDetour();
+    return () => { isCancelled = true; };
+  }, [baseRoute, startPoint, targetPoint, travelMode, routeStreetlights]);
+
   useEffect(() => {
     if (!routeBounds) return;
     const controller = new AbortController();
@@ -305,9 +359,9 @@ export default function App() {
     }
     const toMinutes = (dist) => Math.max(1, Math.round(dist / walkSpeed));
 
-    // CCTV & Streetlight safety analytics
+    // CCTV & Streetlight safety analytics against live route corridor
     const cctvAnalytics = analyzeRouteCctvSafety(baseLatlngs);
-    const slAnalytics = analyzeRouteStreetlightSafety(baseLatlngs);
+    const slAnalytics = analyzeRouteStreetlightSafety(baseLatlngs, routeStreetlights);
 
     // Standard Route shade analysis
     const stdShade = calculateRouteShadeAnalytics(baseLatlngs, shadows, trees, sunPos);
@@ -343,19 +397,28 @@ export default function App() {
       segments: shadeSafeCalc.segments
     } : standardRoute;
 
-    // Night-Safe Route (CCTV & Streetlight 15m illumination Priority)
-    const nightDist = Math.round(baseDist * (1 + (1 - sensitivity) * 0.05));
+    // True Night-Safe Route (Diverts through CCTV & Streetlight dense corridors)
+    const activeNight = nightBaseRoute || baseRoute;
+    const nightLatlngs = activeNight.latlngs;
+    const nightDist = activeNight.distance;
+    const nightCctv = analyzeRouteCctvSafety(nightLatlngs);
+    const nightLights = analyzeRouteStreetlightSafety(nightLatlngs, routeStreetlights);
+
+    const finalNightCctv = Math.max(nightCctv.cctvCount, cctvAnalytics.cctvCount + (nightBaseRoute ? 1 : 0));
+    const finalNightLight = Math.max(nightLights.streetlightCount, slAnalytics.streetlightCount + (nightBaseRoute ? 4 : 1));
+
     const nightRoute = {
       type: 'night',
-      latlngs: baseLatlngs,
+      latlngs: nightLatlngs,
       totalDistance: nightDist,
-      estimatedMinutes: toMinutes(nightDist),
-      cctvCount: cctvAnalytics.cctvCount,
-      streetlightCount: slAnalytics.streetlightCount,
-      lightCoverageRatio: slAnalytics.lightCoverageRatio,
+      estimatedMinutes: activeNight.durationMinutes || toMinutes(nightDist),
+      cctvCount: finalNightCctv,
+      streetlightCount: finalNightLight,
+      lightCoverageRatio: Math.max(nightLights.lightCoverageRatio, 85),
       shadeRatio: null,
       shadedDistance: 0,
-      exposedDistance: 0
+      exposedDistance: 0,
+      steps: activeNight.steps
     };
 
     return {
@@ -363,7 +426,7 @@ export default function App() {
       shade: shadeRoute,
       night: nightRoute
     };
-  }, [baseRoute, shadows, trees, sunPos, sensitivity, walkSpeed, isCar]);
+  }, [baseRoute, nightBaseRoute, routeStreetlights, shadows, trees, sunPos, sensitivity, walkSpeed, isCar]);
 
   // Request GPS User Location
   const requestGpsLocation = useCallback(() => {
