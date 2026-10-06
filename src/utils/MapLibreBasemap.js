@@ -31,8 +31,14 @@ export const MapLibreBasemap = L.Layer.extend({
 
     const container = document.createElement('div');
     container.className = 'maplibre-basemap';
-    container.style.cssText = 'position:absolute;inset:0;z-index:0;';
-    map.getContainer().insertBefore(container, map.getContainer().firstChild);
+    container.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:1;';
+    
+    const tilePane = map.getPane('tilePane');
+    if (tilePane) {
+      tilePane.appendChild(container);
+    } else {
+      map.getContainer().appendChild(container);
+    }
     this._container = container;
 
     loadMapStyle(this._theme)
