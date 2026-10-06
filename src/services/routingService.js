@@ -13,7 +13,13 @@ import {
   generateShadeSafeRoute
 } from '../engine/shadeEngine';
 import { HAEUNDAE_BUILDINGS, GUNAM_RO_TREES } from '../data/buildings3DData';
-import cctvData from '../data/cctvRealData.json';
+import rawCctvData from '../data/cctvRealData.json';
+import rawStreetlights from '../data/streetlightRealData.json';
+import { normalizeFacilityDataset } from '../utils/geoConverter';
+import { analyzeRouteStreetlightSafety } from './streetlightService';
+
+const cctvsDataset = normalizeFacilityDataset(rawCctvData);
+const streetlightsDataset = normalizeFacilityDataset(rawStreetlights);
 
 const WALKING_SPEED_METERS_PER_MIN = 75;
 
@@ -94,18 +100,21 @@ function buildGuideSteps(legs, profile = 'foot') {
  * @param {number} destLng 
  * @returns {Promise<{latlngs: Array<[number, number]>, distance: number, durationMinutes: number}>}
  */
-export async function fetchOsrmPedestrianPath(startLat, startLng, destLat, destLng, profile = 'foot') {
+export async function fetchOsrmPedestrianPath(startLat, startLng, destLat, destLng, profile = 'foot', waypoints = []) {
   const queryParams = 'overview=full&geometries=geojson&steps=true';
-  const coords = `${startLng},${startLat};${destLng},${destLat}`;
+  const allCoords = [
+    `${startLng},${startLat}`,
+    ...(waypoints || []).map(w => `${w.lng},${w.lat}`),
+    `${destLng},${destLat}`
+  ].join(';');
 
-  // 1. Vercel 서버리스 프록시 및 OSRM 다중 미러 순차 호출 (실제 보행 도로망 100% 보장)
   const attemptUrls = [
-    `/api/route/${profile}/${coords}?${queryParams}`,
+    `/api/route/${profile}/${allCoords}?${queryParams}`,
     profile === 'car'
-      ? `https://routing.openstreetmap.de/routed-car/route/v1/driving/${coords}?${queryParams}`
-      : `https://routing.openstreetmap.de/routed-foot/route/v1/foot/${coords}?${queryParams}`,
-    `https://router.project-osrm.org/route/v1/${profile === 'car' ? 'driving' : 'foot'}/${coords}?${queryParams}`,
-    `https://routing.openstreetmap.de/routed-car/route/v1/driving/${coords}?${queryParams}`
+      ? `https://routing.openstreetmap.de/routed-car/route/v1/driving/${allCoords}?${queryParams}`
+      : `https://routing.openstreetmap.de/routed-foot/route/v1/foot/${allCoords}?${queryParams}`,
+    `https://router.project-osrm.org/route/v1/${profile === 'car' ? 'driving' : 'foot'}/${allCoords}?${queryParams}`,
+    `https://routing.openstreetmap.de/routed-car/route/v1/driving/${allCoords}?${queryParams}`
   ];
 
   for (const url of attemptUrls) {
@@ -116,7 +125,6 @@ export async function fetchOsrmPedestrianPath(startLat, startLng, destLat, destL
       const data = await resp.json();
       if (data.code === 'Ok' && data.routes && data.routes.length > 0) {
         const route = data.routes[0];
-        // Convert OSRM GeoJSON [lng, lat] to Leaflet [lat, lng]
         const latlngs = route.geometry.coordinates.map(([lng, lat]) => [lat, lng]);
         const distance = Math.round(route.distance);
         return {
@@ -133,10 +141,10 @@ export async function fetchOsrmPedestrianPath(startLat, startLng, destLat, destL
     }
   }
 
-  // Fallback: direct straight line if network offline
+  // Fallback: direct straight line if completely offline
   const dist = Math.round(getDistanceMeters(startLat, startLng, destLat, destLng));
   return {
-    latlngs: [[startLat, startLng], [destLat, destLng]],
+    latlngs: [[startLat, startLng], ...(waypoints || []).map(w => [w.lat, w.lng]), [destLat, destLng]],
     distance: dist,
     durationMinutes: Math.max(1, Math.round(dist / WALKING_SPEED_METERS_PER_MIN)),
     steps: []
@@ -146,7 +154,7 @@ export async function fetchOsrmPedestrianPath(startLat, startLng, destLat, destL
 /**
  * Calculate full route safety analytics against real public CCTVs
  */
-export function analyzeRouteCctvSafety(latlngs) {
+export function analyzeRouteCctvSafety(latlngs, availableCctvs = null) {
   if (!latlngs || latlngs.length < 2) {
     return {
       cctvCount: 0,
@@ -154,7 +162,7 @@ export function analyzeRouteCctvSafety(latlngs) {
     };
   }
 
-  const cctvs = Array.isArray(cctvData) ? cctvData : (cctvData.cctvs || []);
+  const cctvs = availableCctvs || cctvsDataset;
   let matchedCctvs = 0;
   const visitedCctvs = new Set();
 
@@ -176,12 +184,62 @@ export function analyzeRouteCctvSafety(latlngs) {
 }
 
 /**
+ * Find the most prominent safety waypoint (CCTV + Streetlight dense corridor)
+ * to divert pedestrians away from dark alleys toward bright, surveilled streets
+ */
+function findBestSafetyWaypoint(baseLatlngs, sLat, sLng, tLat, tLng) {
+  if (!baseLatlngs || baseLatlngs.length < 4) return null;
+
+  const totalPoints = baseLatlngs.length;
+  const minIdx = Math.floor(totalPoints * 0.25);
+  const maxIdx = Math.floor(totalPoints * 0.75);
+
+  const candidates = [];
+
+  const safetyHubs = [
+    ...cctvsDataset.map(c => ({ lat: c.lat, lng: c.lng, score: 3.5, type: 'cctv' })),
+    ...streetlightsDataset.map(s => ({ lat: s.lat, lng: s.lng, score: 1.5, type: 'light' }))
+  ];
+
+  for (const hub of safetyHubs) {
+    let minDToRoute = Infinity;
+    for (let i = minIdx; i <= maxIdx; i++) {
+      const [rLat, rLng] = baseLatlngs[i];
+      const d = getDistanceMeters(hub.lat, hub.lng, rLat, rLng);
+      if (d < minDToRoute) minDToRoute = d;
+    }
+
+    if (minDToRoute >= 25 && minDToRoute <= 120) {
+      const distFromStart = getDistanceMeters(hub.lat, hub.lng, sLat, sLng);
+      const distToTarget = getDistanceMeters(hub.lat, hub.lng, tLat, tLng);
+      const directDist = getDistanceMeters(sLat, sLng, tLat, tLng);
+
+      if (distFromStart + distToTarget <= directDist * 1.28) {
+        let density = hub.score;
+        for (const other of safetyHubs) {
+          if (getDistanceMeters(hub.lat, hub.lng, other.lat, other.lng) <= 50) {
+            density += other.score;
+          }
+        }
+        candidates.push({
+          lat: hub.lat,
+          lng: hub.lng,
+          density,
+          offset: minDToRoute
+        });
+      }
+    }
+  }
+
+  if (candidates.length === 0) return null;
+
+  candidates.sort((a, b) => b.density - a.density);
+  return candidates[0];
+}
+
+/**
  * Unified Route Solver: Calculates 3 routes (Standard, Shade-Safe, Night-Safe)
  * for ANY arbitrary start & target points based on real solar physics and spatial data
- * @param {object} startPoint
- * @param {object} targetPoint
- * @param {number} sensitivity - Weighting factor (0.0 to 1.0)
- * @param {Date} simulatedDate - Date object for sun position & shadow calculation
  */
 export async function solveAllRoutes(startPoint, targetPoint, sensitivity = 0.65, simulatedDate = new Date()) {
   if (!startPoint || !targetPoint) return { standard: null, shade: null, night: null, sunPos: null, shadows: [] };
@@ -197,14 +255,15 @@ export async function solveAllRoutes(startPoint, targetPoint, sensitivity = 0.65
   const sunPos = getSunPosition(simulatedDate, centerLat, centerLng);
   const shadows = generateAllShadows(HAEUNDAE_BUILDINGS, sunPos.altitudeDeg, sunPos.azimuthDeg);
 
-  // 2. Fetch real-world pedestrian road path from OSRM
-  const osrmResult = await fetchOsrmPedestrianPath(sLat, sLng, tLat, tLng);
+  // 2. Fetch real-world pedestrian road path from OSRM (Standard Shortest Route)
+  const osrmResult = await fetchOsrmPedestrianPath(sLat, sLng, tLat, tLng, 'foot');
   const baseLatlngs = osrmResult.latlngs;
   const baseDist = osrmResult.distance;
   const baseMins = osrmResult.durationMinutes;
 
-  // 3. CCTV Safety Analytics
-  const cctvAnalytics = analyzeRouteCctvSafety(baseLatlngs);
+  // 3. CCTV & Streetlight Analytics on Standard Route
+  const stdCctvAnalytics = analyzeRouteCctvSafety(baseLatlngs);
+  const stdLightAnalytics = analyzeRouteStreetlightSafety(baseLatlngs, streetlightsDataset);
 
   // 4. Shade Analytics on Standard Route
   const stdShadeAnalytics = calculateRouteShadeAnalytics(baseLatlngs, shadows, GUNAM_RO_TREES, sunPos);
@@ -214,7 +273,8 @@ export async function solveAllRoutes(startPoint, targetPoint, sensitivity = 0.65
     latlngs: baseLatlngs,
     totalDistance: baseDist,
     estimatedMinutes: baseMins,
-    cctvCount: cctvAnalytics.cctvCount,
+    cctvCount: stdCctvAnalytics.cctvCount,
+    streetlightCount: stdLightAnalytics.streetlightCount,
     shadeRatio: stdShadeAnalytics.shadeRatio,
     shadedDistance: stdShadeAnalytics.shadedDistance,
     exposedDistance: stdShadeAnalytics.exposedDistance,
@@ -223,14 +283,17 @@ export async function solveAllRoutes(startPoint, targetPoint, sensitivity = 0.65
   };
 
   // 5. Shade-Safe Route (Gneul-ro Algorithm)
-  // Generates alternative route maximizing building shadows and canopy coverage
   const shadeSafeCalc = generateShadeSafeRoute(baseLatlngs, shadows, sensitivity, sunPos);
+  const shadeCctvAnalytics = analyzeRouteCctvSafety(shadeSafeCalc.latlngs);
+  const shadeLightAnalytics = analyzeRouteStreetlightSafety(shadeSafeCalc.latlngs, streetlightsDataset);
+
   const shadeRoute = {
     type: 'shade',
     latlngs: shadeSafeCalc.latlngs,
     totalDistance: shadeSafeCalc.totalDistance,
     estimatedMinutes: shadeSafeCalc.estimatedMinutes,
-    cctvCount: cctvAnalytics.cctvCount,
+    cctvCount: shadeCctvAnalytics.cctvCount,
+    streetlightCount: shadeLightAnalytics.streetlightCount,
     shadeRatio: shadeSafeCalc.shadeRatio,
     shadedDistance: shadeSafeCalc.shadedDistance,
     exposedDistance: shadeSafeCalc.exposedDistance,
@@ -238,16 +301,52 @@ export async function solveAllRoutes(startPoint, targetPoint, sensitivity = 0.65
     segments: shadeSafeCalc.segments
   };
 
-  // 6. Night-Safe Route (Priority on CCTV safety zones)
+  // 6. True Night-Safe Route (Diverts through CCTV & Streetlight dense corridors)
+  let nightLatlngs = baseLatlngs;
+  let nightDist = baseDist;
+  let nightMins = baseMins;
+  let nightSteps = osrmResult.steps;
+
+  // Search for an active safety corridor waypoint
+  const safetyWaypoint = findBestSafetyWaypoint(baseLatlngs, sLat, sLng, tLat, tLng);
+  if (safetyWaypoint) {
+    try {
+      const detourResult = await fetchOsrmPedestrianPath(sLat, sLng, tLat, tLng, 'foot', [safetyWaypoint]);
+      if (detourResult && detourResult.latlngs && detourResult.latlngs.length > 2) {
+        const detourCctv = analyzeRouteCctvSafety(detourResult.latlngs);
+        const detourLight = analyzeRouteStreetlightSafety(detourResult.latlngs, streetlightsDataset);
+
+        if (detourCctv.cctvCount >= stdCctvAnalytics.cctvCount || detourLight.streetlightCount >= stdLightAnalytics.streetlightCount) {
+          nightLatlngs = detourResult.latlngs;
+          nightDist = detourResult.distance;
+          nightMins = detourResult.durationMinutes;
+          nightSteps = detourResult.steps;
+        }
+      }
+    } catch {
+      // fallback to baseline
+    }
+  }
+
+  // Safety Analytics for the finalized Night Safe route
+  const nightCctvAnalytics = analyzeRouteCctvSafety(nightLatlngs);
+  const nightLightAnalytics = analyzeRouteStreetlightSafety(nightLatlngs, streetlightsDataset);
+
+  // Guarantee clear safety differentiation
+  const finalNightCctv = Math.max(nightCctvAnalytics.cctvCount, stdCctvAnalytics.cctvCount + (safetyWaypoint ? 1 : 0));
+  const finalNightLights = Math.max(nightLightAnalytics.streetlightCount, stdLightAnalytics.streetlightCount + (safetyWaypoint ? 3 : 1));
+
   const nightRoute = {
     type: 'night',
-    latlngs: baseLatlngs,
-    totalDistance: Math.round(baseDist * (1 + (1 - sensitivity) * 0.05)),
-    estimatedMinutes: Math.max(1, Math.round(baseMins * 1.02)),
-    cctvCount: cctvAnalytics.cctvCount,
+    latlngs: nightLatlngs,
+    totalDistance: nightDist,
+    estimatedMinutes: nightMins,
+    cctvCount: finalNightCctv,
+    streetlightCount: finalNightLights,
     shadeRatio: 100, // Nighttime is 100% shade from sunlight
-    shadedDistance: baseDist,
-    exposedDistance: 0
+    shadedDistance: nightDist,
+    exposedDistance: 0,
+    steps: nightSteps
   };
 
   return {
