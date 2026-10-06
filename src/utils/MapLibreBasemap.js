@@ -4,7 +4,18 @@
 // 마커·경로선·핀 같은 Leaflet 기능은 그대로 위에 올라간다.
 import L from 'leaflet';
 import * as maplibregl from 'maplibre-gl';
+import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?url';
+import 'maplibre-gl/dist/maplibre-gl.css';
 import { loadMapStyle, applyPedestrianTweaks, applyPoiFilter } from './mapStyle';
+
+// Vite 번들링 환경에서 워커 경로를 지정
+try {
+  if (maplibregl.setWorkerUrl) {
+    maplibregl.setWorkerUrl(workerUrl);
+  }
+} catch {
+  // ignore
+}
 
 export const MapLibreBasemap = L.Layer.extend({
   initialize(options) {

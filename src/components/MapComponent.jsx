@@ -71,6 +71,7 @@ export default function MapComponent({
   const cctvLayerRef = useRef(null);
   const streetlightLayerRef = useRef(null);
   const markersLayerRef = useRef(null);
+  const fallbackTileLayerRef = useRef(null);
 
   // Initialize Map
   useEffect(() => {
@@ -86,9 +87,24 @@ export default function MapComponent({
       markerZoomAnimation: false
     });
 
-    // 이미지 타일 대신 3D 지도와 같은 벡터 지도를 바닥에 깐다(장소 아이콘 선택·테마가 3D와 동일)
-    const basemap = new MapLibreBasemap({ theme: latestThemeRef.current, poiSelected: latestPoiRef.current }).addTo(map);
-    basemapRef.current = basemap;
+    // 1. 기본 고품질 배경 타일 레이어 (CartoDB): 어떤 환경에서도 지도가 검게 비지 않도록 100% 보장
+    const tileUrl = latestThemeRef.current === 'dark'
+      ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
+      : 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png';
+    const tileLayer = L.tileLayer(tileUrl, {
+      maxZoom: 19,
+      subdomains: 'abcd',
+      attribution: '&copy; OpenStreetMap contributors &copy; CARTO'
+    }).addTo(map);
+    fallbackTileLayerRef.current = tileLayer;
+
+    // 2. 3D 지도와 연동되는 고해상도 벡터 지도 (OpenFreeMap MapLibre)
+    try {
+      const basemap = new MapLibreBasemap({ theme: latestThemeRef.current, poiSelected: latestPoiRef.current }).addTo(map);
+      basemapRef.current = basemap;
+    } catch (err) {
+      console.warn('MapLibre basemap init fallback:', err);
+    }
 
     // Controls
     L.control.zoom({ position: 'topright' }).addTo(map);
@@ -187,6 +203,12 @@ export default function MapComponent({
   // 테마가 바뀌면 바닥 지도에 반영한다
   useEffect(() => {
     if (basemapRef.current) basemapRef.current.setTheme(mapTheme);
+    if (fallbackTileLayerRef.current) {
+      const newUrl = mapTheme === 'dark'
+        ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
+        : 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png';
+      fallbackTileLayerRef.current.setUrl(newUrl);
+    }
   }, [mapTheme]);
 
   useEffect(() => {
