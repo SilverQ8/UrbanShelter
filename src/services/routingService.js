@@ -95,31 +95,42 @@ function buildGuideSteps(legs, profile = 'foot') {
  * @returns {Promise<{latlngs: Array<[number, number]>, distance: number, durationMinutes: number}>}
  */
 export async function fetchOsrmPedestrianPath(startLat, startLng, destLat, destLng, profile = 'foot') {
-  try {
-    const url = `/api/route/${profile}/${startLng},${startLat};${destLng},${destLat}?overview=full&geometries=geojson&steps=true`;
-    const resp = await fetch(url);
-    if (!resp.ok) throw new Error(`OSRM HTTP ${resp.status}`);
+  const queryParams = 'overview=full&geometries=geojson&steps=true';
+  const coords = `${startLng},${startLat};${destLng},${destLat}`;
 
-    const data = await resp.json();
-    if (data.code === 'Ok' && data.routes && data.routes.length > 0) {
-      const route = data.routes[0];
-      // Convert OSRM GeoJSON [lng, lat] to Leaflet [lat, lng]
-      const latlngs = route.geometry.coordinates.map(([lng, lat]) => [lat, lng]);
-      // OSRM 공개 서버는 foot 프로파일을 지원하지 않고 자동차 속도로 duration을 계산하므로,
-      // 거리 기준 도보 속도(75m/분)로 직접 산출해 다른 경로 모드와 기준을 맞춘다.
-      const distance = Math.round(route.distance);
-      return {
-        latlngs,
-        distance,
-        // 도보는 이용자의 걸음 속도로 App에서 다시 계산하고, 자동차는 서버가 준 시간을 쓴다
-        durationMinutes: profile === 'car'
-          ? Math.max(1, Math.round(route.duration / 60))
-          : Math.max(1, Math.round(distance / WALKING_SPEED_METERS_PER_MIN)),
-        steps: buildGuideSteps(route.legs, profile)
-      };
+  // 1. Vercel 서버리스 프록시 및 OSRM 다중 미러 순차 호출 (실제 보행 도로망 100% 보장)
+  const attemptUrls = [
+    `/api/route/${profile}/${coords}?${queryParams}`,
+    profile === 'car'
+      ? `https://routing.openstreetmap.de/routed-car/route/v1/driving/${coords}?${queryParams}`
+      : `https://routing.openstreetmap.de/routed-foot/route/v1/foot/${coords}?${queryParams}`,
+    `https://router.project-osrm.org/route/v1/${profile === 'car' ? 'driving' : 'foot'}/${coords}?${queryParams}`,
+    `https://routing.openstreetmap.de/routed-car/route/v1/driving/${coords}?${queryParams}`
+  ];
+
+  for (const url of attemptUrls) {
+    try {
+      const resp = await fetch(url, { signal: AbortSignal.timeout(3500) });
+      if (!resp.ok) continue;
+
+      const data = await resp.json();
+      if (data.code === 'Ok' && data.routes && data.routes.length > 0) {
+        const route = data.routes[0];
+        // Convert OSRM GeoJSON [lng, lat] to Leaflet [lat, lng]
+        const latlngs = route.geometry.coordinates.map(([lng, lat]) => [lat, lng]);
+        const distance = Math.round(route.distance);
+        return {
+          latlngs,
+          distance,
+          durationMinutes: profile === 'car'
+            ? Math.max(1, Math.round(route.duration / 60))
+            : Math.max(1, Math.round(distance / WALKING_SPEED_METERS_PER_MIN)),
+          steps: buildGuideSteps(route.legs, profile)
+        };
+      }
+    } catch {
+      // 다음 미러 서버로 자동 전환
     }
-  } catch (err) {
-    console.warn('OSRM pedestrian route fetch fallback:', err);
   }
 
   // Fallback: direct straight line if network offline
