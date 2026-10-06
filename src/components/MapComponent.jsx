@@ -6,6 +6,7 @@ import { MapLibreBasemap } from '../utils/MapLibreBasemap';
 import { NODES, MAP_CENTER, DEFAULT_ZOOM } from '../data/urbanNetwork';
 import { formatDistance, formatDuration } from '../utils/format';
 import { filterValidUrbanMarkers, isInvalidOceanCoordinate } from '../utils/geoSanity';
+import { normalizeFacilityDataset } from '../utils/geoConverter';
 
 export default function MapComponent({
   userGps,
@@ -378,7 +379,7 @@ export default function MapComponent({
 
         const data = await resp.json();
         const rawCctvs = data.cctvs || [];
-        const items = filterValidUrbanMarkers(rawCctvs);
+        const items = normalizeFacilityDataset(rawCctvs);
 
         setCctvState({
           count: items.length,
@@ -484,7 +485,7 @@ export default function MapComponent({
 
         const data = await resp.json();
         const rawLights = data.streetlights || [];
-        const items = filterValidUrbanMarkers(rawLights);
+        const items = normalizeFacilityDataset(rawLights);
 
         setStreetlightState({
           count: items.length,

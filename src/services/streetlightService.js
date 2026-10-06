@@ -1,4 +1,45 @@
-import fallbackStreetlights from '../data/streetlightRealData.json';
+import rawFallbackStreetlights from '../data/streetlightRealData.json';
+import { normalizeFacilityDataset } from '../utils/geoConverter';
+import { supabase } from './supabaseClient';
+
+const fallbackStreetlights = normalizeFacilityDataset(rawFallbackStreetlights);
+
+/**
+ * Supabase 클라우드 데이터베이스에서 가로등 조회 (1순위 고속 서버 쿼리)
+ * @param {Object} [bounds] - { minLat, maxLat, minLng, maxLng }
+ * @returns {Promise<Array|null>}
+ */
+export async function fetchStreetlightsFromSupabase(bounds = null) {
+  try {
+    let query = supabase.from('streetlight_locations').select('sl_id, name, address, lat, lng, type, lumens, radius, manager');
+    if (bounds) {
+      query = query
+        .gte('lat', bounds.minLat)
+        .lte('lat', bounds.maxLat)
+        .gte('lng', bounds.minLng)
+        .lte('lng', bounds.maxLng);
+    }
+    const { data, error } = await query.limit(300);
+    if (error || !data || data.length === 0) return null;
+
+    const formatted = data.map(s => ({
+      id: s.sl_id,
+      name: s.name,
+      address: s.address,
+      lat: s.lat,
+      lng: s.lng,
+      type: s.type || 'smart_led',
+      lumens: s.lumens || 8000,
+      radius: s.radius || 15,
+      manager: s.manager || '지자체 도로관리과'
+    }));
+
+    return normalizeFacilityDataset(formatted);
+  } catch (err) {
+    console.warn('Supabase 가로등 조회 실패 (스마트 폴백 적용):', err);
+    return null;
+  }
+}
 
 /**
  * 가로등/보안등 실시간 및 캐시 데이터 조회 서비스
@@ -16,7 +57,20 @@ export async function fetchStreetlightsInViewport(bounds, zoom = 16) {
     };
   }
 
-  // 1. API 키 또는 백엔드 프록시 엔드포인트 호출 시도
+  // 1. Supabase 클라우드 데이터베이스 우선 조회
+  const supabaseLights = await fetchStreetlightsFromSupabase(bounds);
+  if (supabaseLights && supabaseLights.length > 0) {
+    return {
+      streetlights: supabaseLights,
+      count: supabaseLights.length,
+      displayedCount: supabaseLights.length,
+      isLive: true,
+      isSupabase: true,
+      isZoomTooLow: false
+    };
+  }
+
+  // 2. 백엔드 프록시 엔드포인트 호출 시도
   try {
     const centerLat = ((bounds.minLat + bounds.maxLat) / 2).toFixed(6);
     const centerLng = ((bounds.minLng + bounds.maxLng) / 2).toFixed(6);

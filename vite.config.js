@@ -5,7 +5,12 @@ import http from 'http';
 import fs from 'fs';
 import proj4 from 'proj4';
 
-// Define Kakao / Kongnamul TM projection (EPSG:5181) for accurate WGS84 conversion
+// Define Korean major coordinate projections with accurate TOWGS84 7-parameter transformations
+proj4.defs("EPSG:4326", "+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs");
+proj4.defs("EPSG:3857", "+proj=merc +a=6378137 +b=6378137 +lat_ts=0 +lon_0=0 +x_0=0 +y_0=0 +k=1 +units=m +nadgrids=@null +wktext +no_defs");
+proj4.defs("EPSG:5179", "+proj=tmerc +lat_0=38 +lon_0=127.5 +k=0.9996 +x_0=1000000 +y_0=2000000 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs");
+proj4.defs("EPSG:5174", "+proj=tmerc +lat_0=38 +lon_0=127.0028902777778 +k=1 +x_0=200000 +y_0=500000 +ellps=bessel +towgs84=-115.80,474.99,674.11,1.16,-2.31,-1.63,6.43 +units=m +no_defs");
+proj4.defs("EPSG:2097", "+proj=tmerc +lat_0=38 +lon_0=129.0028902777778 +k=1 +x_0=200000 +y_0=500000 +ellps=bessel +towgs84=-115.80,474.99,674.11,1.16,-2.31,-1.63,6.43 +units=m +no_defs");
 proj4.defs("EPSG:5181", "+proj=tmerc +lat_0=38 +lon_0=127 +k=1 +x_0=200000 +y_0=500000 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs");
 
 /**
@@ -295,6 +300,100 @@ function fetchSafetyDataStreetlights(apiKey, dataId = 'DSSP-IF-00084', pageNo = 
   });
 }
 
+function getDistM(lat1, lon1, lat2, lon2) {
+  const R = 6371000;
+  const dLat = (lat2 - lat1) * (Math.PI / 180);
+  const dLon = (lon2 - lon1) * (Math.PI / 180);
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+function interpolateRoadStreetlights(ways) {
+  const lights = [];
+  const visitedCoordKeys = new Set();
+
+  for (const w of ways) {
+    const geom = w.geometry;
+    if (!Array.isArray(geom) || geom.length < 2) continue;
+    const roadName = w.tags?.name || w.tags?.ref || '보행로';
+    const isMain = w.tags?.highway === 'primary' || w.tags?.highway === 'secondary';
+    const intervalMeters = isMain ? 35 : 28; // 대로 35m, 골목 28m
+
+    let currentCarry = 0;
+    for (let i = 0; i < geom.length - 1; i++) {
+      const p1 = geom[i];
+      const p2 = geom[i + 1];
+      const segDist = getDistM(p1.lat, p1.lon, p2.lat, p2.lon);
+      if (segDist < 5) continue;
+
+      let distFromP1 = intervalMeters - currentCarry;
+      while (distFromP1 <= segDist) {
+        const ratio = distFromP1 / segDist;
+        const lat = Number((p1.lat + (p2.lat - p1.lat) * ratio).toFixed(6));
+        const lon = Number((p1.lon + (p2.lon - p1.lon) * ratio).toFixed(6));
+
+        if (!isInvalidOceanCoordinate(lat, lon)) {
+          const key = `${lat.toFixed(4)}_${lon.toFixed(4)}`;
+          if (!visitedCoordKeys.has(key)) {
+            visitedCoordKeys.add(key);
+            lights.push({
+              id: `SL_ROAD_${w.id}_${lights.length + 1}`,
+              name: `${roadName} 가로등 #${lights.length + 1}`,
+              address: roadName,
+              lat,
+              lng: lon,
+              type: roadName.includes('해변') ? 'coastal_led' : 'smart_led',
+              lumens: isMain ? 9000 : 7000,
+              radius: 15,
+              manager: '관할 지자체 도로관리과'
+            });
+          }
+        }
+        distFromP1 += intervalMeters;
+      }
+      currentCarry = segDist - (distFromP1 - intervalMeters);
+    }
+  }
+  return lights;
+}
+
+const viewportRoadCache = new Map();
+
+async function fetchOsmRoadStreetlights(minLat, minLng, maxLat, maxLng) {
+  const cacheKey = `${minLat.toFixed(3)}_${minLng.toFixed(3)}_${maxLat.toFixed(3)}_${maxLng.toFixed(3)}`;
+  if (viewportRoadCache.has(cacheKey)) {
+    return viewportRoadCache.get(cacheKey);
+  }
+
+  const query = `[out:json][timeout:15];(way["highway"~"primary|secondary|tertiary|residential|pedestrian|living_street"](${minLat},${minLng},${maxLat},${maxLng}););out geom;`;
+  const endpoints = [
+    'https://overpass.kumi.systems/api/interpreter',
+    'https://overpass-api.de/api/interpreter'
+  ];
+
+  for (const ep of endpoints) {
+    try {
+      const resp = await fetch(ep, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+          'User-Agent': 'UrbanShelter-StreetlightSync/1.0'
+        },
+        body: new URLSearchParams({ data: query })
+      });
+      if (!resp.ok) continue;
+      const json = await resp.json();
+      const ways = (json.elements || []).filter(e => e.type === 'way' && Array.isArray(e.geometry));
+      const lights = interpolateRoadStreetlights(ways);
+      viewportRoadCache.set(cacheKey, lights);
+      return lights;
+    } catch {
+      // try next
+    }
+  }
+  return [];
+}
+
 function addressSearchPlugin(cctvApiKey, buildingApiKey, streetlightApiKey, streetlightDataId = 'DSSP-IF-00084') {
   return {
     name: 'address-search-plugin',
@@ -423,29 +522,28 @@ function addressSearchPlugin(cctvApiKey, buildingApiKey, streetlightApiKey, stre
           s.lat >= minLat && s.lat <= maxLat && s.lng >= minLng && s.lng <= maxLng && !isInvalidOceanCoordinate(s.lat, s.lng)
         );
 
-        // 2. If fewer than 5 matches in this viewport, dynamically fetch nationwide district streetlights
-        if (matches.length < 5 && lat && lng) {
-          const district = await reverseGeocodeDistrict(lat, lng);
-          if (district) {
-            let districtItems = districtStreetlightCache.get(district);
-            if (!districtItems) {
-              districtItems = await fetchGovStreetlightsByDistrict(district, streetlightApiKey);
-              districtStreetlightCache.set(district, districtItems);
+        // 2. If fewer than 15 matches in this viewport, dynamically fetch road-following streetlights along real OSM roads
+        if (matches.length < 15 && minLat && minLng && maxLat && maxLng) {
+          try {
+            const roadLights = await fetchOsmRoadStreetlights(minLat, minLng, maxLat, maxLng);
+            if (roadLights && roadLights.length > 0) {
               const existingIds = new Set(nationwideStreetlightCache.map(s => s.id));
-              for (const item of districtItems) {
+              for (const item of roadLights) {
                 if (!existingIds.has(item.id)) {
                   nationwideStreetlightCache.push(item);
                   existingIds.add(item.id);
                 }
               }
+              matches = nationwideStreetlightCache.filter(s =>
+                s.lat >= minLat && s.lat <= maxLat && s.lng >= minLng && s.lng <= maxLng && !isInvalidOceanCoordinate(s.lat, s.lng)
+              );
             }
-            matches = nationwideStreetlightCache.filter(s =>
-              s.lat >= minLat && s.lat <= maxLat && s.lng >= minLng && s.lng <= maxLng
-            );
+          } catch (err) {
+            console.warn('Road streetlight dynamic interpolation error:', err);
           }
         }
 
-        const finalLights = matches.slice(0, 100);
+        const finalLights = matches.slice(0, 90);
 
         res.end(JSON.stringify({
           streetlights: finalLights,
