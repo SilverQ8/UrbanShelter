@@ -272,17 +272,27 @@ export default function MapComponent({
 
       const zoom = map.getZoom();
 
-      // CCTV, 가로등과 동일한 축척 제한: zoom < 15 일 때 숨김 처리
-      if (zoom < 15) {
+      // CCTV, 가로등과 동일한 축척 제한: zoom < 13 일 때 숨김 처리
+      if (zoom < 13) {
         setTreeState({ count: 0, displayedCount: 0, isZoomTooLow: true, zoom });
         return;
       }
 
       const bounds = map.getBounds().pad(0.08);
+      const center = map.getCenter();
       const visibleTrees = (trees || []).filter(t => {
         const lat = Number(t.lat);
         const lng = Number(t.lng);
         return bounds.contains([lat, lng]) && !isInvalidOceanCoordinate(lat, lng);
+      });
+
+      // Center-priority sorting: sort trees by distance to screen center
+      visibleTrees.sort((a, b) => {
+        const dLatA = a.lat - center.lat;
+        const dLngA = (a.lng - center.lng) * Math.cos((center.lat * Math.PI) / 180);
+        const dLatB = b.lat - center.lat;
+        const dLngB = (b.lng - center.lng) * Math.cos((center.lat * Math.PI) / 180);
+        return (dLatA * dLatA + dLngA * dLngA) - (dLatB * dLatB + dLngB * dLngB);
       });
 
       setTreeState({
@@ -352,7 +362,7 @@ export default function MapComponent({
 
       const zoom = map.getZoom();
 
-      if (zoom < 15) {
+      if (zoom < 13) {
         setCctvState({ count: 0, displayedCount: 0, isZoomTooLow: true, zoom });
         return;
       }
@@ -381,16 +391,35 @@ export default function MapComponent({
         const rawCctvs = data.cctvs || [];
         const items = normalizeFacilityDataset(rawCctvs);
 
+        // 1. 화면 밖 마커 완전 배제 (현재 뷰포트 strictBounds 내 좌표만 필터)
+        const currentBounds = map.getBounds();
+        const visibleCctvs = items.filter(cam =>
+          cam.lat && cam.lng && currentBounds.contains([cam.lat, cam.lng])
+        );
+
+        // 2. 화면 중앙(center)과의 거리가 가장 가까운 마커부터 우선 정렬 (Center-First)
+        visibleCctvs.sort((a, b) => {
+          const dLatA = a.lat - center.lat;
+          const dLngA = (a.lng - center.lng) * Math.cos((center.lat * Math.PI) / 180);
+          const dLatB = b.lat - center.lat;
+          const dLngB = (b.lng - center.lng) * Math.cos((center.lat * Math.PI) / 180);
+          return (dLatA * dLatA + dLngA * dLngA) - (dLatB * dLatB + dLngB * dLngB);
+        });
+
+        // 3. 화면 중앙 우선 표시 한도 적용 (외곽 마커는 한도 초과 시 배제)
+        const maxLimit = zoom >= 17 ? 150 : 100;
+        const prioritizedCctvs = visibleCctvs.slice(0, maxLimit);
+
         setCctvState({
-          count: items.length,
-          displayedCount: items.length,
+          count: visibleCctvs.length,
+          displayedCount: prioritizedCctvs.length,
           isZoomTooLow: false,
           zoom
         });
 
         cctvLayer.clearLayers();
 
-        for (const cam of items) {
+        for (const cam of prioritizedCctvs) {
           if (zoom >= 16) {
             const circle = L.circle([cam.lat, cam.lng], {
               radius: cam.radius || 20,
@@ -404,10 +433,10 @@ export default function MapComponent({
             cctvLayer.addLayer(circle);
           }
 
-          const size = zoom >= 16 ? 18 : 13;
+          const size = zoom >= 16 ? 18 : zoom >= 14 ? 13 : 10;
           const cctvIcon = L.divIcon({
             className: 'cctv-badge',
-            html: `<div style="background: #0284c7; color: white; width: ${size}px; height: ${size}px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: ${zoom >= 16 ? 9 : 7}px; font-weight: bold; border: 1.5px solid #ffffff; box-shadow: 0 0 8px rgba(56,189,248,0.8); cursor: pointer;">📹</div>`,
+            html: `<div style="background: #0284c7; color: white; width: ${size}px; height: ${size}px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: ${zoom >= 16 ? 9 : zoom >= 14 ? 7 : 5}px; font-weight: bold; border: 1.5px solid #ffffff; box-shadow: 0 0 8px rgba(56,189,248,0.8); cursor: pointer;">📹</div>`,
             iconSize: [size, size],
             iconAnchor: [size / 2, size / 2]
           });
@@ -458,7 +487,7 @@ export default function MapComponent({
 
       const zoom = map.getZoom();
 
-      if (zoom < 15) {
+      if (zoom < 13) {
         setStreetlightState({ count: 0, displayedCount: 0, isZoomTooLow: true, zoom });
         return;
       }
@@ -487,16 +516,35 @@ export default function MapComponent({
         const rawLights = data.streetlights || [];
         const items = normalizeFacilityDataset(rawLights);
 
+        // 1. 화면 밖 마커 완전 배제 (현재 뷰포트 strictBounds 내 좌표만 필터)
+        const currentBounds = map.getBounds();
+        const visibleStreetlights = items.filter(light =>
+          light.lat && light.lng && currentBounds.contains([light.lat, light.lng])
+        );
+
+        // 2. 화면 중앙(center)과의 거리가 가장 가까운 가로등부터 우선 정렬 (Center-First)
+        visibleStreetlights.sort((a, b) => {
+          const dLatA = a.lat - center.lat;
+          const dLngA = (a.lng - center.lng) * Math.cos((center.lat * Math.PI) / 180);
+          const dLatB = b.lat - center.lat;
+          const dLngB = (b.lng - center.lng) * Math.cos((center.lat * Math.PI) / 180);
+          return (dLatA * dLatA + dLngA * dLngA) - (dLatB * dLatB + dLngB * dLngB);
+        });
+
+        // 3. 화면 중앙 우선 표시 한도 적용 (외곽 가로등은 한도 초과 시 배제)
+        const maxLimit = zoom >= 17 ? 200 : 140;
+        const prioritizedLights = visibleStreetlights.slice(0, maxLimit);
+
         setStreetlightState({
-          count: items.length,
-          displayedCount: items.length,
+          count: visibleStreetlights.length,
+          displayedCount: prioritizedLights.length,
           isZoomTooLow: false,
           zoom
         });
 
         streetlightLayer.clearLayers();
 
-        for (const light of items) {
+        for (const light of prioritizedLights) {
           if (zoom >= 16) {
             // 15m radius warm illumination buffer (Golden-Amber glow)
             const circle = L.circle([light.lat, light.lng], {
@@ -511,10 +559,10 @@ export default function MapComponent({
             streetlightLayer.addLayer(circle);
           }
 
-          const size = zoom >= 16 ? 18 : 13;
+          const size = zoom >= 16 ? 18 : zoom >= 14 ? 13 : 10;
           const lightIcon = L.divIcon({
             className: 'streetlight-badge',
-            html: `<div style="background: #d97706; color: #fffbeb; width: ${size}px; height: ${size}px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: ${zoom >= 16 ? 10 : 7}px; font-weight: bold; border: 1.5px solid #fef3c7; box-shadow: 0 0 10px rgba(245,158,11,0.9); cursor: pointer;">💡</div>`,
+            html: `<div style="background: #d97706; color: #fffbeb; width: ${size}px; height: ${size}px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: ${zoom >= 16 ? 10 : zoom >= 14 ? 7 : 5}px; font-weight: bold; border: 1.5px solid #fef3c7; box-shadow: 0 0 10px rgba(245,158,11,0.9); cursor: pointer;">💡</div>`,
             iconSize: [size, size],
             iconAnchor: [size / 2, size / 2]
           });

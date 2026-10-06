@@ -13,7 +13,7 @@ const HAEUNDAE_BOUNDS = {
  * @param {Object} [bounds] - { minLat, maxLat, minLng, maxLng }
  * @returns {Promise<Array|null>}
  */
-export async function fetchCctvsFromSupabase(bounds = null) {
+export async function fetchCctvsFromSupabase(bounds = null, center = null) {
   try {
     let query = supabase.from('cctv_locations').select('cctv_id, name, address, lat, lng, purpose, camera_count, manager');
     if (bounds) {
@@ -23,10 +23,10 @@ export async function fetchCctvsFromSupabase(bounds = null) {
         .gte('lng', bounds.minLng)
         .lte('lng', bounds.maxLng);
     }
-    const { data, error } = await query.limit(300);
+    const { data, error } = await query.limit(500);
     if (error || !data || data.length === 0) return null;
 
-    return data.map(c => ({
+    const items = data.map(c => ({
       id: c.cctv_id,
       name: c.name,
       address: c.address,
@@ -37,6 +37,18 @@ export async function fetchCctvsFromSupabase(bounds = null) {
       manager: c.manager,
       radius: 20
     }));
+
+    const cLat = center ? center.lat : (bounds ? (bounds.minLat + bounds.maxLat) / 2 : null);
+    const cLng = center ? center.lng : (bounds ? (bounds.minLng + bounds.maxLng) / 2 : null);
+    if (cLat != null && cLng != null) {
+      items.sort((a, b) => {
+        const dA = (a.lat - cLat) ** 2 + ((a.lng - cLng) * Math.cos(cLat * Math.PI / 180)) ** 2;
+        const dB = (b.lat - cLat) ** 2 + ((b.lng - cLng) * Math.cos(cLat * Math.PI / 180)) ** 2;
+        return dA - dB;
+      });
+    }
+
+    return items;
   } catch (err) {
     console.warn('Supabase CCTV fetch failed, using fallback:', err);
     return null;

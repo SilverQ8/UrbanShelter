@@ -9,7 +9,7 @@ const fallbackStreetlights = normalizeFacilityDataset(rawFallbackStreetlights);
  * @param {Object} [bounds] - { minLat, maxLat, minLng, maxLng }
  * @returns {Promise<Array|null>}
  */
-export async function fetchStreetlightsFromSupabase(bounds = null) {
+export async function fetchStreetlightsFromSupabase(bounds = null, center = null) {
   try {
     let query = supabase.from('streetlight_locations').select('sl_id, name, address, lat, lng, type, lumens, radius, manager');
     if (bounds) {
@@ -19,10 +19,10 @@ export async function fetchStreetlightsFromSupabase(bounds = null) {
         .gte('lng', bounds.minLng)
         .lte('lng', bounds.maxLng);
     }
-    const { data, error } = await query.limit(300);
+    const { data, error } = await query.limit(500);
     if (error || !data || data.length === 0) return null;
 
-    const formatted = data.map(s => ({
+    let formatted = data.map(s => ({
       id: s.sl_id,
       name: s.name,
       address: s.address,
@@ -34,7 +34,19 @@ export async function fetchStreetlightsFromSupabase(bounds = null) {
       manager: s.manager || '지자체 도로관리과'
     }));
 
-    return normalizeFacilityDataset(formatted);
+    const normalized = normalizeFacilityDataset(formatted);
+
+    const cLat = center ? center.lat : (bounds ? (bounds.minLat + bounds.maxLat) / 2 : null);
+    const cLng = center ? center.lng : (bounds ? (bounds.minLng + bounds.maxLng) / 2 : null);
+    if (cLat != null && cLng != null) {
+      normalized.sort((a, b) => {
+        const dA = (a.lat - cLat) ** 2 + ((a.lng - cLng) * Math.cos(cLat * Math.PI / 180)) ** 2;
+        const dB = (b.lat - cLat) ** 2 + ((b.lng - cLng) * Math.cos(cLat * Math.PI / 180)) ** 2;
+        return dA - dB;
+      });
+    }
+
+    return normalized;
   } catch (err) {
     console.warn('Supabase 가로등 조회 실패 (스마트 폴백 적용):', err);
     return null;
@@ -137,7 +149,29 @@ function getDistanceMeters(lat1, lon1, lat2, lon2) {
 }
 
 /**
- * 경로 좌표(latlngs)를 따라 15m 버퍼 내에 배치된 가로등 및 안심 조명 비율 분석
+ * 점 (pLat, pLng)과 선분 (aLat, aLng)-(bLat, bLng) 사이의 최단 거리 (미터)
+ */
+function distanceToSegmentMeters(pLat, pLng, aLat, aLng, bLat, bLng) {
+  const cosLat = Math.cos((pLat * Math.PI) / 180);
+  const px = (pLng - aLng) * 111320 * cosLat;
+  const py = (pLat - aLat) * 110574;
+  const bx = (bLng - aLng) * 111320 * cosLat;
+  const by = (bLat - aLat) * 110574;
+
+  const segLenSq = bx * bx + by * by;
+  if (segLenSq < 1e-6) {
+    return Math.hypot(px, py);
+  }
+
+  const t = Math.max(0, Math.min(1, (px * bx + py * by) / segLenSq));
+  const projX = t * bx;
+  const projY = t * by;
+  return Math.hypot(px - projX, py - projY);
+}
+
+/**
+ * 경로 좌표(latlngs)를 따라 안심 조명 범위 내에 배치된 가로등 및 안심 조명 비율 분석
+ * (도로 중앙선-보도 이격 거리 및 조명 반경을 고려하여 30m 선분 버퍼 적용)
  * @param {Array<[number, number]>} latlngs 
  * @param {Array<Object>} [availableStreetlights]
  */
@@ -158,12 +192,12 @@ export function analyzeRouteStreetlightSafety(latlngs, availableStreetlights = n
   let litPoints = 0;
   const totalPoints = latlngs.length;
 
+  // 1. 꼭짓점 기준 조명 커버리지 비율
   for (const [lat, lng] of latlngs) {
     let isPointLit = false;
     for (const light of lights) {
       const d = getDistanceMeters(lat, lng, light.lat, light.lng);
-      const radius = light.radius || 15; // 15m 조명 반경
-      if (d <= radius) {
+      if (d <= 30) {
         isPointLit = true;
         if (!visitedLightIds.has(light.id)) {
           visitedLightIds.add(light.id);
@@ -174,7 +208,27 @@ export function analyzeRouteStreetlightSafety(latlngs, availableStreetlights = n
     if (isPointLit) litPoints++;
   }
 
-  const lightCoverageRatio = Math.round((litPoints / totalPoints) * 100);
+  // 2. 꼭짓점 간격이 넓은 구간을 위한 선분 기반 추가 매칭
+  for (const light of lights) {
+    if (visitedLightIds.has(light.id)) continue;
+    for (let i = 0; i < latlngs.length - 1; i++) {
+      const dist = distanceToSegmentMeters(
+        light.lat,
+        light.lng,
+        latlngs[i][0],
+        latlngs[i][1],
+        latlngs[i + 1][0],
+        latlngs[i + 1][1]
+      );
+      if (dist <= 30) {
+        visitedLightIds.add(light.id);
+        matchedLights.push(light);
+        break;
+      }
+    }
+  }
+
+  const lightCoverageRatio = Math.min(100, Math.round((litPoints / totalPoints) * 100));
 
   return {
     streetlightCount: matchedLights.length,

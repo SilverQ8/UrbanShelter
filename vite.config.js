@@ -4,6 +4,7 @@ import https from 'https';
 import http from 'http';
 import fs from 'fs';
 import proj4 from 'proj4';
+import { createClient } from '@supabase/supabase-js';
 
 // Define Korean major coordinate projections with accurate TOWGS84 7-parameter transformations
 proj4.defs("EPSG:4326", "+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs");
@@ -12,6 +13,24 @@ proj4.defs("EPSG:5179", "+proj=tmerc +lat_0=38 +lon_0=127.5 +k=0.9996 +x_0=10000
 proj4.defs("EPSG:5174", "+proj=tmerc +lat_0=38 +lon_0=127.0028902777778 +k=1 +x_0=200000 +y_0=500000 +ellps=bessel +towgs84=-115.80,474.99,674.11,1.16,-2.31,-1.63,6.43 +units=m +no_defs");
 proj4.defs("EPSG:2097", "+proj=tmerc +lat_0=38 +lon_0=129.0028902777778 +k=1 +x_0=200000 +y_0=500000 +ellps=bessel +towgs84=-115.80,474.99,674.11,1.16,-2.31,-1.63,6.43 +units=m +no_defs");
 proj4.defs("EPSG:5181", "+proj=tmerc +lat_0=38 +lon_0=127 +k=1 +x_0=200000 +y_0=500000 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs");
+
+let supabaseProxy = null;
+try {
+  const envLocalPath = fileURLToPath(new URL('./.env.local', import.meta.url));
+  if (fs.existsSync(envLocalPath)) {
+    const envLines = fs.readFileSync(envLocalPath, 'utf8').split('\n');
+    let sUrl = '', sKey = '';
+    for (const l of envLines) {
+      if (l.trim().startsWith('VITE_SUPABASE_URL=')) sUrl = l.trim().replace('VITE_SUPABASE_URL=', '').trim();
+      if (l.trim().startsWith('VITE_SUPABASE_ANON_KEY=')) sKey = l.trim().replace('VITE_SUPABASE_ANON_KEY=', '').trim();
+    }
+    if (sUrl && sKey) {
+      supabaseProxy = createClient(sUrl, sKey);
+    }
+  }
+} catch {
+  // ignore
+}
 
 /**
  * Backend Address Search Handler
@@ -128,75 +147,116 @@ function isInvalidOceanCoordinate(lat, lng) {
 }
 
 // Reverse geocode lat, lng to district name (e.g. 강남구, 종로구, 해운대구, 수원시)
-function reverseGeocodeDistrict(lat, lng) {
-  return new Promise((resolve) => {
-    const url = `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json`;
-    const req = https.get(url, {
-      headers: {
-        'User-Agent': 'UrbanShelter-NationwideCCTV/1.0',
-        'Accept-Language': 'ko-KR,ko;q=0.9'
-      }
-    }, (res) => {
-      let data = '';
-      res.on('data', chunk => data += chunk);
-      res.on('end', () => {
-        try {
-          const addr = JSON.parse(data)?.address || {};
-          const district = addr.borough || addr.district || addr.city_district || addr.county || addr.city || '';
-          resolve(district);
-        } catch {
-          resolve('');
-        }
-      });
-    });
-    req.on('error', () => resolve(''));
-    req.setTimeout(3000, () => { req.destroy(); resolve(''); });
-  });
+let koreaDistricts = [];
+try {
+  const dPath = fileURLToPath(new URL('./src/data/koreaDistricts.json', import.meta.url));
+  if (fs.existsSync(dPath)) {
+    koreaDistricts = JSON.parse(fs.readFileSync(dPath, 'utf8'));
+  }
+} catch {
+  koreaDistricts = [];
 }
 
-// Fetch CCTVs from Gov API for a specific district (uses securely provided API key)
-function fetchGovCctvsByDistrict(district, apiKey) {
-  return new Promise((resolve) => {
-    if (!district || !apiKey) return resolve([]);
+// 0ms Offline Precise Korean District Resolver (Zero network, Zero 429 rate limit)
+function resolveNearestDistrict(lat, lng) {
+  if (!koreaDistricts || koreaDistricts.length === 0) return null;
+  let minD = Infinity, best = null;
+  const cosLat = Math.cos((lat * Math.PI) / 180);
+  for (const d of koreaDistricts) {
+    const dLat = d.lat - lat;
+    const dLng = (d.lng - lng) * cosLat;
+    const distSq = dLat * dLat + dLng * dLng;
+    if (distSq < minD) {
+      minD = distSq;
+      best = d;
+    }
+  }
+  return best;
+}
+
+// Nationwide Smart Public CCTV Fetcher & Auto-Supabase Harvester
+async function fetchGovCctvsSmart(lat, lng, apiKey) {
+  const districtInfo = resolveNearestDistrict(lat, lng);
+  if (!districtInfo || !apiKey) return [];
+
+  const districtName = districtInfo.query || districtInfo.name;
+  const queries = [
+    { 'cond[MNG_INST_NM::LIKE]': districtName },
+    { 'cond[LCTN_LOTNO_ADDR::LIKE]': districtName },
+    { 'cond[LCTN_ROAD_NM_ADDR::LIKE]': districtName }
+  ];
+
+  const results = [];
+  const seenIds = new Set();
+
+  for (const qParams of queries) {
+    if (results.length >= 70) break;
     const params = new URLSearchParams({
       serviceKey: apiKey,
       pageNo: '1',
       numOfRows: '100',
       returnType: 'JSON',
-      'cond[LCTN_ROAD_NM_ADDR::LIKE]': district
+      ...qParams
     });
-    const url = `https://apis.data.go.kr/1741000/cctv_info/info?${params.toString()}`;
-    const req = https.get(url, (res) => {
-      let data = '';
-      res.on('data', chunk => data += chunk);
-      res.on('end', () => {
-        try {
-          const items = JSON.parse(data)?.response?.body?.items?.item || [];
-          const formatted = items.map((it) => {
-            const lat = parseFloat(it.WGS84_LAT);
-            const lng = parseFloat(it.WGS84_LOT);
-            const addr = it.LCTN_ROAD_NM_ADDR || it.LCTN_LOTNO_ADDR || '';
-            return {
-              id: `CCTV_REAL_${it.MNG_NO || `${lat}_${lng}`}`,
-              name: addr || `${district} 방범 CCTV`,
-              address: addr,
-              lat,
-              lng,
-              purpose: it.INSTL_PRPS_SE_NM || '생활방범',
-              cameraCount: parseInt(it.CAM_CNTOM || '1', 10),
-              manager: it.MNG_INST_NM || `${district} 관할기관`,
-              radius: 20
-            };
-          }).filter(c => !isNaN(c.lat) && !isNaN(c.lng) && c.lat > 0 && c.lng > 0);
-          resolve(formatted);
-        } catch {
-          resolve([]);
+
+    try {
+      const resp = await fetch(`https://apis.data.go.kr/1741000/cctv_info/info?${params.toString()}`, { signal: AbortSignal.timeout(3500) });
+      if (!resp.ok) continue;
+      const json = await resp.json();
+      const items = json?.response?.body?.items?.item || [];
+
+      for (const it of items) {
+        const itemLat = parseFloat(it.WGS84_LAT);
+        const itemLng = parseFloat(it.WGS84_LOT);
+        if (isInvalidOceanCoordinate(itemLat, itemLng)) continue;
+
+        const addr = it.LCTN_ROAD_NM_ADDR || it.LCTN_LOTNO_ADDR || '';
+        const mngNo = it.MNG_NO || `${itemLat}_${itemLng}`;
+        const cctvId = `CCTV_REAL_${mngNo}`;
+
+        if (!seenIds.has(cctvId)) {
+          seenIds.add(cctvId);
+          results.push({
+            cctv_id: cctvId,
+            id: cctvId,
+            name: addr ? `${addr} 방범 CCTV` : `${districtInfo.name} CCTV`,
+            address: addr,
+            lat: itemLat,
+            lng: itemLng,
+            purpose: it.INSTL_PRPS_SE_NM || '생활방범',
+            camera_count: parseInt(it.CAM_CNTOM || '1', 10) || 1,
+            manager: it.MNG_INST_NM || `${districtInfo.name} 관할기관`,
+            radius: 20
+          });
         }
-      });
-    });
-    req.on('error', () => resolve([]));
-    req.setTimeout(4000, () => { req.destroy(); resolve([]); });
-  });
+      }
+    } catch {
+      // try next
+    }
+  }
+
+  // Auto-harvest to Supabase Cloud DB in background
+  if (supabaseProxy && results.length > 0) {
+    supabaseProxy
+      .from('cctv_locations')
+      .upsert(
+        results.map(r => ({
+          cctv_id: r.cctv_id,
+          name: r.name,
+          address: r.address,
+          lat: r.lat,
+          lng: r.lng,
+          purpose: r.purpose,
+          camera_count: r.camera_count,
+          manager: r.manager
+        })),
+        { onConflict: 'cctv_id' }
+      )
+      .then(() => {})
+      .catch(() => {});
+  }
+
+  return results;
 }
 
 // Fetch Streetlights from National / Gov API for a specific district (Nationwide expansion)
@@ -365,32 +425,70 @@ async function fetchOsmRoadStreetlights(minLat, minLng, maxLat, maxLng) {
     return viewportRoadCache.get(cacheKey);
   }
 
-  const query = `[out:json][timeout:15];(way["highway"~"primary|secondary|tertiary|residential|pedestrian|living_street"](${minLat},${minLng},${maxLat},${maxLng}););out geom;`;
-  const endpoints = [
-    'https://overpass.kumi.systems/api/interpreter',
-    'https://overpass-api.de/api/interpreter'
+  const cLat = (minLat + maxLat) / 2;
+  const cLng = (minLng + maxLng) / 2;
+  const ways = [];
+
+  // 1. OSRM 보행 도로망 기반 십자/대각 실제 보행로 선형 추출 (초고속 및 100% 신뢰성)
+  const osrmUrls = [
+    `https://router.project-osrm.org/route/v1/foot/${minLng},${cLat};${maxLng},${cLat}?overview=full&geometries=geojson`,
+    `https://router.project-osrm.org/route/v1/foot/${cLng},${minLat};${cLng},${maxLat}?overview=full&geometries=geojson`,
+    `https://router.project-osrm.org/route/v1/foot/${minLng},${minLat};${maxLng},${maxLat}?overview=full&geometries=geojson`
   ];
 
-  for (const ep of endpoints) {
+  for (let i = 0; i < osrmUrls.length; i++) {
     try {
-      const resp = await fetch(ep, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-          'User-Agent': 'UrbanShelter-StreetlightSync/1.0'
-        },
-        body: new URLSearchParams({ data: query })
-      });
-      if (!resp.ok) continue;
-      const json = await resp.json();
-      const ways = (json.elements || []).filter(e => e.type === 'way' && Array.isArray(e.geometry));
-      const lights = interpolateRoadStreetlights(ways);
-      viewportRoadCache.set(cacheKey, lights);
-      return lights;
+      const resp = await fetch(osrmUrls[i], { signal: AbortSignal.timeout(2200) });
+      if (resp.ok) {
+        const json = await resp.json();
+        const coords = json.routes?.[0]?.geometry?.coordinates;
+        const roadName = json.routes?.[0]?.legs?.[0]?.steps?.[0]?.name || '보행로';
+        if (Array.isArray(coords) && coords.length > 1) {
+          ways.push({
+            id: `OSRM_ROAD_${i}`,
+            tags: { name: roadName, highway: 'residential' },
+            geometry: coords.map(c => ({ lat: c[1], lon: c[0] }))
+          });
+        }
+      }
     } catch {
-      // try next
+      // ignore
     }
   }
+
+  if (ways.length > 0) {
+    const lights = interpolateRoadStreetlights(ways);
+    if (lights.length > 0) {
+      viewportRoadCache.set(cacheKey, lights);
+      return lights;
+    }
+  }
+
+  // 2. Overpass 빠른 미러 (보조 폴백, 최대 2.5초)
+  try {
+    const query = `[out:json][timeout:3];(way["highway"~"primary|secondary|residential|pedestrian"](${minLat},${minLng},${maxLat},${maxLng}););out geom;`;
+    const resp = await fetch('https://lz4.overpass-api.de/api/interpreter', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'User-Agent': 'UrbanShelter-StreetlightSync/1.0'
+      },
+      body: new URLSearchParams({ data: query }),
+      signal: AbortSignal.timeout(2500)
+    });
+    if (resp.ok) {
+      const json = await resp.json();
+      const ovWays = (json.elements || []).filter(e => e.type === 'way' && Array.isArray(e.geometry));
+      if (ovWays.length > 0) {
+        const lights = interpolateRoadStreetlights(ovWays);
+        viewportRoadCache.set(cacheKey, lights);
+        return lights;
+      }
+    }
+  } catch {
+    // ignore
+  }
+
   return [];
 }
 
@@ -442,47 +540,100 @@ function addressSearchPlugin(cctvApiKey, buildingApiKey, streetlightApiKey, stre
         const lat = parseFloat(reqUrl.searchParams.get('lat') || '0');
         const lng = parseFloat(reqUrl.searchParams.get('lng') || '0');
 
-        // Scale check: only show when scale is larger than threshold (zoom >= 15)
-        if (zoom < 15) {
+        // Scale check: show when zoom >= 13
+        if (zoom < 13) {
           res.end(JSON.stringify({
             cctvs: [],
             count: 0,
             isZoomTooLow: true,
-            minZoomRequired: 15,
+            minZoomRequired: 13,
             message: '일정 축척 이상 확대 시에만 표시됩니다.'
           }));
           return;
         }
 
-        // 1. Check local base cache first
-        let matches = nationwideCctvCache.filter(c =>
-          c.lat >= minLat && c.lat <= maxLat && c.lng >= minLng && c.lng <= maxLng && !isInvalidOceanCoordinate(c.lat, c.lng)
-        );
+        let matches = [];
 
-        // 2. If fewer than 5 matches in this viewport, dynamically fetch nationwide district CCTVs
-        if (matches.length < 5 && lat && lng) {
-          const district = await reverseGeocodeDistrict(lat, lng);
-          if (district) {
-            let districtItems = districtCctvCache.get(district);
-            if (!districtItems) {
-              districtItems = await fetchGovCctvsByDistrict(district, cctvApiKey);
-              districtCctvCache.set(district, districtItems);
-              const existingIds = new Set(nationwideCctvCache.map(c => c.id));
-              for (const item of districtItems) {
-                if (!existingIds.has(item.id)) {
-                  nationwideCctvCache.push(item);
-                  existingIds.add(item.id);
-                }
-              }
+        // 1. Supabase Cloud Database Query first (0ms Gov API calls)
+        if (supabaseProxy && minLat && maxLat && minLng && maxLng) {
+          try {
+            const { data: supaCctvs } = await supabaseProxy
+              .from('cctv_locations')
+              .select('cctv_id, name, address, lat, lng, purpose, camera_count, manager')
+              .gte('lat', minLat)
+              .lte('lat', maxLat)
+              .gte('lng', minLng)
+              .lte('lng', maxLng)
+              .limit(300);
+            if (supaCctvs && supaCctvs.length > 0) {
+              matches = supaCctvs.map(c => ({
+                id: c.cctv_id,
+                name: c.name,
+                address: c.address,
+                lat: c.lat,
+                lng: c.lng,
+                purpose: c.purpose,
+                cameraCount: c.camera_count,
+                manager: c.manager,
+                radius: 20
+              }));
             }
-            matches = nationwideCctvCache.filter(c =>
-              c.lat >= minLat && c.lat <= maxLat && c.lng >= minLng && c.lng <= maxLng
-            );
+          } catch {
+            // fallback
           }
         }
 
-        // Cap to max 70 markers per screen so it never looks cluttered
-        const finalCctvs = matches.slice(0, 70);
+        // 2. Check local base cache if Supabase had few matches
+        if (matches.length < 5) {
+          const localMatches = nationwideCctvCache.filter(c =>
+            c.lat >= minLat && c.lat <= maxLat && c.lng >= minLng && c.lng <= maxLng && !isInvalidOceanCoordinate(c.lat, c.lng)
+          );
+          const existingIds = new Set(matches.map(c => c.id));
+          for (const m of localMatches) {
+            if (!existingIds.has(m.id)) {
+              matches.push(m);
+              existingIds.add(m.id);
+            }
+          }
+        }
+
+        // 3. If still fewer than 5 matches, dynamically harvest from Gov API nationwide
+        if (matches.length < 5 && lat && lng) {
+          try {
+            const govItems = await fetchGovCctvsSmart(lat, lng, cctvApiKey);
+            const existingIds = new Set(matches.map(c => c.id));
+            for (const item of govItems) {
+              if (!existingIds.has(item.id)) {
+                matches.push(item);
+                existingIds.add(item.id);
+              }
+            }
+          } catch {
+            // ignore
+          }
+        }
+
+        // Strict Viewport Bounding Box Filtering (화면 바깥 마커 100% 완전 배제)
+        if (minLat && maxLat && minLng && maxLng) {
+          matches = matches.filter(c =>
+            c.lat >= minLat && c.lat <= maxLat && c.lng >= minLng && c.lng <= maxLng && !isInvalidOceanCoordinate(c.lat, c.lng)
+          );
+        }
+
+        // Center-priority sorting: 화면 중앙(center)에서 가장 가까운 마커부터 우선 정렬
+        const getDistFromCenter = (itemLat, itemLng) => {
+          const dLat = itemLat - lat;
+          const dLng = (itemLng - lng) * Math.cos((lat * Math.PI) / 180);
+          return dLat * dLat + dLng * dLng;
+        };
+
+        if (lat && lng) {
+          matches.sort((a, b) => getDistFromCenter(a.lat, a.lng) - getDistFromCenter(b.lat, b.lng));
+        }
+
+        // Cap to max markers prioritized from center outward so viewport center is always populated first
+        const cctvLimit = zoom >= 17 ? 150 : 100;
+        const finalCctvs = matches.slice(0, cctvLimit);
 
         res.end(JSON.stringify({
           cctvs: finalCctvs,
@@ -506,23 +657,63 @@ function addressSearchPlugin(cctvApiKey, buildingApiKey, streetlightApiKey, stre
         const lat = parseFloat(reqUrl.searchParams.get('lat') || '0');
         const lng = parseFloat(reqUrl.searchParams.get('lng') || '0');
 
-        if (zoom < 15) {
+        if (zoom < 13) {
           res.end(JSON.stringify({
             streetlights: [],
             count: 0,
             isZoomTooLow: true,
-            minZoomRequired: 15,
+            minZoomRequired: 13,
             message: '일정 축척 이상 확대 시에만 표시됩니다.'
           }));
           return;
         }
 
-        // 1. Check local base cache first
-        let matches = nationwideStreetlightCache.filter(s =>
-          s.lat >= minLat && s.lat <= maxLat && s.lng >= minLng && s.lng <= maxLng && !isInvalidOceanCoordinate(s.lat, s.lng)
-        );
+        let matches = [];
 
-        // 2. If fewer than 15 matches in this viewport, dynamically fetch road-following streetlights along real OSM roads
+        // 1. Supabase Cloud Database Query first (0ms Gov API calls)
+        if (supabaseProxy && minLat && maxLat && minLng && maxLng) {
+          try {
+            const { data: supaLights } = await supabaseProxy
+              .from('streetlight_locations')
+              .select('sl_id, name, address, lat, lng, type, lumens, radius, manager')
+              .gte('lat', minLat)
+              .lte('lat', maxLat)
+              .gte('lng', minLng)
+              .lte('lng', maxLng)
+              .limit(300);
+            if (supaLights && supaLights.length > 0) {
+              matches = supaLights.map(s => ({
+                id: s.sl_id,
+                name: s.name,
+                address: s.address,
+                lat: s.lat,
+                lng: s.lng,
+                type: s.type || 'smart_led',
+                lumens: s.lumens || 8000,
+                radius: s.radius || 15,
+                manager: s.manager || '지자체 도로관리과'
+              }));
+            }
+          } catch {
+            // fallback
+          }
+        }
+
+        // 2. Check local base cache if Supabase had few matches
+        if (matches.length < 15) {
+          const localMatches = nationwideStreetlightCache.filter(s =>
+            s.lat >= minLat && s.lat <= maxLat && s.lng >= minLng && s.lng <= maxLng && !isInvalidOceanCoordinate(s.lat, s.lng)
+          );
+          const existingIds = new Set(matches.map(s => s.id));
+          for (const m of localMatches) {
+            if (!existingIds.has(m.id)) {
+              matches.push(m);
+              existingIds.add(m.id);
+            }
+          }
+        }
+
+        // 3. If still fewer than 15 matches, dynamically fetch road-following streetlights along real OSM roads
         if (matches.length < 15 && minLat && minLng && maxLat && maxLng) {
           try {
             const roadLights = await fetchOsmRoadStreetlights(minLat, minLng, maxLat, maxLng);
@@ -543,7 +734,52 @@ function addressSearchPlugin(cctvApiKey, buildingApiKey, streetlightApiKey, stre
           }
         }
 
-        const finalLights = matches.slice(0, 90);
+        // 3. If still fewer than 10 matches, fetch public government streetlights by district
+        if (matches.length < 10 && lat && lng) {
+          try {
+            const district = await reverseGeocodeDistrict(lat, lng);
+            if (district) {
+              let districtItems = districtStreetlightCache.get(district);
+              if (!districtItems) {
+                districtItems = await fetchGovStreetlightsByDistrict(district, cctvApiKey);
+                districtStreetlightCache.set(district, districtItems);
+                const existingIds = new Set(nationwideStreetlightCache.map(s => s.id));
+                for (const item of districtItems) {
+                  if (!existingIds.has(item.id)) {
+                    nationwideStreetlightCache.push(item);
+                    existingIds.add(item.id);
+                  }
+                }
+              }
+              matches = nationwideStreetlightCache.filter(s =>
+                s.lat >= minLat && s.lat <= maxLat && s.lng >= minLng && s.lng <= maxLng && !isInvalidOceanCoordinate(s.lat, s.lng)
+              );
+            }
+          } catch {
+            // ignore
+          }
+        }
+
+        // Strict Viewport Bounding Box Filtering (화면 바깥 가로등 100% 완전 배제)
+        if (minLat && maxLat && minLng && maxLng) {
+          matches = matches.filter(s =>
+            s.lat >= minLat && s.lat <= maxLat && s.lng >= minLng && s.lng <= maxLng && !isInvalidOceanCoordinate(s.lat, s.lng)
+          );
+        }
+
+        // Center-priority sorting: 화면 중앙(center)에서 가장 가까운 가로등부터 우선 정렬
+        const getLightDistFromCenter = (itemLat, itemLng) => {
+          const dLat = itemLat - lat;
+          const dLng = (itemLng - lng) * Math.cos((lat * Math.PI) / 180);
+          return dLat * dLat + dLng * dLng;
+        };
+
+        if (lat && lng) {
+          matches.sort((a, b) => getLightDistFromCenter(a.lat, a.lng) - getLightDistFromCenter(b.lat, b.lng));
+        }
+
+        const slLimit = zoom >= 17 ? 200 : 140;
+        const finalLights = matches.slice(0, slLimit);
 
         res.end(JSON.stringify({
           streetlights: finalLights,
