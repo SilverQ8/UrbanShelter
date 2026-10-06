@@ -1626,6 +1626,41 @@ input:checked + .switch-slider:before {
   background: #090e1a;
 }
 
+/* 3D 지도에서 CCTV·가로등·가로수 핀을 눌렀을 때 뜨는 정보 (2D 툴팁과 같은 어두운 카드) */
+.maplibregl-popup.urban-popup .maplibregl-popup-content {
+  background: rgba(15, 23, 42, 0.94);
+  border: 1px solid var(--accent-cyan);
+  border-radius: 8px;
+  padding: 8px 12px;
+  color: #ffffff;
+  font-family: var(--font-family);
+  font-size: 0.8rem;
+  line-height: 1.5;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5);
+}
+
+.maplibregl-popup.urban-popup .maplibregl-popup-tip {
+  border-top-color: var(--accent-cyan);
+  border-bottom-color: var(--accent-cyan);
+}
+
+.maplibregl-popup.urban-popup .maplibregl-popup-close-button {
+  color: #94a3b8;
+  font-size: 1.1rem;
+}
+
+.infra-popup strong {
+  display: block;
+  margin-bottom: 2px;
+}
+
+.infra-popup .infra-popup-sub {
+  display: block;
+  color: #94a3b8;
+  font-size: 0.72rem;
+  margin-bottom: 4px;
+}
+
 /* 설정 패널 */
 .settings-card {
   max-width: 560px;
@@ -1749,6 +1784,12 @@ input:checked + .switch-slider:before {
 
 .auto-banner-text span {
   color: var(--text-muted);
+}
+
+.auto-banner-text .auto-banner-detail {
+  display: block;
+  margin-top: 2px;
+  font-size: 0.85em;
 }
 
 .auto-banner-reset {

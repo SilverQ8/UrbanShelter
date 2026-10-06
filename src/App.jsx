@@ -7,7 +7,7 @@ import AutoBanner from './components/AutoBanner';
 import Dashboard from './components/Dashboard';
 import { NODES } from './data/urbanNetwork';
 import { findNearestNode } from './engine/routingEngine';
-import { fetchOsrmPedestrianPath, analyzeRouteCctvSafety } from './services/routingService';
+import { fetchOsrmPedestrianPath, fetchCandidateRoutes, analyzeRouteCctvSafety } from './services/routingService';
 import { analyzeRouteStreetlightSafety } from './services/streetlightService';
 import {
   getSunPosition,
@@ -22,6 +22,7 @@ import Map3D from './components/Map3D';
 import { LocateFixed } from 'lucide-react';
 import { loadProfile, saveProfile, getWalkSpeed } from './utils/profile';
 import { decideAutoMode } from './utils/autoRouting';
+import { scoreCandidates, explainChoice } from './utils/comfortScore';
 import { fetchCurrentWeather } from './services/weatherService';
 import { fetchOsmShadeData } from './services/osmService';
 import { computeProgress } from './utils/navProgress';
@@ -202,6 +203,22 @@ export default function App() {
     return () => { isCancelled = true; };
   }, [startPoint, targetPoint, travelMode]);
 
+  // 같은 출발·도착 사이의 서로 다른 보행 후보 경로들 (그늘·안심 경로를 실제 길 위에서 고르는 데 쓴다)
+  const [candidates, setCandidates] = useState([]);
+
+  useEffect(() => {
+    if (travelMode !== 'foot') {
+      setCandidates([]);
+      return undefined;
+    }
+    let isCancelled = false;
+    setCandidates([]);
+    fetchCandidateRoutes(startPoint.lat, startPoint.lng, targetPoint.lat, targetPoint.lng, travelMode).then((result) => {
+      if (!isCancelled) setCandidates(result);
+    });
+    return () => { isCancelled = true; };
+  }, [startPoint, targetPoint, travelMode]);
+
   // 경로 주변의 실제 건물·나무(OpenStreetMap)를 불러와 그림자 계산에 쓴다.
   const [osmData, setOsmData] = useState({ status: 'idle', buildings: [], trees: [] });
 
@@ -209,7 +226,8 @@ export default function App() {
     const pts = baseRoute?.latlngs;
     if (!pts || pts.length < 2) return null;
     let south = Infinity, north = -Infinity, west = Infinity, east = -Infinity;
-    for (const [lat, lng] of pts) {
+    // 우회 후보 경로까지 그림자 계산 범위에 포함한다
+    for (const [lat, lng] of [...pts, ...candidates.flatMap((c) => c.latlngs)]) {
       if (lat < south) south = lat;
       if (lat > north) north = lat;
       if (lng < west) west = lng;
@@ -218,7 +236,7 @@ export default function App() {
     // 그림자가 경로까지 닿는 건물을 포함하도록 약 200m 여유를 둔다
     const margin = 0.002;
     return { south: south - margin, north: north + margin, west: west - margin, east: east + margin };
-  }, [baseRoute]);
+  }, [baseRoute, candidates]);
 
   useEffect(() => {
     if (!routeBounds) return;
@@ -274,6 +292,21 @@ export default function App() {
       : '건물 정보를 불러오지 못해 그림자를 계산하지 못했어요';
   }, [osmData, buildings, sunPos]);
 
+  // 후보 경로별 CCTV·가로등 분석은 시간(태양)과 무관하므로 슬라이더를 움직일 때마다 다시 하지 않는다.
+  const candidateSafety = useMemo(
+    () =>
+      candidates.map((c) => {
+        const cctv = analyzeRouteCctvSafety(c.latlngs);
+        const light = analyzeRouteStreetlightSafety(c.latlngs);
+        return {
+          cctvCount: cctv.cctvCount,
+          streetlightCount: light.streetlightCount,
+          lightCoverageRatio: light.lightCoverageRatio
+        };
+      }),
+    [candidates]
+  );
+
   // 3. Synchronous Instant Route Analytics & Shade Path
   // Immediately recalculates as the slider moves without ANY network requests!
   const computedRoutes = useMemo(() => {
@@ -326,9 +359,45 @@ export default function App() {
       segments: stdShade.segments
     };
 
-    // Shade-Safe Route (Gneul-ro Engine with live sidewalk shadow shift)
-    const shadeSafeCalc = generateShadeSafeRoute(baseLatlngs, shadows, sensitivity, sunPos, trees);
-    const shadeRoute = shadeSafeCalc ? {
+    // 후보 경로가 둘 이상이면 후보마다 그늘을 분석하고, 점수가 가장 높은 실제 보행로를 고른다.
+    const analyzed = candidates.length >= 2
+      ? candidates.map((c, i) => {
+          const shade = calculateRouteShadeAnalytics(c.latlngs, shadows, trees, sunPos);
+          return {
+            type: 'standard',
+            latlngs: c.latlngs,
+            steps: c.steps,
+            isShortest: c.isShortest,
+            totalDistance: c.distance,
+            estimatedMinutes: toMinutes(c.distance),
+            ...candidateSafety[i],
+            shadeRatio: shade.shadeRatio,
+            shadedDistance: shade.shadedDistance,
+            exposedDistance: shade.exposedDistance,
+            uvExposureScore: shade.uvExposureScore,
+            segments: shade.segments
+          };
+        })
+      : [];
+
+    const pickBest = (kind) => {
+      const scored = scoreCandidates(analyzed, kind, sensitivity);
+      if (!scored) return null;
+      const chosen = analyzed[scored.bestIndex];
+      const shortest = chosen.isShortest ? chosen : standardRoute;
+      return {
+        ...chosen,
+        type: kind,
+        recommendation: { reason: explainChoice(chosen, shortest, scored.weights, walkSpeed, scored.excluded) }
+      };
+    };
+
+    const pickedShade = pickBest('shade');
+    const pickedNight = pickBest('night');
+
+    // Shade-Safe Route: 후보 점수로 고른 실제 경로. 후보를 못 구하면 기존 방식(경로를 옆으로 이동)으로 대신한다.
+    const shadeSafeCalc = pickedShade ? null : generateShadeSafeRoute(baseLatlngs, shadows, sensitivity, sunPos, trees);
+    const shadeRoute = pickedShade || (shadeSafeCalc ? {
       type: 'shade',
       latlngs: shadeSafeCalc.latlngs,
       totalDistance: shadeSafeCalc.totalDistance,
@@ -341,29 +410,31 @@ export default function App() {
       exposedDistance: shadeSafeCalc.exposedDistance,
       uvExposureScore: shadeSafeCalc.uvExposureScore,
       segments: shadeSafeCalc.segments
-    } : standardRoute;
+    } : standardRoute);
 
-    // Night-Safe Route (CCTV & Streetlight 15m illumination Priority)
+    // Night-Safe Route: 후보 점수(조명·CCTV 중심)로 고른 실제 경로. 후보를 못 구하면 기존 경로를 쓴다.
     const nightDist = Math.round(baseDist * (1 + (1 - sensitivity) * 0.05));
-    const nightRoute = {
-      type: 'night',
-      latlngs: baseLatlngs,
-      totalDistance: nightDist,
-      estimatedMinutes: toMinutes(nightDist),
-      cctvCount: cctvAnalytics.cctvCount,
-      streetlightCount: slAnalytics.streetlightCount,
-      lightCoverageRatio: slAnalytics.lightCoverageRatio,
-      shadeRatio: null,
-      shadedDistance: 0,
-      exposedDistance: 0
-    };
+    const nightRoute = pickedNight
+      ? { ...pickedNight, shadeRatio: null, shadedDistance: 0, exposedDistance: 0, segments: undefined }
+      : {
+          type: 'night',
+          latlngs: baseLatlngs,
+          totalDistance: nightDist,
+          estimatedMinutes: toMinutes(nightDist),
+          cctvCount: cctvAnalytics.cctvCount,
+          streetlightCount: slAnalytics.streetlightCount,
+          lightCoverageRatio: slAnalytics.lightCoverageRatio,
+          shadeRatio: null,
+          shadedDistance: 0,
+          exposedDistance: 0
+        };
 
     return {
       standard: standardRoute,
       shade: shadeRoute,
       night: nightRoute
     };
-  }, [baseRoute, shadows, trees, sunPos, sensitivity, walkSpeed, isCar]);
+  }, [baseRoute, candidates, candidateSafety, shadows, trees, sunPos, sensitivity, walkSpeed, isCar]);
 
   // Request GPS User Location
   const requestGpsLocation = useCallback(() => {
@@ -418,6 +489,9 @@ export default function App() {
     if (mode === 'night') return nightRoute || standardRoute;
     return standardRoute;
   }, [mode, shadeRoute, nightRoute, standardRoute]);
+
+  // 길 안내와 현재 위치 추적은 추천 경로(후보에서 고른 실제 길)를 따라간다. 없으면 기본 경로를 쓴다.
+  const guideRoute = recommendedRoute?.steps ? recommendedRoute : baseRoute;
 
   // Reset to default location
   const handleResetPins = () => {
@@ -545,8 +619,8 @@ export default function App() {
   }, [navigating]);
 
   const liveProgress = useMemo(
-    () => (geoState === 'active' ? computeProgress(livePos, baseRoute?.latlngs, baseRoute?.steps, targetPoint) : null),
-    [geoState, livePos, baseRoute, targetPoint]
+    () => (geoState === 'active' ? computeProgress(livePos, guideRoute?.latlngs, guideRoute?.steps, targetPoint) : null),
+    [geoState, livePos, guideRoute, targetPoint]
   );
   const following = Boolean(liveProgress?.onRoute);
   useEffect(() => {
@@ -685,10 +759,10 @@ export default function App() {
               navigating
                 ? following
                   ? [livePos.lat, livePos.lng]
-                  : baseRoute?.steps?.[navIndex]?.point || null
+                  : guideRoute?.steps?.[navIndex]?.point || null
                 : null
             }
-            baseLatlngs={baseRoute?.latlngs || null}
+            baseLatlngs={guideRoute?.latlngs || null}
             shadows={shadows}
             trees={trees}
             sunPos={sunPos}
@@ -696,6 +770,7 @@ export default function App() {
             locateTarget={locateTarget}
             mapTheme={mapTheme}
             poiSelected={poiSelected}
+            layers={layers}
           />
         ) : (
         <MapComponent
@@ -738,6 +813,7 @@ export default function App() {
             mode={mode}
             isAuto={modeOverride === 'auto'}
             reason={autoDecision.reason}
+            detail={recommendedRoute?.recommendation?.reason}
             isCar={isCar}
             onResetAuto={() => setModeOverride('auto')}
           />
@@ -782,9 +858,9 @@ export default function App() {
         {/* Floating Right Overlay: Turn-by-turn route guide */}
         <div className="floating-overlay-right">
           <PoiPanel selected={poiSelected} onToggle={togglePoi} counts={poiCounts} status={poiData.status} />
-          {recommendedRoute && baseRoute && showGuide && (
+          {recommendedRoute && guideRoute && showGuide && (
             <RouteGuide
-              steps={baseRoute.steps}
+              steps={guideRoute.steps}
               totalDistance={recommendedRoute.totalDistance}
               totalMinutes={recommendedRoute.estimatedMinutes}
               onFocusStep={setFocusPoint}

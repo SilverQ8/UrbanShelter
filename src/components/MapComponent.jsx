@@ -6,6 +6,7 @@ import { MapLibreBasemap } from '../utils/MapLibreBasemap';
 import { NODES, MAP_CENTER, DEFAULT_ZOOM } from '../data/urbanNetwork';
 import { formatDistance, formatDuration } from '../utils/format';
 import { filterValidUrbanMarkers, isInvalidOceanCoordinate } from '../utils/geoSanity';
+import { ShadeLegend, SunDial, CounterPill } from './MapOverlays';
 
 export default function MapComponent({
   userGps,
@@ -801,139 +802,16 @@ export default function MapComponent({
         style={{ cursor: pinSelectMode ? 'crosshair' : 'grab' }}
       />
 
-      {/* Floating Route Shade Legend (Clear visual guide on the street) */}
-      {mode === 'shade' && (
-        <div style={{
-          position: 'absolute',
-          bottom: '24px',
-          left: '20px',
-          zIndex: 1000,
-          background: 'rgba(15, 23, 42, 0.88)',
-          backdropFilter: 'blur(10px)',
-          border: '1px solid rgba(255, 255, 255, 0.12)',
-          borderRadius: '10px',
-          padding: '8px 12px',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '6px',
-          boxShadow: '0 4px 16px rgba(0,0,0,0.4)',
-          pointerEvents: 'auto',
-          fontSize: '0.74rem'
-        }}>
-          <div style={{ fontSize: '0.70rem', fontWeight: 700, color: 'var(--text-muted)' }}>
-            보행로 일조/그늘 상태 구분
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <span style={{ width: '22px', height: '5px', borderRadius: '3px', background: '#10b981', display: 'inline-block', boxShadow: '0 0 8px rgba(16,185,129,0.8)' }}></span>
-            <span style={{ color: '#34d399', fontWeight: 600 }}>시원한 그늘 구간 (초록)</span>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <span style={{ width: '22px', height: '4px', borderRadius: '2px', background: '#f59e0b', display: 'inline-block' }}></span>
-            <span style={{ color: '#fbbf24', fontWeight: 600 }}>직사광선 땡볕 구간 (주황)</span>
-          </div>
-        </div>
-      )}
+      {/* 그늘 경로 구간 색 안내 */}
+      {mode === 'shade' && <ShadeLegend />}
 
-      {/* Floating Solar Simulation Compass Dial on Map */}
-      {sunPos && (
-        <div style={{
-          position: 'absolute',
-          top: '16px',
-          right: '54px',
-          zIndex: 1000,
-          background: 'rgba(15, 23, 42, 0.90)',
-          backdropFilter: 'blur(12px)',
-          border: '1.5px solid rgba(245, 158, 11, 0.4)',
-          borderRadius: '12px',
-          padding: '8px 14px',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '12px',
-          boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
-          pointerEvents: 'auto'
-        }}>
-          {/* Rotating Sun Direction Dial */}
-          <div style={{
-            position: 'relative',
-            width: '36px',
-            height: '36px',
-            borderRadius: '50%',
-            background: 'rgba(245, 158, 11, 0.20)',
-            border: '2px solid #f59e0b',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            boxShadow: '0 0 12px rgba(245,158,11,0.5)'
-          }}>
-            <div style={{
-              transform: `rotate(${sunPos.azimuthDeg}deg)`,
-              transition: 'transform 0.15s ease-out',
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center'
-            }}>
-              <span style={{ fontSize: '11px', lineHeight: 1 }}>☀️</span>
-              <span style={{ width: '2.5px', height: '8px', background: '#f59e0b', borderRadius: '1px' }}></span>
-            </div>
-          </div>
+      {/* 태양 방위·고도 */}
+      <SunDial sunPos={sunPos} />
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <span style={{ fontSize: '0.8rem', fontWeight: 800, color: '#f59e0b' }}>
-                태양 고도 {sunPos.altitudeDeg}°
-              </span>
-              <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
-                방위 {sunPos.azimuthDeg}°
-              </span>
-            </div>
-            <div style={{ fontSize: '0.7rem', color: sunPos.uvEstimate >= 7 ? '#f43f5e' : '#34d399', fontWeight: 700 }}>
-              {sunPos.sunStatus} (자외선 {sunPos.uvEstimate})
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Real-time CCTV Visible Counter Pill on Map */}
-      {layers.cctv && (
-        <div className={`map-cctv-counter-pill ${cctvState.isZoomTooLow ? 'zoom-hint' : ''}`}>
-          {cctvState.isZoomTooLow ? (
-            <span>🔍 지도를 확대하면(골목·거리 축척) 해당 지역의 방범 CCTV가 표시됩니다</span>
-          ) : (
-            <>
-              <span className="live-dot-pulse"></span>
-              <span>현재 화면 내 방범 CCTV <strong>{cctvState.count}</strong>개소 안전보호구역 작동 중</span>
-            </>
-          )}
-        </div>
-      )}
-
-      {/* Real-time Streetlight Visible Counter Pill on Map */}
-      {layers.streetlight && (
-        <div className={`map-cctv-counter-pill map-streetlight-counter-pill ${streetlightState.isZoomTooLow ? 'zoom-hint' : ''}`}>
-          {streetlightState.isZoomTooLow ? (
-            <span>🔍 지도를 확대하면(골목·거리 축척) 가로등/보안등(15m 조명반경)이 표시됩니다</span>
-          ) : (
-            <>
-              <span className="live-dot-pulse-amber"></span>
-              <span>현재 화면 내 가로등/보안등 <strong>{streetlightState.count}</strong>개소 (15m 안심조도 작동 중)</span>
-            </>
-          )}
-        </div>
-      )}
-
-      {/* Real-time Roadside Trees Visible Counter Pill on Map */}
-      {layers.trees && (
-        <div className={`map-cctv-counter-pill map-tree-counter-pill ${treeState.isZoomTooLow ? 'zoom-hint' : ''}`}>
-          {treeState.isZoomTooLow ? (
-            <span>🔍 지도를 확대하면(골목·거리 축척) 가로수 그늘 캐노피가 표시됩니다</span>
-          ) : (
-            <>
-              <span className="live-dot-pulse-emerald"></span>
-              <span>현재 화면 내 가로수 그늘 <strong>{treeState.count}</strong>그루 작동 중</span>
-            </>
-          )}
-        </div>
-      )}
+      {/* 화면 안 CCTV·가로등·가로수 개수 */}
+      {layers.cctv && <CounterPill kind="cctv" count={cctvState.count} isZoomTooLow={cctvState.isZoomTooLow} />}
+      {layers.streetlight && <CounterPill kind="streetlight" count={streetlightState.count} isZoomTooLow={streetlightState.isZoomTooLow} />}
+      {layers.trees && <CounterPill kind="tree" count={treeState.count} isZoomTooLow={treeState.isZoomTooLow} />}
 
     </div>
   );

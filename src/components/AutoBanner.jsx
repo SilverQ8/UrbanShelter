@@ -3,7 +3,7 @@ import { MODE_LABELS } from '../utils/autoRouting';
 
 const MODE_EMOJI = { standard: '🧭', shade: '☀️', night: '🌙' };
 
-export default function AutoBanner({ weather, mode, isAuto, reason, onResetAuto, isCar = false }) {
+export default function AutoBanner({ weather, mode, isAuto, reason, detail, onResetAuto, isCar = false }) {
   if (isCar) {
     return (
       <div className="glass-panel auto-banner" role="status">
@@ -30,6 +30,7 @@ export default function AutoBanner({ weather, mode, isAuto, reason, onResetAuto,
           {MODE_LABELS[mode]}
         </strong>
         <span>{isAuto ? reason : '직접 고른 경로 방식으로 안내 중이에요'}</span>
+        {detail && <span className="auto-banner-detail">{detail}</span>}
       </div>
       {!isAuto && (
         <button type="button" className="auto-banner-reset" onClick={onResetAuto}>

@@ -82,10 +82,32 @@ function getDistanceMeters(lat1, lon1, lat2, lon2) {
   return R * c;
 }
 
+const SAMPLE_INTERVAL_METERS = 5; // 경로를 이 간격으로 나눠 조명 여부를 본다
+const LIGHT_SEARCH_MARGIN_DEG = 0.0006; // 경로 범위 바깥 약 65m까지의 가로등만 후보로 본다
+
 /**
- * 경로 좌표(latlngs)를 따라 15m 버퍼 내에 배치된 가로등 및 안심 조명 비율 분석
- * @param {Array<[number, number]>} latlngs 
+ * 경로를 따라 일정 간격(m)마다 점을 만든다. 경로 꼭짓점 간격에 결과가 좌우되지 않게 하기 위함이다.
+ */
+function sampleAlongRoute(latlngs, intervalMeters) {
+  const samples = [latlngs[0]];
+  for (let i = 0; i < latlngs.length - 1; i++) {
+    const [lat1, lng1] = latlngs[i];
+    const [lat2, lng2] = latlngs[i + 1];
+    const segLen = getDistanceMeters(lat1, lng1, lat2, lng2);
+    const steps = Math.max(1, Math.round(segLen / intervalMeters));
+    for (let s = 1; s <= steps; s++) {
+      const t = s / steps;
+      samples.push([lat1 + (lat2 - lat1) * t, lng1 + (lng2 - lng1) * t]);
+    }
+  }
+  return samples;
+}
+
+/**
+ * 경로를 5m 간격으로 나눠, 가로등 조명 반경(기본 15m) 안에 드는 구간의 비율을 분석한다.
+ * @param {Array<[number, number]>} latlngs
  * @param {Array<Object>} [availableStreetlights]
+ * @returns {{ streetlightCount: number, lightCoverageRatio: number, darkZoneMeters: number, matchedLights: Array<Object> }}
  */
 export function analyzeRouteStreetlightSafety(latlngs, availableStreetlights = null) {
   if (!latlngs || latlngs.length < 2) {
@@ -97,34 +119,48 @@ export function analyzeRouteStreetlightSafety(latlngs, availableStreetlights = n
     };
   }
 
-  const lights = availableStreetlights || fallbackStreetlights;
+  const allLights = availableStreetlights || fallbackStreetlights;
+
+  // 전국 가로등 중 경로 근처 것만 추려 거리 계산 횟수를 줄인다
+  let minLat = Infinity, maxLat = -Infinity, minLng = Infinity, maxLng = -Infinity;
+  for (const [lat, lng] of latlngs) {
+    if (lat < minLat) minLat = lat;
+    if (lat > maxLat) maxLat = lat;
+    if (lng < minLng) minLng = lng;
+    if (lng > maxLng) maxLng = lng;
+  }
+  const lights = allLights.filter(
+    (l) =>
+      l.lat >= minLat - LIGHT_SEARCH_MARGIN_DEG && l.lat <= maxLat + LIGHT_SEARCH_MARGIN_DEG &&
+      l.lng >= minLng - LIGHT_SEARCH_MARGIN_DEG && l.lng <= maxLng + LIGHT_SEARCH_MARGIN_DEG
+  );
+
+  const samples = sampleAlongRoute(latlngs, SAMPLE_INTERVAL_METERS);
   const visitedLightIds = new Set();
   const matchedLights = [];
+  let litSamples = 0;
 
-  let litPoints = 0;
-  const totalPoints = latlngs.length;
-
-  for (const [lat, lng] of latlngs) {
-    let isPointLit = false;
+  for (const [lat, lng] of samples) {
+    let isLit = false;
     for (const light of lights) {
-      const d = getDistanceMeters(lat, lng, light.lat, light.lng);
       const radius = light.radius || 15; // 15m 조명 반경
-      if (d <= radius) {
-        isPointLit = true;
+      if (getDistanceMeters(lat, lng, light.lat, light.lng) <= radius) {
+        isLit = true;
         if (!visitedLightIds.has(light.id)) {
           visitedLightIds.add(light.id);
           matchedLights.push(light);
         }
       }
     }
-    if (isPointLit) litPoints++;
+    if (isLit) litSamples++;
   }
 
-  const lightCoverageRatio = Math.round((litPoints / totalPoints) * 100);
+  const litRatio = litSamples / samples.length;
 
   return {
     streetlightCount: matchedLights.length,
-    lightCoverageRatio,
+    lightCoverageRatio: Math.round(litRatio * 100),
+    darkZoneMeters: Math.round((1 - litRatio) * samples.length * SAMPLE_INTERVAL_METERS),
     matchedLights
   };
 }

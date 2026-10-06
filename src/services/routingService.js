@@ -5,6 +5,7 @@
 // 2. Solar Radiation & 3D Shadow Simulation (Gneul-ro Shade-Safe pedestrian routing)
 // 3. Night Safe weighting (Nationwide public CCTV protection zone analytics)
 
+import * as turf from '@turf/turf';
 import { getDistanceMeters } from '../engine/routingEngine';
 import {
   getSunPosition,
@@ -130,6 +131,98 @@ export async function fetchOsrmPedestrianPath(startLat, startLng, destLat, destL
     durationMinutes: Math.max(1, Math.round(dist / WALKING_SPEED_METERS_PER_MIN)),
     steps: []
   };
+}
+
+const CANDIDATE_MAX_COUNT = 5;
+const CANDIDATE_MAX_DETOUR_RATIO = 1.4; // 최단 경로 대비 허용 우회 비율
+const CANDIDATE_SIMILAR_METERS = 15; // 평균 이격이 이보다 작으면 같은 경로로 본다
+
+function routeToCandidate(route, profile) {
+  const distance = Math.round(route.distance);
+  return {
+    latlngs: route.geometry.coordinates.map(([lng, lat]) => [lat, lng]),
+    distance,
+    durationMinutes: Math.max(1, Math.round(distance / WALKING_SPEED_METERS_PER_MIN)),
+    steps: buildGuideSteps(route.legs, profile)
+  };
+}
+
+async function requestOsrmRoutes(coordPath, profile, alternatives) {
+  const url = `/api/route/${profile}/${coordPath}?overview=full&geometries=geojson&steps=true${alternatives ? '&alternatives=3' : ''}`;
+  try {
+    const resp = await fetch(url);
+    if (!resp.ok) return [];
+    const data = await resp.json();
+    return data.code === 'Ok' && Array.isArray(data.routes) ? data.routes : [];
+  } catch {
+    return [];
+  }
+}
+
+// a의 점들이 b 선에서 평균 몇 m 떨어져 있는지. 두 경로가 사실상 같은 길인지 판단하는 데 쓴다.
+function meanSeparationMeters(a, b) {
+  const line = turf.lineString(b.map(([lat, lng]) => [lng, lat]));
+  const step = Math.max(1, Math.floor(a.length / 20));
+  let sum = 0;
+  let n = 0;
+  for (let i = 0; i < a.length; i += step) {
+    sum += turf.pointToLineDistance(turf.point([a[i][1], a[i][0]]), line, { units: 'meters' });
+    n++;
+  }
+  return n > 0 ? sum / n : 0;
+}
+
+function isSimilarRoute(a, b) {
+  return meanSeparationMeters(a, b) < CANDIDATE_SIMILAR_METERS && meanSeparationMeters(b, a) < CANDIDATE_SIMILAR_METERS;
+}
+
+/**
+ * 출발지~도착지 사이의 서로 다른 보행 후보 경로를 만든다.
+ * OSRM 대안 경로에 더해, 최단 경로 중간을 좌우로 벌린 경유점을 지나는 우회 경로를 요청한다.
+ * 경유점은 OSRM이 가장 가까운 보행로에 붙이므로 모든 후보는 실제 보행 가능한 길 위에 있다.
+ * @returns {Promise<Array<{id: string, latlngs: Array<[number, number]>, distance: number, durationMinutes: number, steps: Array, isShortest: boolean}>>}
+ */
+export async function fetchCandidateRoutes(startLat, startLng, destLat, destLng, profile = 'foot') {
+  const direct = await requestOsrmRoutes(`${startLng},${startLat};${destLng},${destLat}`, profile, true);
+  if (direct.length === 0) return [];
+
+  const shortest = direct.reduce((best, r) => (r.distance < best.distance ? r : best), direct[0]);
+
+  // 직선 방향에 수직인 좌/우로 경유점을 두 곳(1/3, 2/3 지점)씩 잡는다
+  const crow = getDistanceMeters(startLat, startLng, destLat, destLng);
+  const offset = Math.min(250, Math.max(60, crow * 0.25));
+  const cosLat = Math.cos((((startLat + destLat) / 2) * Math.PI) / 180);
+  const dx = (destLng - startLng) * cosLat;
+  const dy = destLat - startLat;
+  const len = Math.hypot(dx, dy) || 1;
+  const nx = -dy / len; // 수직 단위벡터(동서 방향 성분)
+  const ny = dx / len; // (남북 방향 성분)
+  const offLat = (offset * ny) / 111320;
+  const offLng = (offset * nx) / (111320 * cosLat);
+
+  const viaPaths = [];
+  for (const t of [1 / 3, 2 / 3]) {
+    const midLat = startLat + (destLat - startLat) * t;
+    const midLng = startLng + (destLng - startLng) * t;
+    for (const sign of [1, -1]) {
+      const vLat = midLat + sign * offLat;
+      const vLng = midLng + sign * offLng;
+      viaPaths.push(`${startLng},${startLat};${vLng},${vLat};${destLng},${destLat}`);
+    }
+  }
+  const detours = (await Promise.all(viaPaths.map((p) => requestOsrmRoutes(p, profile, false)))).flat();
+
+  const maxDistance = shortest.distance * CANDIDATE_MAX_DETOUR_RATIO;
+  const picked = [];
+  const pool = [shortest, ...direct.filter((r) => r !== shortest), ...detours.sort((a, b) => a.distance - b.distance)];
+  for (const route of pool) {
+    if (picked.length >= CANDIDATE_MAX_COUNT) break;
+    if (route.distance > maxDistance) continue;
+    const latlngs = route.geometry.coordinates.map(([lng, lat]) => [lat, lng]);
+    if (picked.some((p) => isSimilarRoute(p.latlngs, latlngs))) continue;
+    picked.push({ ...routeToCandidate(route, profile), id: `cand-${picked.length}`, isShortest: route === shortest });
+  }
+  return picked;
 }
 
 /**
