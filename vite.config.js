@@ -1016,7 +1016,7 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '');
   const cctvApiKey = env.VITE_CCTV_API_KEY || process.env.VITE_CCTV_API_KEY || '';
   const buildingApiKey = env.VITE_BUILDING_API_KEY || cctvApiKey;
-  const streetlightApiKey = env.VITE_STREETLIGHT_API_KEY || process.env.VITE_STREETLIGHT_API_KEY || '1H310859JSVJG543';
+  const streetlightApiKey = env.VITE_STREETLIGHT_API_KEY || process.env.VITE_STREETLIGHT_API_KEY || '';
   const streetlightDataId = env.VITE_STREETLIGHT_DATA_ID || process.env.VITE_STREETLIGHT_DATA_ID || 'DSSP-IF-00084';
 
   return {

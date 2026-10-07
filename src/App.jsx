@@ -179,11 +179,12 @@ export default function App() {
 
   // Visualization layer toggles
   const [layers, setLayers] = useState({
-    buildings: false,
+    buildings: true,
     trees: true,
     cctv: true,
     streetlight: true
   });
+
 
   // 1. Fetch Base Pedestrian Road Network Geometry (Only re-fetched when endpoints change!)
   const [baseRoute, setBaseRoute] = useState(null);

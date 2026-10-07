@@ -7,6 +7,7 @@ import { NODES, MAP_CENTER, DEFAULT_ZOOM } from '../data/urbanNetwork';
 import { formatDistance, formatDuration } from '../utils/format';
 import { filterValidUrbanMarkers, isInvalidOceanCoordinate } from '../utils/geoSanity';
 import { normalizeFacilityDataset } from '../utils/geoConverter';
+import { searchKakaoBuildings } from '../services/kakaoService';
 
 export default function MapComponent({
   userGps,
@@ -66,6 +67,7 @@ export default function MapComponent({
 
   // Layer groups refs (Clean & uncluttered: CCTV, Streetlights, Routes, Markers)
   const buildingLayerRef = useRef(null);
+  const kakaoBuildingLayerRef = useRef(null);
   const treeLayerRef = useRef(null);
   const routeLayerRef = useRef(null);
   const cctvLayerRef = useRef(null);
@@ -110,7 +112,9 @@ export default function MapComponent({
     // Initialize Layer Groups in proper z-order
     // 건물 윤곽·가로수는 CCTV·가로등·경로보다 아래에 깐다
     buildingLayerRef.current = L.layerGroup().addTo(map);
+    kakaoBuildingLayerRef.current = L.layerGroup().addTo(map);
     treeLayerRef.current = L.layerGroup().addTo(map);
+
     cctvLayerRef.current = L.layerGroup().addTo(map);
     streetlightLayerRef.current = L.layerGroup().addTo(map);
     routeLayerRef.current = L.layerGroup().addTo(map);
@@ -268,6 +272,117 @@ export default function MapComponent({
       buildingLayer.addLayer(badgeMarker);
     }
   }, [layers.buildings, mapTheme, buildings]);
+
+  // 2-2. Render Kakao Real-time Building & Landmark Information
+  useEffect(() => {
+    const map = mapInstanceRef.current;
+    const kakaoLayer = kakaoBuildingLayerRef.current;
+    if (!map || !kakaoLayer) return;
+
+    if (!layers.buildings) {
+      kakaoLayer.clearLayers();
+      return;
+    }
+
+    let abort = false;
+
+    const loadBuildings = async () => {
+      const zoom = map.getZoom();
+      if (zoom < 13) {
+        kakaoLayer.clearLayers();
+        return;
+      }
+
+      const center = map.getCenter();
+      const bounds = map.getBounds();
+
+      try {
+        const blds = await searchKakaoBuildings({
+          lat: center.lat,
+          lng: center.lng,
+          bounds: {
+            south: bounds.getSouth(),
+            north: bounds.getNorth(),
+            west: bounds.getWest(),
+            east: bounds.getEast()
+          }
+        });
+
+        if (abort) return;
+        kakaoLayer.clearLayers();
+
+        for (const b of blds) {
+          if (!bounds.contains([b.lat, b.lng])) continue;
+
+          const bldIcon = L.divIcon({
+            className: 'kakao-building-marker',
+            html: `
+              <div style="background: rgba(15, 23, 42, 0.90); color: #38bdf8; padding: 3px 8px; border-radius: 6px; font-size: 11px; font-weight: 700; border: 1.5px solid #0284c7; white-space: nowrap; box-shadow: 0 4px 12px rgba(0,0,0,0.6); display: flex; align-items: center; gap: 4px; cursor: pointer; transform: translate(-50%, -50%);">
+                <span style="font-size: 12px;">🏢</span>
+                <span>${b.name}</span>
+              </div>
+            `,
+            iconSize: [0, 0],
+            iconAnchor: [0, 0]
+          });
+
+          const marker = L.marker([b.lat, b.lng], { icon: bldIcon });
+
+          const popupContent = `
+            <div style="font-family: inherit; min-width: 210px; padding: 4px; line-height: 1.4;">
+              <div style="font-weight: 800; font-size: 13px; color: #0284c7; margin-bottom: 2px;">🏢 ${b.name}</div>
+              <div style="font-size: 10px; color: #64748b; margin-bottom: 6px;">${b.category}</div>
+              <div style="font-size: 11px; color: #334155; margin-bottom: 4px;">📍 ${b.address}</div>
+              ${b.phone ? `<div style="font-size: 11px; color: #0284c7; margin-bottom: 6px;">📞 ${b.phone}</div>` : ''}
+              <div style="margin-top: 8px; display: flex; flex-direction: column; gap: 5px;">
+                <a href="${b.url}" target="_blank" rel="noopener noreferrer" style="display: block; text-align: center; padding: 5px 8px; background: #0284c7; color: #fff; border-radius: 4px; font-size: 11px; text-decoration: none; font-weight: 700;">카카오맵 상세/로드뷰 ↗</a>
+                <div style="display: flex; gap: 4px;">
+                  <button id="btn-start-${b.id}" style="flex: 1; padding: 4px 6px; background: #0ea5e9; color: #fff; border: none; border-radius: 4px; font-size: 10px; font-weight: 700; cursor: pointer;">출발지로</button>
+                  <button id="btn-target-${b.id}" style="flex: 1; padding: 4px 6px; background: #f43f5e; color: #fff; border: none; border-radius: 4px; font-size: 10px; font-weight: 700; cursor: pointer;">도착지로</button>
+                </div>
+              </div>
+            </div>
+          `;
+
+          marker.bindPopup(popupContent, { maxWidth: 280 });
+
+          marker.on('popupopen', () => {
+            const startBtn = document.getElementById(`btn-start-${b.id}`);
+            const targetBtn = document.getElementById(`btn-target-${b.id}`);
+            if (startBtn) {
+              startBtn.onclick = () => {
+                setStartPoint({ lat: b.lat, lng: b.lng, name: b.name });
+                map.closePopup();
+              };
+            }
+            if (targetBtn) {
+              targetBtn.onclick = () => {
+                setTargetPoint({ lat: b.lat, lng: b.lng, name: b.name });
+                map.closePopup();
+              };
+            }
+          });
+
+          kakaoLayer.addLayer(marker);
+        }
+      } catch (err) {
+        console.warn('Kakao building fetch error:', err);
+      }
+    };
+
+    loadBuildings();
+
+    const handleMove = () => {
+      loadBuildings();
+    };
+
+    map.on('moveend', handleMove);
+
+    return () => {
+      abort = true;
+      map.off('moveend', handleMove);
+    };
+  }, [layers.buildings, setStartPoint, setTargetPoint]);
 
   // 3. Render Roadside Trees & Dynamic Canopy Shadows (Zoom-dependent, consistent with CCTV & Streetlights)
   useEffect(() => {
