@@ -179,6 +179,8 @@ export default function App() {
 
   // Visualization layer toggles
   const [layers, setLayers] = useState({
+    buildingHeight: true,
+    buildingInfo: true,
     buildings: true,
     trees: true,
     cctv: true,
@@ -741,6 +743,8 @@ export default function App() {
           <Map3D
             startPoint={startPoint}
             targetPoint={targetPoint}
+            setStartPoint={setStartPoint}
+            setTargetPoint={setTargetPoint}
             recommendedRoute={recommendedRoute}
             mode={mode}
             focusPoint={focusPoint}

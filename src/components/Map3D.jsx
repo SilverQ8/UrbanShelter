@@ -5,6 +5,7 @@ import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?url';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { MAP_CENTER } from '../data/urbanNetwork';
 import { loadMapStyle, applyPedestrianTweaks, applyPoiFilter } from '../utils/mapStyle';
+import { fetchKakaoBuildingDetail } from '../services/kakaoService';
 
 // Vite 번들링 환경에서 워커 경로를 직접 지정한다(지정하지 않으면 Worker failed to load 오류).
 maplibregl.setWorkerUrl(workerUrl);
@@ -111,6 +112,8 @@ function toPointFeatures(startPoint, targetPoint) {
 export default function Map3D({
   startPoint,
   targetPoint,
+  setStartPoint,
+  setTargetPoint,
   recommendedRoute,
   mode,
   focusPoint,
@@ -130,7 +133,7 @@ export default function Map3D({
   const loadedRef = useRef(false);
   const latestRef = useRef({});
   const fittedKeyRef = useRef('');
-  latestRef.current = { startPoint, targetPoint, recommendedRoute, mode, navigating, navPoint, shadows, trees, sunPos, userGps, baseLatlngs, mapTheme, poiSelected, applyNavCamera: latestRef.current.applyNavCamera };
+  latestRef.current = { startPoint, targetPoint, setStartPoint, setTargetPoint, recommendedRoute, mode, navigating, navPoint, shadows, trees, sunPos, userGps, baseLatlngs, mapTheme, poiSelected, applyNavCamera: latestRef.current.applyNavCamera };
 
   // 현재 props를 지도 소스·레이어에 반영한다.
   const syncData = () => {
@@ -358,9 +361,191 @@ export default function Map3D({
         paint: { 'text-color': '#ffffff' }
       });
 
+      // 3D 건물 레이어 클릭 시 카카오 API 연동 상세 정보 팝업
+      const bldLayers = ['building-3d', 'building'].filter((id) => map.getLayer(id));
+      bldLayers.forEach((layerId) => {
+        map.on('mouseenter', layerId, () => {
+          map.getCanvas().style.cursor = 'pointer';
+        });
+        map.on('mouseleave', layerId, () => {
+          map.getCanvas().style.cursor = '';
+        });
+        map.on('click', layerId, (e) => {
+          if (!e.features || !e.features[0]) return;
+          const feat = e.features[0];
+          const props = feat.properties || {};
+          const height = Math.round(Number(props.render_height || props.height || 18));
+          const name = props.name || props['name:ko'] || '';
+          const [lng, lat] = [e.lngLat.lng, e.lngLat.lat];
+          const popupId = `m3d-${Math.random().toString(36).slice(2, 8)}`;
+
+          const currentSun = latestRef.current.sunPos;
+          let shadeText = '일몰/야간 시간대 (그늘 분석 대기)';
+          if (currentSun && currentSun.isDaylight && currentSun.altitudeDeg > 0) {
+            const shadowLen = Math.round(height / Math.tan(Math.max(5, currentSun.altitudeDeg) * Math.PI / 180));
+            const shadowAzimuth = Math.round((currentSun.azimuthDeg + 180) % 360);
+            const dirs = ['북', '북동', '동', '남동', '남', '남서', '서', '북서'];
+            const dirName = dirs[Math.round(shadowAzimuth / 45) % 8];
+            shadeText = `태양 고도 ${Math.round(currentSun.altitudeDeg)}° 기준 약 <strong style="color:#34d399;">${shadowLen}m</strong> 그늘 형성 (${dirName}방향)`;
+          }
+
+          const floorText = `~${Math.max(1, Math.round(height / 3.2))}층`;
+
+          const renderHtml = (detail, loading = false) => {
+            const title = (detail?.name || name || '도심 건축물').replace(/[\uFFFD\uFFFE\uFEFF]/g, '').trim();
+
+            const category = detail?.category || (height ? `건물 · 높이 ${height}m` : '도심 시설');
+            const road = detail?.roadAddress || '';
+            const jibun = detail?.jibunAddress || '';
+            const zoneNo = detail?.zoneNo || '';
+            const phone = detail?.phone || '';
+            const roadviewUrl = detail?.roadviewUrl || `https://map.kakao.com/link/roadview/${lat},${lng}`;
+            const kakaoMapUrl = detail?.placeUrl || detail?.searchUrl || `https://map.kakao.com/link/search/${encodeURIComponent(title)}`;
+
+            return `
+              <div class="kakao-card-popup" id="card-${popupId}">
+                <!-- Kakao Header: Title + Circular Arrow Link -->
+                <div class="kakao-card-header">
+                  <a href="${kakaoMapUrl}" target="_blank" rel="noopener noreferrer" class="kakao-title-link" title="카카오맵에서 상세보기">
+                    <span class="kakao-title-text">${title}</span>
+                    <span class="kakao-circle-arrow">
+                      <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="9 18 15 12 9 6"></polyline>
+                      </svg>
+                    </span>
+                  </a>
+                </div>
+
+                <!-- Category & Height Meta -->
+                <div class="kakao-category-row">
+                  <span class="kakao-category-text">${category}</span>
+                  <span class="kakao-floor-badge">${floorText}</span>
+                </div>
+
+                <!-- Realtime Sun Shadow Analysis -->
+                ${shadeText ? `
+                  <div class="kakao-shade-box">
+                    <span class="kakao-shade-icon">☀️</span>
+                    <span class="kakao-shade-desc">${shadeText}</span>
+                  </div>
+                ` : ''}
+
+                <!-- Address & Phone Info Body -->
+                <div class="kakao-body-info">
+                  ${loading ? `
+                    <div class="kakao-loading-row">
+                      <span class="kakao-spinner"></span>
+                      <span>카카오 실시간 공식 주소 조회 중...</span>
+                    </div>
+                  ` : `
+                    ${road ? `<div class="kakao-road-line">${road}</div>` : ''}
+                    ${(jibun || zoneNo) ? `
+                      <div class="kakao-jibun-line">
+                        ${zoneNo ? `<span class="kakao-zone-no">(우) ${zoneNo}</span>` : ''}
+                        ${jibun ? `<span class="kakao-jibun-addr">(지번) ${jibun}</span>` : ''}
+                      </div>
+                    ` : ''}
+                    ${phone ? `
+                      <div class="kakao-phone-line">
+                        <a href="tel:${phone}" class="kakao-phone-link" title="전화 걸기">
+                          <span class="kakao-phone-icon">📞</span>
+                          <span class="kakao-phone-num">${phone}</span>
+                        </a>
+                      </div>
+                    ` : ''}
+                    ${!road && !jibun ? `
+                      <div class="kakao-coord-line">위치: ${lat.toFixed(5)}, ${lng.toFixed(5)}</div>
+                    ` : ''}
+                  `}
+                </div>
+
+                <!-- Sub Links: 상세보기 | 로드뷰 | 주소 복사 -->
+                <div class="kakao-sublinks-bar">
+                  <a href="${kakaoMapUrl}" target="_blank" rel="noopener noreferrer" class="kakao-sublink">상세보기</a>
+                  <span class="kakao-sublink-div">|</span>
+                  <a href="${roadviewUrl}" target="_blank" rel="noopener noreferrer" class="kakao-sublink">로드뷰</a>
+                  <span class="kakao-sublink-div">|</span>
+                  <button id="btn-copy-${popupId}" class="kakao-sublink-btn">주소 복사</button>
+                </div>
+
+                <!-- Action Footer: [출발] & [+ 길찾기] -->
+                <div class="kakao-footer-actions">
+                  <button id="btn-start-${popupId}" class="kakao-action-start" title="출발지로 설정">
+                    <span>출발</span>
+                  </button>
+                  <button id="btn-target-${popupId}" class="kakao-action-directions" title="도착지로 설정하고 길찾기">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                      <line x1="12" y1="5" x2="12" y2="19"></line>
+                      <line x1="5" y1="12" x2="19" y2="12"></line>
+                    </svg>
+                    <span>길찾기</span>
+                  </button>
+                </div>
+              </div>
+            `;
+          };
+
+          const popup = new maplibregl.Popup({
+            className: 'custom-building-popup',
+            maxWidth: '350px',
+            offset: 15
+          })
+            .setLngLat([lng, lat])
+            .setHTML(renderHtml(null, true))
+            .addTo(map);
+
+          const bindButtons = (currentTitle, detail) => {
+            const startBtn = document.getElementById(`btn-start-${popupId}`);
+            const targetBtn = document.getElementById(`btn-target-${popupId}`);
+            const copyBtn = document.getElementById(`btn-copy-${popupId}`);
+
+            if (startBtn && latestRef.current.setStartPoint) {
+              startBtn.onclick = () => {
+                latestRef.current.setStartPoint({ lat, lng, name: currentTitle || '도심 건축물' });
+                popup.remove();
+              };
+            }
+            if (targetBtn && latestRef.current.setTargetPoint) {
+              targetBtn.onclick = () => {
+                latestRef.current.setTargetPoint({ lat, lng, name: currentTitle || '도심 건축물' });
+                popup.remove();
+              };
+            }
+            if (copyBtn) {
+              copyBtn.onclick = () => {
+                const textToCopy = detail?.roadAddress || detail?.jibunAddress || currentTitle || '';
+                if (navigator.clipboard && textToCopy) {
+                  navigator.clipboard.writeText(textToCopy);
+                  copyBtn.innerText = '복사됨 ✓';
+                  setTimeout(() => {
+                    const el = document.getElementById(`btn-copy-${popupId}`);
+                    if (el) el.innerText = '주소 복사';
+                  }, 2000);
+                }
+              };
+            }
+          };
+
+          bindButtons(name, null);
+
+          fetchKakaoBuildingDetail({ lat, lng, name }).then((detail) => {
+            if (!popup.isOpen()) return;
+            const resolvedTitle = detail?.name || name || '도심 건축물';
+            popup.setHTML(renderHtml(detail, false));
+            bindButtons(resolvedTitle, detail);
+          }).catch(() => {
+            if (popup.isOpen()) {
+              popup.setHTML(renderHtml(null, false));
+              bindButtons(name, null);
+            }
+          });
+
+        });
+      });
+
       loadedRef.current = true;
       syncData();
-      latestRef.current.applyNavCamera?.(); // 탐색 중에 3D 지도가 열린 경우 보행자 시점으로 이동
+      latestRef.current.applyNavCamera?.();
     });
 
   }

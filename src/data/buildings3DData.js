@@ -706,7 +706,7 @@ export const HAEUNDAE_BUILDINGS = [
   },
   {
     "id": "osm_780727746",
-    "name": "해운대���린나래호텔",
+    "name": "해운대그린나래호텔",
     "height": 48,
     "polygon": [
       [
@@ -2219,7 +2219,7 @@ export const HAEUNDAE_BUILDINGS = [
   },
   {
     "id": "osm_992363537",
-    "name": "호텔블루스토��",
+    "name": "호텔블루스토리",
     "height": 74,
     "polygon": [
       [

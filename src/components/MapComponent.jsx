@@ -7,7 +7,7 @@ import { NODES, MAP_CENTER, DEFAULT_ZOOM } from '../data/urbanNetwork';
 import { formatDistance, formatDuration } from '../utils/format';
 import { filterValidUrbanMarkers, isInvalidOceanCoordinate } from '../utils/geoSanity';
 import { normalizeFacilityDataset } from '../utils/geoConverter';
-import { searchKakaoBuildings } from '../services/kakaoService';
+import { searchKakaoBuildings, fetchKakaoBuildingDetail } from '../services/kakaoService';
 
 export default function MapComponent({
   userGps,
@@ -44,6 +44,8 @@ export default function MapComponent({
   const latestPoiRef = useRef(poiSelected);
   latestThemeRef.current = mapTheme;
   latestPoiRef.current = poiSelected;
+  const latestSunPosRef = useRef(sunPos);
+  latestSunPosRef.current = sunPos;
   const [cctvState, setCctvState] = useState({
     count: 0,
     displayedCount: 0,
@@ -212,24 +214,238 @@ export default function MapComponent({
 
   // 건물 그림자는 2D 지도에서 그리지 않는다. 보행자 시점(3D)에서만 표시한다.
 
-  // 2. Render 3D Building Footprints (Elevated Glowing Blocks)
+  // 2. 건물 클릭 시 카카오 API 연동 상세 정보 및 높이/그늘 분석 팝업 표시 함수
+  const openBuildingDetailPopup = (bld, clickLatLng) => {
+    const map = mapInstanceRef.current;
+    if (!map) return;
+
+    let centerLat = clickLatLng ? (clickLatLng.lat ?? clickLatLng[0]) : null;
+    let centerLng = clickLatLng ? (clickLatLng.lng ?? clickLatLng[1]) : null;
+
+    if ((centerLat == null || centerLng == null) && Array.isArray(bld.polygon) && bld.polygon.length > 0) {
+      centerLat = bld.polygon.reduce((sum, p) => sum + p[0], 0) / bld.polygon.length;
+      centerLng = bld.polygon.reduce((sum, p) => sum + p[1], 0) / bld.polygon.length;
+    }
+
+    if (centerLat == null || centerLng == null) {
+      centerLat = bld.lat;
+      centerLng = bld.lng;
+    }
+
+    if (centerLat == null || centerLng == null) return;
+
+    const popupLatLng = [centerLat, centerLng];
+    const popupId = `bld-${bld.id || Math.random().toString(36).slice(2, 8)}`;
+
+    const height = bld.height || 18;
+    const floorText = bld.groundFloors
+      ? `지상 ${bld.groundFloors}층 (공식 표제부)`
+      : `~${Math.max(1, Math.round(height / 3.2))}층${bld.heightSource === 'estimate' ? ' (추정)' : ''}`;
+
+    const sourceTag = bld.heightSource === 'official_heit'
+      ? '국토교통부 실측'
+      : bld.heightSource === 'official_floor_calc'
+      ? '건축HUB 표제부'
+      : bld.heightSource === 'estimate'
+      ? 'OSM 건축 데이터'
+      : '공식 데이터';
+
+    const currentSun = latestSunPosRef.current;
+    let shadeText = '일몰/야간 시간대 (그늘 분석 대기)';
+    if (currentSun && currentSun.isDaylight && currentSun.altitudeDeg > 0) {
+      const shadowLen = Math.round(height / Math.tan(Math.max(5, currentSun.altitudeDeg) * Math.PI / 180));
+      const shadowAzimuth = Math.round((currentSun.azimuthDeg + 180) % 360);
+      const dirs = ['북', '북동', '동', '남동', '남', '남서', '서', '북서'];
+      const dirName = dirs[Math.round(shadowAzimuth / 45) % 8];
+      shadeText = `태양 고도 ${Math.round(currentSun.altitudeDeg)}° 기준 약 <strong style="color:#34d399;">${shadowLen}m</strong> 그늘 형성 (${dirName}방향 · 폭염 차폐)`;
+    }
+
+    const initialTitle = (bld.name && bld.name !== '건물' && !bld.name.startsWith('osm_')
+      ? bld.name
+      : '도심 건축물').replace(/[\uFFFD\uFFFE\uFEFF]/g, '').trim();
+
+
+    const renderHtml = (detail, loading = false) => {
+      const title = detail?.name || initialTitle;
+      const category = detail?.category || bld.category || (bld.height ? `건물 · 높이 ${height}m` : '도심 시설');
+      const road = detail?.roadAddress || bld.address || '';
+      const jibun = detail?.jibunAddress || '';
+      const zoneNo = detail?.zoneNo || '';
+      const phone = detail?.phone || bld.phone || '';
+      const roadviewUrl = detail?.roadviewUrl || `https://map.kakao.com/link/roadview/${centerLat},${centerLng}`;
+      const kakaoMapUrl = detail?.placeUrl || detail?.searchUrl || `https://map.kakao.com/link/search/${encodeURIComponent(title)}`;
+
+      return `
+        <div class="kakao-card-popup" id="card-${popupId}">
+          <!-- Kakao Header: Title + Circular Arrow Link -->
+          <div class="kakao-card-header">
+            <a href="${kakaoMapUrl}" target="_blank" rel="noopener noreferrer" class="kakao-title-link" title="카카오맵에서 상세보기">
+              <span class="kakao-title-text">${title}</span>
+              <span class="kakao-circle-arrow">
+                <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+                  <polyline points="9 18 15 12 9 6"></polyline>
+                </svg>
+              </span>
+            </a>
+          </div>
+
+          <!-- Category & Height Meta -->
+          <div class="kakao-category-row">
+            <span class="kakao-category-text">${category}</span>
+            ${bld.height ? `<span class="kakao-floor-badge">${floorText}</span>` : ''}
+          </div>
+
+          <!-- Realtime Sun Shadow Analysis (UrbanShelter feature) -->
+          ${shadeText ? `
+            <div class="kakao-shade-box">
+              <span class="kakao-shade-icon">☀️</span>
+              <span class="kakao-shade-desc">${shadeText}</span>
+            </div>
+          ` : ''}
+
+          <!-- Address & Phone Info Body -->
+          <div class="kakao-body-info">
+            ${loading ? `
+              <div class="kakao-loading-row">
+                <span class="kakao-spinner"></span>
+                <span>카카오 실시간 공식 주소 조회 중...</span>
+              </div>
+            ` : `
+              ${road ? `<div class="kakao-road-line">${road}</div>` : ''}
+              ${(jibun || zoneNo) ? `
+                <div class="kakao-jibun-line">
+                  ${zoneNo ? `<span class="kakao-zone-no">(우) ${zoneNo}</span>` : ''}
+                  ${jibun ? `<span class="kakao-jibun-addr">(지번) ${jibun}</span>` : ''}
+                </div>
+              ` : ''}
+              ${phone ? `
+                <div class="kakao-phone-line">
+                  <a href="tel:${phone}" class="kakao-phone-link" title="전화 걸기">
+                    <span class="kakao-phone-icon">📞</span>
+                    <span class="kakao-phone-num">${phone}</span>
+                  </a>
+                </div>
+              ` : ''}
+              ${!road && !jibun ? `
+                <div class="kakao-coord-line">위치: ${centerLat.toFixed(5)}, ${centerLng.toFixed(5)}</div>
+              ` : ''}
+            `}
+          </div>
+
+          <!-- Sub Links: 상세보기 | 로드뷰 | 주소 복사 -->
+          <div class="kakao-sublinks-bar">
+            <a href="${kakaoMapUrl}" target="_blank" rel="noopener noreferrer" class="kakao-sublink">상세보기</a>
+            <span class="kakao-sublink-div">|</span>
+            <a href="${roadviewUrl}" target="_blank" rel="noopener noreferrer" class="kakao-sublink">로드뷰</a>
+            <span class="kakao-sublink-div">|</span>
+            <button id="btn-copy-${popupId}" class="kakao-sublink-btn">주소 복사</button>
+          </div>
+
+          <!-- Action Footer: [출발] & [+ 길찾기] -->
+          <div class="kakao-footer-actions">
+            <button id="btn-start-${popupId}" class="kakao-action-start" title="출발지로 설정">
+              <span>출발</span>
+            </button>
+            <button id="btn-target-${popupId}" class="kakao-action-directions" title="도착지로 설정하고 길찾기">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="12" y1="5" x2="12" y2="19"></line>
+                <line x1="5" y1="12" x2="19" y2="12"></line>
+              </svg>
+              <span>길찾기</span>
+            </button>
+          </div>
+        </div>
+      `;
+    };
+
+    const initialHtml = renderHtml(null, true);
+
+    const popup = L.popup({
+      maxWidth: 350,
+      minWidth: 280,
+      className: 'custom-building-popup',
+      autoPan: true,
+      autoPanPadding: [20, 20]
+    })
+      .setLatLng(popupLatLng)
+      .setContent(initialHtml)
+      .openOn(map);
+
+    const bindButtons = (currentTitle, detail) => {
+      const startBtn = document.getElementById(`btn-start-${popupId}`);
+      const targetBtn = document.getElementById(`btn-target-${popupId}`);
+      const copyBtn = document.getElementById(`btn-copy-${popupId}`);
+
+      if (startBtn) {
+        startBtn.onclick = () => {
+          setStartPoint({ lat: centerLat, lng: centerLng, name: currentTitle || initialTitle });
+          map.closePopup();
+        };
+      }
+      if (targetBtn) {
+        targetBtn.onclick = () => {
+          setTargetPoint({ lat: centerLat, lng: centerLng, name: currentTitle || initialTitle });
+          map.closePopup();
+        };
+      }
+      if (copyBtn) {
+        copyBtn.onclick = () => {
+          const textToCopy = detail?.roadAddress || detail?.jibunAddress || currentTitle || '';
+          if (navigator.clipboard && textToCopy) {
+            navigator.clipboard.writeText(textToCopy);
+            copyBtn.innerText = '복사됨 ✓';
+            setTimeout(() => {
+              const el = document.getElementById(`btn-copy-${popupId}`);
+              if (el) el.innerText = '주소 복사';
+            }, 2000);
+          }
+        };
+      }
+    };
+
+    bindButtons(initialTitle, null);
+
+    // Fetch Kakao detail in background
+    fetchKakaoBuildingDetail({
+      lat: centerLat,
+      lng: centerLng,
+      name: bld.name
+    }).then((detail) => {
+      if (!popup.isOpen()) return;
+      const resolvedTitle = detail?.name || initialTitle;
+      popup.setContent(renderHtml(detail, false));
+      bindButtons(resolvedTitle, detail);
+    }).catch((err) => {
+      console.warn('Failed to load Kakao building detail:', err);
+      if (popup.isOpen()) {
+        popup.setContent(renderHtml(null, false));
+        bindButtons(initialTitle, null);
+      }
+    });
+  };
+
+
+  // 2. Render 3D Building Footprints (Elevated Glowing Blocks with Click Interaction)
   useEffect(() => {
     const buildingLayer = buildingLayerRef.current;
     if (!buildingLayer) return;
     buildingLayer.clearLayers();
 
-    if (!layers.buildings) return;
+    const showHeight = layers.buildingHeight !== false;
+    const showInfo = layers.buildingInfo !== false;
+    const showBuildings = showHeight || showInfo || layers.buildings;
+    if (!showBuildings) return;
 
     let badgeCount = 0;
     for (const b of buildings) {
-      // 실제 건물이 수백 채일 때는 지도가 파랗게 뒤덮이지 않도록 윤곽선과 채움을 옅게 한다
       const dense = buildings.length > 100;
       const poly = L.polygon(b.polygon, {
         color: '#38bdf8',
-        weight: dense ? 1 : 2,
+        weight: dense ? 1.2 : 2,
         opacity: dense ? 0.45 : 0.85,
         fillColor: mapTheme === 'dark' ? '#0369a1' : '#0284c7',
-        fillOpacity: dense ? 0.18 : 0.45
+        fillOpacity: dense ? 0.18 : 0.45,
+        className: showInfo ? 'building-polygon-interactive' : ''
       });
 
       const floorText = b.groundFloors
@@ -244,42 +460,80 @@ export default function MapComponent({
         ? ' · 추정값'
         : '';
 
-      poly.bindTooltip(
-        `<strong>🏢 ${b.name}</strong><br/>` +
-        `<span style="color:#38bdf8; font-size:11px;">건물 높이: ${b.height}m (${floorText}${sourceTag})</span><br/>` +
-        `<span style="color:#34d399; font-size:10px;">실시간 태양 위치 기반 그늘 분석 적용</span>`,
-        { className: 'route-tooltip-custom' }
-      );
+      const tooltipContent = showHeight
+        ? `<strong>🏢 ${b.name}</strong><br/>` +
+          `<span style="color:#38bdf8; font-size:11px;">건물 높이: ${b.height}m (${floorText}${sourceTag})</span><br/>` +
+          (showInfo ? `<span style="color:#67e8f9; font-size:10px;">🖱️ 클릭하여 카카오 건물 정보·로드뷰 보기</span>` : '')
+        : `<strong>🏢 ${b.name}</strong><br/>` +
+          (showInfo ? `<span style="color:#67e8f9; font-size:10px;">🖱️ 클릭하여 카카오 건물 정보·로드뷰 보기</span>` : `<span style="color:#94a3b8; font-size:10px;">도심 건축물</span>`);
+
+      poly.bindTooltip(tooltipContent, { className: 'route-tooltip-custom' });
+
+      poly.on('mouseover', () => {
+        poly.setStyle({
+          color: '#67e8f9',
+          weight: 3,
+          opacity: 1,
+          fillColor: '#0ea5e9',
+          fillOpacity: 0.65
+        });
+      });
+
+      poly.on('mouseout', () => {
+        poly.setStyle({
+          color: '#38bdf8',
+          weight: dense ? 1.2 : 2,
+          opacity: dense ? 0.45 : 0.85,
+          fillColor: mapTheme === 'dark' ? '#0369a1' : '#0284c7',
+          fillOpacity: dense ? 0.18 : 0.45
+        });
+      });
+
+      if (showInfo) {
+        poly.on('click', (e) => {
+          openBuildingDetailPopup(b, e.latlng);
+        });
+      }
+
       buildingLayer.addLayer(poly);
 
-      // 높이 라벨은 지도가 복잡해지지 않도록 높이를 확인했거나 높은 건물에만 붙인다
-      if (b.heightSource === 'estimate' && b.height < 30) continue;
-      if (badgeCount >= 80) continue;
-      badgeCount += 1;
-      const centerLat = b.polygon.reduce((sum, p) => sum + p[0], 0) / b.polygon.length;
-      const centerLng = b.polygon.reduce((sum, p) => sum + p[1], 0) / b.polygon.length;
-      const bldIcon = L.divIcon({
-        className: 'building-height-badge',
-        html: `
-          <div style="background: rgba(15, 23, 42, 0.85); color: #38bdf8; padding: 1px 4px; border-radius: 4px; font-size: 9px; font-weight: 700; border: 1px solid rgba(56,189,248,0.5); white-space: nowrap; pointer-events: none; box-shadow: 0 2px 6px rgba(0,0,0,0.5);">
-            🏢 ${b.height}m
-          </div>
-        `,
-        iconSize: [40, 16],
-        iconAnchor: [20, 8]
-      });
-      const badgeMarker = L.marker([centerLat, centerLng], { icon: bldIcon, interactive: false });
-      buildingLayer.addLayer(badgeMarker);
+      // 건물 높이 배지 표시 (layers.buildingHeight가 true 및 zoom >= 16일 때만 지도에 부착)
+      const currentZoom = mapInstanceRef.current ? mapInstanceRef.current.getZoom() : 16;
+      if (showHeight && currentZoom >= 16) {
+        if (b.heightSource === 'estimate' && b.height < 30) continue;
+        if (badgeCount >= 40) continue;
+        const centerLat = b.polygon.reduce((sum, p) => sum + p[0], 0) / b.polygon.length;
+        const centerLng = b.polygon.reduce((sum, p) => sum + p[1], 0) / b.polygon.length;
+        badgeCount += 1;
+        const bldIcon = L.divIcon({
+          className: 'building-height-badge',
+          html: `
+            <div style="background: rgba(15, 23, 42, 0.90); color: #38bdf8; padding: 1.5px 5px; border-radius: 4px; font-size: 9.5px; font-weight: 700; border: 1.2px solid rgba(56,189,248,0.65); white-space: nowrap; box-shadow: 0 2px 8px rgba(0,0,0,0.6); cursor: ${showInfo ? 'pointer' : 'default'};">
+              🏢 ${b.height}m
+            </div>
+          `,
+          iconSize: [44, 18],
+          iconAnchor: [22, 9]
+        });
+        const badgeMarker = L.marker([centerLat, centerLng], { icon: bldIcon, interactive: showInfo });
+        if (showInfo) {
+          badgeMarker.on('click', () => {
+            openBuildingDetailPopup(b, [centerLat, centerLng]);
+          });
+        }
+        buildingLayer.addLayer(badgeMarker);
+      }
     }
-  }, [layers.buildings, mapTheme, buildings]);
+  }, [layers.buildings, layers.buildingHeight, layers.buildingInfo, mapTheme, buildings]);
 
-  // 2-2. Render Kakao Real-time Building & Landmark Information
+  // 2-2. Render Kakao Real-time Building & Landmark Information (With Zoom LOD & Collision Avoidance)
   useEffect(() => {
     const map = mapInstanceRef.current;
     const kakaoLayer = kakaoBuildingLayerRef.current;
     if (!map || !kakaoLayer) return;
 
-    if (!layers.buildings) {
+    const showKakaoLayer = layers.buildingInfo !== false && (layers.buildingInfo || layers.buildings);
+    if (!showKakaoLayer) {
       kakaoLayer.clearLayers();
       return;
     }
@@ -288,7 +542,8 @@ export default function MapComponent({
 
     const loadBuildings = async () => {
       const zoom = map.getZoom();
-      if (zoom < 13) {
+      // Zoom < 15: Hide building text labels completely to prevent unreadable text clutter
+      if (zoom < 15) {
         kakaoLayer.clearLayers();
         return;
       }
@@ -311,56 +566,73 @@ export default function MapComponent({
         if (abort) return;
         kakaoLayer.clearLayers();
 
+        const placedPoints = [];
+        const isDetailedZoom = zoom >= 17;
+        const maxMarkers = isDetailedZoom ? 30 : 16;
+        const minDx = isDetailedZoom ? 85 : 45;
+        const minDy = isDetailedZoom ? 28 : 22;
+
         for (const b of blds) {
           if (!bounds.contains([b.lat, b.lng])) continue;
+          if (placedPoints.length >= maxMarkers) break;
+
+          // Screen pixel collision check: Prevent overlapping markers
+          const pt = map.latLngToContainerPoint([b.lat, b.lng]);
+          let collided = false;
+          for (const p of placedPoints) {
+            if (Math.abs(pt.x - p.x) < minDx && Math.abs(pt.y - p.y) < minDy) {
+              collided = true;
+              break;
+            }
+          }
+          if (collided) continue; // Skip to prevent text overlap
+          placedPoints.push(pt);
+
+          // Truncate overly long names (max 12 chars)
+          const displayName = b.name.length > 12 ? b.name.slice(0, 11) + '…' : b.name;
 
           const bldIcon = L.divIcon({
             className: 'kakao-building-marker',
-            html: `
-              <div style="background: rgba(15, 23, 42, 0.90); color: #38bdf8; padding: 3px 8px; border-radius: 6px; font-size: 11px; font-weight: 700; border: 1.5px solid #0284c7; white-space: nowrap; box-shadow: 0 4px 12px rgba(0,0,0,0.6); display: flex; align-items: center; gap: 4px; cursor: pointer; transform: translate(-50%, -50%);">
-                <span style="font-size: 12px;">🏢</span>
-                <span>${b.name}</span>
+            html: isDetailedZoom ? `
+              <div class="kakao-map-badge" title="${b.name}">
+                <span class="kakao-badge-icon">🏢</span>
+                <span class="kakao-badge-text">${displayName}</span>
+              </div>
+            ` : `
+              <div class="kakao-map-dot" title="${b.name}">
+                <span class="kakao-dot-inner"></span>
               </div>
             `,
-            iconSize: [0, 0],
-            iconAnchor: [0, 0]
+            iconSize: isDetailedZoom ? [0, 0] : [14, 14],
+            iconAnchor: isDetailedZoom ? [0, 0] : [7, 7]
           });
 
           const marker = L.marker([b.lat, b.lng], { icon: bldIcon });
 
-          const popupContent = `
-            <div style="font-family: inherit; min-width: 210px; padding: 4px; line-height: 1.4;">
-              <div style="font-weight: 800; font-size: 13px; color: #0284c7; margin-bottom: 2px;">🏢 ${b.name}</div>
-              <div style="font-size: 10px; color: #64748b; margin-bottom: 6px;">${b.category}</div>
-              <div style="font-size: 11px; color: #334155; margin-bottom: 4px;">📍 ${b.address}</div>
-              ${b.phone ? `<div style="font-size: 11px; color: #0284c7; margin-bottom: 6px;">📞 ${b.phone}</div>` : ''}
-              <div style="margin-top: 8px; display: flex; flex-direction: column; gap: 5px;">
-                <a href="${b.url}" target="_blank" rel="noopener noreferrer" style="display: block; text-align: center; padding: 5px 8px; background: #0284c7; color: #fff; border-radius: 4px; font-size: 11px; text-decoration: none; font-weight: 700;">카카오맵 상세/로드뷰 ↗</a>
-                <div style="display: flex; gap: 4px;">
-                  <button id="btn-start-${b.id}" style="flex: 1; padding: 4px 6px; background: #0ea5e9; color: #fff; border: none; border-radius: 4px; font-size: 10px; font-weight: 700; cursor: pointer;">출발지로</button>
-                  <button id="btn-target-${b.id}" style="flex: 1; padding: 4px 6px; background: #f43f5e; color: #fff; border: none; border-radius: 4px; font-size: 10px; font-weight: 700; cursor: pointer;">도착지로</button>
-                </div>
-              </div>
-            </div>
-          `;
+          // Tooltip on hover for mid-zoom levels
+          if (!isDetailedZoom) {
+            marker.bindTooltip(b.name, {
+              direction: 'top',
+              offset: [0, -8],
+              className: 'custom-map-tooltip'
+            });
+          }
 
-          marker.bindPopup(popupContent, { maxWidth: 280 });
-
-          marker.on('popupopen', () => {
-            const startBtn = document.getElementById(`btn-start-${b.id}`);
-            const targetBtn = document.getElementById(`btn-target-${b.id}`);
-            if (startBtn) {
-              startBtn.onclick = () => {
-                setStartPoint({ lat: b.lat, lng: b.lng, name: b.name });
-                map.closePopup();
-              };
-            }
-            if (targetBtn) {
-              targetBtn.onclick = () => {
-                setTargetPoint({ lat: b.lat, lng: b.lng, name: b.name });
-                map.closePopup();
-              };
-            }
+          marker.on('click', () => {
+            const matchedBld = buildings.find(bldg => {
+              if (!Array.isArray(bldg.polygon) || bldg.polygon.length === 0) return false;
+              const bLat = bldg.polygon[0][0];
+              const bLng = bldg.polygon[0][1];
+              const dist = Math.hypot(bLat - b.lat, (bLng - b.lng) * 0.8);
+              return dist < 0.0006;
+            });
+            const enriched = {
+              ...b,
+              height: matchedBld?.height || 28,
+              groundFloors: matchedBld?.groundFloors,
+              heightSource: matchedBld?.heightSource || 'official_floor_calc'
+            };
+            openBuildingDetailPopup(enriched, [b.lat, b.lng]);
           });
 
           kakaoLayer.addLayer(marker);
@@ -376,13 +648,14 @@ export default function MapComponent({
       loadBuildings();
     };
 
-    map.on('moveend', handleMove);
+    map.on('moveend zoomend', handleMove);
 
     return () => {
       abort = true;
-      map.off('moveend', handleMove);
+      map.off('moveend zoomend', handleMove);
     };
-  }, [layers.buildings, setStartPoint, setTargetPoint]);
+  }, [layers.buildings, layers.buildingInfo, buildings, setStartPoint, setTargetPoint]);
+
 
   // 3. Render Roadside Trees & Dynamic Canopy Shadows (Zoom-dependent, consistent with CCTV & Streetlights)
   useEffect(() => {
