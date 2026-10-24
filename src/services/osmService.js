@@ -1,8 +1,9 @@
 // OpenStreetMap(Overpass API)에서 경로 주변의 실제 건물·나무를 가져와 그림자 계산에 쓴다.
 
 const ENDPOINTS = [
+  'https://overpass.kumi.systems/api/interpreter',
   'https://overpass-api.de/api/interpreter',
-  'https://overpass.kumi.systems/api/interpreter'
+  'https://overpass.private.coffee/api/interpreter'
 ];
 
 const LEVEL_HEIGHT_M = 3.2; // 층당 높이(m)
@@ -140,7 +141,7 @@ export async function fetchOsmShadeData(bbox, signal) {
   const query = `[out:json][timeout:25];(way["building"](${box});node["natural"="tree"](${box}););out geom tags;`;
 
   // 공개 Overpass 서버는 과부하로 504가 자주 나므로 주 서버를 여러 번 재시도한 뒤 보조 서버를 쓴다.
-  const attempts = [ENDPOINTS[0], ENDPOINTS[0], ENDPOINTS[0], ENDPOINTS[1]];
+  const attempts = [ENDPOINTS[0], ENDPOINTS[1], ENDPOINTS[2], ENDPOINTS[0]];
   for (let i = 0; i < attempts.length; i++) {
     const endpoint = attempts[i];
     try {

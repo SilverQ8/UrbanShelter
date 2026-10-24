@@ -60,16 +60,20 @@ export default function RouteSearch({
   useEffect(() => {
     if (startPoint?.name) {
       setStartQuery(startPoint.name);
-    } else if (NODES[startNodeId]) {
+    } else if (startNodeId && NODES[startNodeId]) {
       setStartQuery(NODES[startNodeId].roadAddress || NODES[startNodeId].name);
+    } else {
+      setStartQuery('');
     }
   }, [startPoint, startNodeId]);
 
   useEffect(() => {
     if (targetPoint?.name) {
       setDestQuery(targetPoint.name);
-    } else if (NODES[targetNodeId]) {
+    } else if (targetNodeId && NODES[targetNodeId]) {
       setDestQuery(NODES[targetNodeId].roadAddress || NODES[targetNodeId].name);
+    } else {
+      setDestQuery('');
     }
   }, [targetPoint, targetNodeId]);
 
@@ -586,6 +590,20 @@ export default function RouteSearch({
         <div style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '8px' }}>
           경로 비교 (눌러서 선택)
         </div>
+
+        {!standardRoute && (
+          <div style={{
+            fontSize: '0.8rem',
+            color: 'var(--text-muted)',
+            padding: '16px 12px',
+            textAlign: 'center',
+            background: 'rgba(255, 255, 255, 0.04)',
+            borderRadius: '8px',
+            border: '1px dashed rgba(255, 255, 255, 0.12)'
+          }}>
+            출발지와 도착지를 설정하면 폭염 그늘 · 야간 안심 맞춤 경로가 비교됩니다.
+          </div>
+        )}
 
         {travelMode === 'car' && standardRoute && (
           <div className="recommend-route-card selected standard-active" style={{ cursor: 'default' }}>

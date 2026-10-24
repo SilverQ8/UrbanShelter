@@ -63,6 +63,84 @@ async function loadTile(x, y, signal) {
   return pois;
 }
 
+// 지하철역 출입구들을 역 하나당 1개의 중심 마커로 병합
+function clusterSubwayStations(subwayPois) {
+  if (!subwayPois || subwayPois.length === 0) return [];
+
+  const cleanStationName = (rawName) => {
+    if (!rawName) return '';
+    let name = rawName.trim();
+    name = name.replace(/\s*\d+번\s*출구/g, '')
+               .replace(/\s*출구\s*\d+/g, '')
+               .replace(/\s*Exit\s*\d+/gi, '')
+               .replace(/\(\d+번?\s*출구\)/g, '')
+               .replace(/\(\d+\)/g, '')
+               .replace(/\[\d+\]/g, '')
+               .trim();
+    if (name && !name.endsWith('역')) {
+      name += '역';
+    }
+    return name;
+  };
+
+  const distM = (lat1, lng1, lat2, lng2) => {
+    const dLat = (lat2 - lat1) * 111320;
+    const dLng = (lng2 - lng1) * 111320 * Math.cos((lat1 * Math.PI) / 180);
+    return Math.sqrt(dLat * dLat + dLng * dLng);
+  };
+
+  const clusters = [];
+
+  for (const p of subwayPois) {
+    const sName = cleanStationName(p.name);
+    let matchedCluster = null;
+
+    for (const cl of clusters) {
+      const avgLat = cl.pois.reduce((s, x) => s + x.lat, 0) / cl.pois.length;
+      const avgLng = cl.pois.reduce((s, x) => s + x.lng, 0) / cl.pois.length;
+
+      // 같은 역명이면서 600m 이내
+      if (sName && cl.name && sName === cl.name && distM(p.lat, p.lng, avgLat, avgLng) < 600) {
+        matchedCluster = cl;
+        break;
+      }
+      // 이름이 없거나 번호만 있는 출입구라도 280m 이내면 같은 지하철역으로 병합
+      if (distM(p.lat, p.lng, avgLat, avgLng) < 280) {
+        matchedCluster = cl;
+        break;
+      }
+    }
+
+    if (matchedCluster) {
+      matchedCluster.pois.push(p);
+      if (!matchedCluster.name && sName) {
+        matchedCluster.name = sName;
+      }
+    } else {
+      clusters.push({
+        name: sName,
+        pois: [p]
+      });
+    }
+  }
+
+  return clusters.map((cl) => {
+    const count = cl.pois.length;
+    const avgLat = cl.pois.reduce((s, x) => s + x.lat, 0) / count;
+    const avgLng = cl.pois.reduce((s, x) => s + x.lng, 0) / count;
+    const finalName = cl.name || (count > 1 ? '지하철역' : '지하철 출입구');
+
+    return {
+      id: `subway_station_${finalName}_${avgLat.toFixed(4)}_${avgLng.toFixed(4)}`,
+      name: finalName,
+      lat: avgLat,
+      lng: avgLng,
+      category: 'subway',
+      entranceCount: count
+    };
+  });
+}
+
 /**
  * @param {{south:number, west:number, north:number, east:number}} bounds
  * @returns {Promise<{status:'ok'|'skipped'|'error', pois:Array}>}
@@ -81,14 +159,24 @@ export async function fetchPoisForBounds(bounds, signal) {
 
     // 범위 안의 장소만, 타일 경계에서 겹친 것은 한 번만
     const seen = new Set();
-    const pois = all.filter((p) => {
-      if (p.lat < bounds.south || p.lat > bounds.north || p.lng < bounds.west || p.lng > bounds.east) return false;
+    const otherPois = [];
+    const subwayPois = [];
+
+    for (const p of all) {
+      if (p.lat < bounds.south || p.lat > bounds.north || p.lng < bounds.west || p.lng > bounds.east) continue;
       const k = `${p.category}|${p.name}|${p.lat.toFixed(5)}|${p.lng.toFixed(5)}`;
-      if (seen.has(k)) return false;
+      if (seen.has(k)) continue;
       seen.add(k);
-      return true;
-    });
-    return { status: 'ok', pois };
+
+      if (p.category === 'subway') {
+        subwayPois.push(p);
+      } else {
+        otherPois.push(p);
+      }
+    }
+
+    const mergedSubways = clusterSubwayStations(subwayPois);
+    return { status: 'ok', pois: [...otherPois, ...mergedSubways] };
   } catch (err) {
     if (err?.name !== 'AbortError') console.warn('POI tile fetch failed:', err);
     return { status: 'error', pois: [] };

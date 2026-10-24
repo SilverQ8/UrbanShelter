@@ -184,11 +184,12 @@ export function analyzeRouteCctvSafety(latlngs, availableCctvs = null) {
 }
 
 export function findBestSafetyWaypoint(baseLatlngs, sLat, sLng, tLat, tLng, activeStreetlights = null) {
-  if (!baseLatlngs || baseLatlngs.length < 4) return null;
+  if (!baseLatlngs || baseLatlngs.length < 6) return null;
 
   const totalPoints = baseLatlngs.length;
-  const minIdx = Math.floor(totalPoints * 0.20);
-  const maxIdx = Math.floor(totalPoints * 0.80);
+  // 출발지와 목적지 바로 앞뒤는 제외하고 중간 25%~75% 구간만 탐색
+  const minIdx = Math.floor(totalPoints * 0.25);
+  const maxIdx = Math.floor(totalPoints * 0.75);
 
   const candidates = [];
   const lights = (activeStreetlights && activeStreetlights.length > 0) ? activeStreetlights : streetlightsDataset;
@@ -198,39 +199,58 @@ export function findBestSafetyWaypoint(baseLatlngs, sLat, sLng, tLat, tLng, acti
     ...lights.map(s => ({ lat: s.lat, lng: s.lng, score: 1.5, type: 'light' }))
   ];
 
+  const directDist = getDistanceMeters(sLat, sLng, tLat, tLng);
+
   for (const hub of safetyHubs) {
     let minDToRoute = Infinity;
+    let closestIdx = -1;
+
     for (let i = minIdx; i <= maxIdx; i++) {
       const [rLat, rLng] = baseLatlngs[i];
       const d = getDistanceMeters(hub.lat, hub.lng, rLat, rLng);
-      if (d < minDToRoute) minDToRoute = d;
+      if (d < minDToRoute) {
+        minDToRoute = d;
+        closestIdx = i;
+      }
     }
 
-    if (minDToRoute >= 25 && minDToRoute <= 120) {
+    // 골목길 유턴이나 쐐기형 왜곡을 막기 위해 횡방향 이탈 거리를 15m~45m로 엄격히 제한
+    if (minDToRoute >= 15 && minDToRoute <= 45 && closestIdx >= minIdx && closestIdx <= maxIdx) {
       const distFromStart = getDistanceMeters(hub.lat, hub.lng, sLat, sLng);
       const distToTarget = getDistanceMeters(hub.lat, hub.lng, tLat, tLng);
-      const directDist = getDistanceMeters(sLat, sLng, tLat, tLng);
 
-      if (distFromStart + distToTarget <= directDist * 1.28) {
-        let density = hub.score;
+      // 전체 우회 거리 증가율 15% 이내로 엄격화 (삐죽하게 튀어나왔다 되돌아가는 현상 원천 차단)
+      if (distFromStart + distToTarget <= directDist * 1.15) {
+        // 주변 45m 내의 안전시설 집적도 계산
+        let clusterScore = hub.score;
+        let nearbyCount = 0;
         for (const other of safetyHubs) {
-          if (getDistanceMeters(hub.lat, hub.lng, other.lat, other.lng) <= 50) {
-            density += other.score;
+          if (other === hub) continue;
+          const dOther = getDistanceMeters(hub.lat, hub.lng, other.lat, other.lng);
+          if (dOther <= 45) {
+            clusterScore += other.score;
+            nearbyCount++;
           }
         }
-        candidates.push({
-          lat: hub.lat,
-          lng: hub.lng,
-          density,
-          offset: minDToRoute
-        });
+
+        // 단독 시설 1개 때문에 꺾이는 것을 방지 (최소 2개 이상 시설물 클러스터인 경우만 우회)
+        if (nearbyCount >= 1 && clusterScore >= 4.5) {
+          // 본 경로와 멀어질수록 페널티를 주어 평행한 안전 보행로 우선 선택
+          const finalScore = clusterScore / (1 + (minDToRoute / 30));
+          candidates.push({
+            lat: hub.lat,
+            lng: hub.lng,
+            score: finalScore,
+            offset: minDToRoute
+          });
+        }
       }
     }
   }
 
   if (candidates.length === 0) return null;
 
-  candidates.sort((a, b) => b.density - a.density);
+  candidates.sort((a, b) => b.score - a.score);
   return candidates[0];
 }
 

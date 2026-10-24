@@ -1,5 +1,5 @@
 import React from 'react';
-import { Shield, RotateCcw, MapPin, Moon, Sun, SunMoon, SunMedium, Settings, Box, Map as MapIcon } from 'lucide-react';
+import { Shield, RotateCcw, Moon, Sun, SunMoon, Settings, Box, Map as MapIcon } from 'lucide-react';
 
 export default function Header({
   onResetPins,
@@ -24,36 +24,6 @@ export default function Header({
         <div className="brand-title-wrap">
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
             <h1 className="brand-title">UrbanShelter</h1>
-            <span style={{
-              fontSize: '0.68rem',
-              fontWeight: 700,
-              padding: '2px 8px',
-              borderRadius: '999px',
-              background: 'rgba(16, 185, 129, 0.18)',
-              color: '#10b981',
-              border: '1px solid rgba(16, 185, 129, 0.35)',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '3px'
-            }}>
-              <SunMedium size={10} />
-              그늘로 (Gneul-ro) 엔진 탑재
-            </span>
-            <span style={{
-              fontSize: '0.68rem',
-              fontWeight: 700,
-              padding: '2px 8px',
-              borderRadius: '999px',
-              background: 'rgba(56, 189, 248, 0.18)',
-              color: '#38bdf8',
-              border: '1px solid rgba(56, 189, 248, 0.35)',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '3px'
-            }}>
-              <MapPin size={10} />
-              전국 실시간 서비스
-            </span>
           </div>
           <span className="brand-tagline">
             실시간 건물 그늘 분석 기반 폭염 회피 & 방범 CCTV 안심 스마트 도보 라우팅

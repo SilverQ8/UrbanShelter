@@ -379,16 +379,6 @@ export default function Map3D({
           const [lng, lat] = [e.lngLat.lng, e.lngLat.lat];
           const popupId = `m3d-${Math.random().toString(36).slice(2, 8)}`;
 
-          const currentSun = latestRef.current.sunPos;
-          let shadeText = '일몰/야간 시간대 (그늘 분석 대기)';
-          if (currentSun && currentSun.isDaylight && currentSun.altitudeDeg > 0) {
-            const shadowLen = Math.round(height / Math.tan(Math.max(5, currentSun.altitudeDeg) * Math.PI / 180));
-            const shadowAzimuth = Math.round((currentSun.azimuthDeg + 180) % 360);
-            const dirs = ['북', '북동', '동', '남동', '남', '남서', '서', '북서'];
-            const dirName = dirs[Math.round(shadowAzimuth / 45) % 8];
-            shadeText = `태양 고도 ${Math.round(currentSun.altitudeDeg)}° 기준 약 <strong style="color:#34d399;">${shadowLen}m</strong> 그늘 형성 (${dirName}방향)`;
-          }
-
           const floorText = `~${Math.max(1, Math.round(height / 3.2))}층`;
 
           const renderHtml = (detail, loading = false) => {
@@ -421,14 +411,6 @@ export default function Map3D({
                   <span class="kakao-category-text">${category}</span>
                   <span class="kakao-floor-badge">${floorText}</span>
                 </div>
-
-                <!-- Realtime Sun Shadow Analysis -->
-                ${shadeText ? `
-                  <div class="kakao-shade-box">
-                    <span class="kakao-shade-icon">☀️</span>
-                    <span class="kakao-shade-desc">${shadeText}</span>
-                  </div>
-                ` : ''}
 
                 <!-- Address & Phone Info Body -->
                 <div class="kakao-body-info">

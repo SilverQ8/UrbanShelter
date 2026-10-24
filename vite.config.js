@@ -492,7 +492,7 @@ async function fetchOsmRoadStreetlights(minLat, minLng, maxLat, maxLng) {
   return [];
 }
 
-function addressSearchPlugin(cctvApiKey, buildingApiKey, streetlightApiKey, streetlightDataId = 'DSSP-IF-00084') {
+function addressSearchPlugin(cctvApiKey, buildingApiKey, streetlightApiKey, streetlightDataId = 'DSSP-IF-00084', kakaoApiKey = 'c8d493c6110cd5e37a14a82a89e3690e') {
   return {
     name: 'address-search-plugin',
     async configureServer(server) {
@@ -524,6 +524,66 @@ function addressSearchPlugin(cctvApiKey, buildingApiKey, streetlightApiKey, stre
         res.setHeader('Content-Type', 'application/json; charset=utf-8');
         res.setHeader('Access-Control-Allow-Origin', '*');
         res.end(JSON.stringify(items));
+      });
+
+      // Reverse geocoding endpoint for pinpoint building & road addresses
+      server.middlewares.use('/api/address/reverse', async (req, res) => {
+        res.setHeader('Content-Type', 'application/json; charset=utf-8');
+        res.setHeader('Access-Control-Allow-Origin', '*');
+
+        const reqUrl = new URL(req.url, 'http://localhost');
+        const lat = reqUrl.searchParams.get('lat');
+        const lng = reqUrl.searchParams.get('lng');
+
+        if (!lat || !lng) {
+          res.end(JSON.stringify({ success: false, message: 'lat and lng required' }));
+          return;
+        }
+
+        try {
+          const kakaoKey = kakaoApiKey || 'c8d493c6110cd5e37a14a82a89e3690e';
+          const headers = {
+            'Authorization': `KakaoAK ${kakaoKey}`,
+            'KA': 'sdk/1.0.0 os/javascript lang/ko-KR device/pc origin/http://localhost:5173'
+          };
+
+          const coordUrl = `https://dapi.kakao.com/v2/local/geo/coord2address.json?x=${encodeURIComponent(lng)}&y=${encodeURIComponent(lat)}`;
+          const coordResp = await fetch(coordUrl, { headers });
+          const coordJson = coordResp.ok ? await coordResp.json() : null;
+          const doc = coordJson?.documents?.[0];
+
+          let roadAddress = doc?.road_address?.address_name || '';
+          let buildingName = doc?.road_address?.building_name || '';
+          let zoneNo = doc?.road_address?.zone_no || '';
+          let jibunAddress = doc?.address?.address_name || '';
+          let bCode = doc?.address?.b_code || '';
+
+          if (!roadAddress && jibunAddress) {
+            const addrSearchUrl = `https://dapi.kakao.com/v2/local/search/address.json?query=${encodeURIComponent(jibunAddress)}`;
+            const sResp = await fetch(addrSearchUrl, { headers });
+            const sJson = sResp.ok ? await sResp.json() : null;
+            const sDoc = sJson?.documents?.[0];
+            if (sDoc) {
+              roadAddress = sDoc.road_address?.address_name || roadAddress;
+              buildingName = sDoc.road_address?.building_name || buildingName;
+              zoneNo = sDoc.road_address?.zone_no || zoneNo;
+              bCode = sDoc.address?.b_code || bCode;
+            }
+          }
+
+          res.end(JSON.stringify({
+            success: true,
+            roadAddress,
+            buildingName,
+            zoneNo,
+            jibunAddress,
+            bCode,
+            lat: parseFloat(lat),
+            lng: parseFloat(lng)
+          }));
+        } catch (err) {
+          res.end(JSON.stringify({ success: false, message: err.message }));
+        }
       });
 
       // Nationwide CCTV dynamic viewport endpoint
@@ -1019,8 +1079,9 @@ export default defineConfig(({ mode }) => {
   const streetlightApiKey = env.VITE_STREETLIGHT_API_KEY || process.env.VITE_STREETLIGHT_API_KEY || '';
   const streetlightDataId = env.VITE_STREETLIGHT_DATA_ID || process.env.VITE_STREETLIGHT_DATA_ID || 'DSSP-IF-00084';
 
+  const kakaoApiKey = env.VITE_KAKAO_MAP_API_KEY || 'c8d493c6110cd5e37a14a82a89e3690e';
   return {
-    plugins: [react(), addressSearchPlugin(cctvApiKey, buildingApiKey, streetlightApiKey, streetlightDataId)],
+    plugins: [react(), addressSearchPlugin(cctvApiKey, buildingApiKey, streetlightApiKey, streetlightDataId, kakaoApiKey)],
     server: {
       port: 5173,
       open: false,

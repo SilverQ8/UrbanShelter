@@ -23,8 +23,8 @@ export default function Dashboard({
   if (!recommendedRoute || !standardRoute) {
     return (
       <div className="glass-panel dashboard-card">
-        <div style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>
-          경로를 계산할 수 없습니다. 출발지와 도착지를 다른 지점으로 선택해 주세요.
+        <div style={{ color: 'var(--text-muted)', fontSize: '0.85rem', textAlign: 'center', padding: '6px 0' }}>
+          출발지와 도착지를 설정하여 안심 스마트 길찾기를 시작해 보세요.
         </div>
       </div>
     );

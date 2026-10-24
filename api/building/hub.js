@@ -49,6 +49,11 @@ const BJDONG_MAP = {
   }
 };
 
+const KAKAO_KEY = process.env.VITE_KAKAO_MAP_API_KEY || 'c8d493c6110cd5e37a14a82a89e3690e';
+
+/**
+ * 대한민국 전역(전국 17개 시도 250개 시군구) 주소를 국토교통부 건축물대장 코드(sigunguCd, bjdongCd, bun, ji)로 실시간 변환
+ */
 async function parseAddressToCodes(addr) {
   if (!addr) return null;
 
@@ -58,13 +63,74 @@ async function parseAddressToCodes(addr) {
     }
   }
 
+  // 1. 카카오 공식 주소 검색 API를 통해 대한민국 전역의 10자리 법정동 코드(b_code) 조회
+  try {
+    const kakaoUrl = `https://dapi.kakao.com/v2/local/search/address.json?query=${encodeURIComponent(addr)}`;
+    const resp = await fetch(kakaoUrl, {
+      headers: { Authorization: `KakaoAK ${KAKAO_KEY}` },
+      signal: AbortSignal.timeout(3500)
+    });
+
+    if (resp.ok) {
+      const json = await resp.json();
+      const doc = json.documents && json.documents[0];
+      if (doc && doc.address && doc.address.b_code) {
+        const bCode = String(doc.address.b_code);
+        const sigunguCd = bCode.slice(0, 5);
+        const bjdongCd = bCode.slice(5, 10);
+        const bun = String(doc.address.main_address_no || '1').padStart(4, '0');
+        const ji = String(doc.address.sub_address_no || '0').padStart(4, '0');
+        return { sigunguCd, bjdongCd, bun, ji };
+      }
+    }
+  } catch (err) {
+    // Kakao API 실패 시 키워드 검색 또는 로컬 파서로 폴백
+  }
+
+  // 2. 장소/건물명 키워드 검색으로 2차 조회
+  try {
+    const keywordUrl = `https://dapi.kakao.com/v2/local/search/keyword.json?query=${encodeURIComponent(addr)}&size=1`;
+    const resp = await fetch(keywordUrl, {
+      headers: { Authorization: `KakaoAK ${KAKAO_KEY}` },
+      signal: AbortSignal.timeout(3500)
+    });
+
+    if (resp.ok) {
+      const json = await resp.json();
+      const doc = json.documents && json.documents[0];
+      const addressName = doc?.address_name;
+      if (addressName) {
+        const subResp = await fetch(`https://dapi.kakao.com/v2/local/search/address.json?query=${encodeURIComponent(addressName)}`, {
+          headers: { Authorization: `KakaoAK ${KAKAO_KEY}` },
+          signal: AbortSignal.timeout(3500)
+        });
+        if (subResp.ok) {
+          const subJson = await subResp.json();
+          const subDoc = subJson.documents && subJson.documents[0];
+          if (subDoc && subDoc.address && subDoc.address.b_code) {
+            const bCode = String(subDoc.address.b_code);
+            return {
+              sigunguCd: bCode.slice(0, 5),
+              bjdongCd: bCode.slice(5, 10),
+              bun: String(subDoc.address.main_address_no || '1').padStart(4, '0'),
+              ji: String(subDoc.address.sub_address_no || '0').padStart(4, '0')
+            };
+          }
+        }
+      }
+    }
+  } catch (err) {
+    // 키워드 검색 실패 시 로컬 파서로 진행
+  }
+
+  // 3. Fallback: 주소 문자열 정규식 파싱
   let targetAddr = addr;
   if (addr.includes('로') || addr.includes('길')) {
     const jibun = await getJibunFromRoad(addr);
     if (jibun) targetAddr = jibun;
   }
 
-  let sigunguCd = '26350';
+  let sigunguCd = null;
   let bjdongCd = null;
 
   for (const [gu, info] of Object.entries(BJDONG_MAP)) {
@@ -80,19 +146,6 @@ async function parseAddressToCodes(addr) {
     }
   }
 
-  if (!bjdongCd) {
-    for (const [gu, info] of Object.entries(BJDONG_MAP)) {
-      for (const [dong, code] of Object.entries(info.dongs)) {
-        if (targetAddr.includes(dong)) {
-          sigunguCd = info.code;
-          bjdongCd = code;
-          break;
-        }
-      }
-      if (bjdongCd) break;
-    }
-  }
-
   let bun = '0001';
   let ji = '0000';
   const bunJiMatch = targetAddr.match(/(\d+)(?:-(\d+))?(?:\s*번지)?/);
@@ -101,7 +154,7 @@ async function parseAddressToCodes(addr) {
     ji = (bunJiMatch[2] || '0').padStart(4, '0');
   }
 
-  return { sigunguCd, bjdongCd, bun, ji };
+  return sigunguCd && bjdongCd ? { sigunguCd, bjdongCd, bun, ji } : null;
 }
 
 const buildingCache = new Map();

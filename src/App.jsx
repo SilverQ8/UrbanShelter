@@ -111,13 +111,13 @@ export default function App() {
     return d;
   }, [simulatedHour, isLiveTime, now]);
 
-  // High-precision geographic start and target locations
-  const [startPoint, setStartPoint] = useState(DEFAULT_START);
-  const [targetPoint, setTargetPoint] = useState(DEFAULT_TARGET);
+  // High-precision geographic start and target locations (초기 진입 시 빈 상태)
+  const [startPoint, setStartPoint] = useState(null);
+  const [targetPoint, setTargetPoint] = useState(null);
 
-  // 출발지 기준 현재 날씨(15분마다 갱신)
-  const weatherLat = Number(startPoint.lat.toFixed(2));
-  const weatherLng = Number(startPoint.lng.toFixed(2));
+  // 날씨 조회 좌표 (출발지 또는 기본 위치)
+  const weatherLat = startPoint?.lat ? Number(startPoint.lat.toFixed(2)) : 35.16;
+  const weatherLng = startPoint?.lng ? Number(startPoint.lng.toFixed(2)) : 129.16;
   useEffect(() => {
     const controller = new AbortController();
     const load = async () => {
@@ -135,8 +135,8 @@ export default function App() {
   const autoDecision = useMemo(() => decideAutoMode(weather, needs), [weather, needs]);
   const mode = isCar ? 'standard' : modeOverride === 'auto' ? autoDecision.mode : modeOverride;
 
-  const [startNodeId, setStartNodeId] = useState('N_HAE_STATION_3');
-  const [targetNodeId, setTargetNodeId] = useState('N_BEACH_EVENT');
+  const [startNodeId, setStartNodeId] = useState(null);
+  const [targetNodeId, setTargetNodeId] = useState(null);
   const [focusPoint, setFocusPoint] = useState(null);
   const [pinSelectMode, setPinSelectMode] = useState(null); // null | 'start' | 'target'
   // 지도 테마: 'auto'(해가 있으면 밝게, 없으면 어둡게) | 'light' | 'dark'
@@ -164,7 +164,7 @@ export default function App() {
   }, []);
   const mapTheme =
     mapThemeSetting === 'auto'
-      ? getSunPosition(clock, startPoint.lat, startPoint.lng).isDaylight
+      ? getSunPosition(clock, startPoint?.lat || 35.1595, startPoint?.lng || 129.1602).isDaylight
         ? 'light'
         : 'dark'
       : mapThemeSetting;
@@ -179,9 +179,7 @@ export default function App() {
 
   // Visualization layer toggles
   const [layers, setLayers] = useState({
-    buildingHeight: true,
     buildingInfo: true,
-    buildings: true,
     trees: true,
     cctv: true,
     streetlight: true
@@ -195,6 +193,10 @@ export default function App() {
     let isCancelled = false;
 
     async function loadBaseRoute() {
+      if (!startPoint || !targetPoint) {
+        setBaseRoute(null);
+        return;
+      }
       const result = await fetchOsrmPedestrianPath(startPoint.lat, startPoint.lng, targetPoint.lat, targetPoint.lng, travelMode);
       if (!isCancelled) {
         setBaseRoute(result);
@@ -262,12 +264,19 @@ export default function App() {
     let isCancelled = false;
 
     async function loadNightDetour() {
+      if (!startPoint || !targetPoint) {
+        setNightBaseRoute(null);
+        return;
+      }
       const safetyWaypoint = findBestSafetyWaypoint(baseRoute.latlngs, startPoint.lat, startPoint.lng, targetPoint.lat, targetPoint.lng, routeStreetlights);
       if (safetyWaypoint) {
         const detour = await fetchOsrmPedestrianPath(startPoint.lat, startPoint.lng, targetPoint.lat, targetPoint.lng, 'foot', [safetyWaypoint]);
         if (!isCancelled && detour && detour.latlngs && detour.latlngs.length > 2) {
-          setNightBaseRoute(detour);
-          return;
+          // 본래 최단 경로보다 거리가 18% 이상 길어지는 비정상 왜곡 골목 우회는 기각하고 기본 경로 채택
+          if (detour.totalDistance <= baseRoute.totalDistance * 1.18) {
+            setNightBaseRoute(detour);
+            return;
+          }
         }
       }
       if (!isCancelled) setNightBaseRoute(null);
@@ -304,8 +313,12 @@ export default function App() {
   // 2. Synchronous Instant Astronomical Sun Position & 3D Building Shadows (0ms Latency!)
   // Directly recalculates at 60 FPS as you drag the time slider
   const sunPos = useMemo(() => {
-    const centerLat = (startPoint.lat + targetPoint.lat) / 2;
-    const centerLng = (startPoint.lng + targetPoint.lng) / 2;
+    const centerLat = (startPoint && targetPoint)
+      ? (startPoint.lat + targetPoint.lat) / 2
+      : (startPoint?.lat || 35.1595);
+    const centerLng = (startPoint && targetPoint)
+      ? (startPoint.lng + targetPoint.lng) / 2
+      : (startPoint?.lng || 129.1602);
     const pos = getSunPosition(activeDate, centerLat, centerLng);
     if (weather && typeof weather.uv === 'number') {
       pos.realUvIndex = weather.uv;
@@ -487,10 +500,10 @@ export default function App() {
 
   // Reset to default location
   const handleResetPins = () => {
-    setStartPoint(DEFAULT_START);
-    setTargetPoint(DEFAULT_TARGET);
-    setStartNodeId('N_HAE_STATION_3');
-    setTargetNodeId('N_BEACH_EVENT');
+    setStartPoint(null);
+    setTargetPoint(null);
+    setStartNodeId(null);
+    setTargetNodeId(null);
     setModeOverride('auto');
     setShowGuide(false);
     setIsLiveTime(true);
@@ -795,6 +808,7 @@ export default function App() {
           travelMode={travelMode}
           locateTarget={locateTarget}
           poiSelected={poiSelected}
+          pois={poiData.pois}
         />
         )}
 

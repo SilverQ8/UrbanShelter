@@ -219,12 +219,12 @@ function queryNearbyPoi(places, location, resolve) {
 }
 
 /**
- * Fetch detailed building & POI information for a specific building using Kakao Maps SDK
- * Queries Kakao Geocoder (reverse geocoding) and Places (keyword & category)
- * @param {{ lat: number, lng: number, name?: string }} param0
+ * Fetch detailed building & POI information for a specific building using Kakao Maps SDK & Backend API
+ * Queries Kakao Geocoder, Places, and Architectural Registry (건축HUB)
+ * @param {{ lat: number, lng: number, name?: string, category?: string }} param0
  * @returns {Promise<Object>} Detailed building info
  */
-export async function fetchKakaoBuildingDetail({ lat, lng, name }) {
+export async function fetchKakaoBuildingDetail({ lat, lng, name, category }) {
   if (!lat || !lng) return null;
 
   const cacheKey = `${Number(lat).toFixed(5)}_${Number(lng).toFixed(5)}`;
@@ -236,10 +236,15 @@ export async function fetchKakaoBuildingDetail({ lat, lng, name }) {
 
   let detail = {
     name: cleanInitialName,
+    officialBuildingName: '',
+    groundFloors: null,
+    undergroundFloors: null,
+    buildingHeight: null,
+    mainPurps: '',
     roadAddress: '',
     jibunAddress: '',
     zoneNo: '',
-    category: '',
+    category: category || '',
     phone: '',
     placeUrl: '',
     roadviewUrl: `https://map.kakao.com/link/roadview/${lat},${lng}`,
@@ -293,8 +298,9 @@ export async function fetchKakaoBuildingDetail({ lat, lng, name }) {
         detail.roadAddress = addrRes.roadAddress || detail.roadAddress;
         detail.jibunAddress = addrRes.jibunAddress || detail.jibunAddress;
         detail.zoneNo = addrRes.zoneNo || detail.zoneNo;
-        if (addrRes.buildingName && !detail.name) {
-          detail.name = addrRes.buildingName;
+        if (addrRes.buildingName) {
+          detail.officialBuildingName = addrRes.buildingName;
+          if (!detail.name) detail.name = addrRes.buildingName;
         }
       }
 
@@ -313,26 +319,52 @@ export async function fetchKakaoBuildingDetail({ lat, lng, name }) {
     }
   }
 
-  // Fallback to backend address search if roadAddress or name still missing
-  if (!detail.roadAddress || !detail.name) {
+  // 3. Backend Reverse Geocoding Fallback (100% 보장: 도로명, 지번, 우편번호)
+  if (!detail.roadAddress || !detail.jibunAddress) {
     try {
-      const q = detail.name || detail.roadAddress || `${lat.toFixed(4)},${lng.toFixed(4)}`;
-      const res = await fetch(`/api/address/search?q=${encodeURIComponent(q)}`);
+      const res = await fetch(`/api/address/reverse?lat=${lat}&lng=${lng}`);
       if (res.ok) {
-        const items = await res.json();
-        if (Array.isArray(items) && items.length > 0) {
-          const match = items[0];
-          if (!detail.name) detail.name = match.name;
-          if (!detail.roadAddress) detail.roadAddress = match.roadAddress;
-          if (!detail.category) detail.category = match.category;
+        const rev = await res.json();
+        if (rev.success) {
+          if (!detail.roadAddress) detail.roadAddress = rev.roadAddress || '';
+          if (!detail.jibunAddress) detail.jibunAddress = rev.jibunAddress || '';
+          if (!detail.zoneNo) detail.zoneNo = rev.zoneNo || '';
+          if (rev.buildingName && !detail.officialBuildingName) {
+            detail.officialBuildingName = rev.buildingName;
+            if (!detail.name) detail.name = rev.buildingName;
+          }
         }
       }
     } catch {
-      // ignore fallback error
+      // ignore
     }
   }
 
-  // Fallback to local landmark if nearby
+  // 4. 건축HUB 건축물대장 표제부 연동 (지상 층수, 높이, 공식 건물명, 용도)
+  const targetAddressForHub = detail.roadAddress || detail.jibunAddress;
+  if (targetAddressForHub) {
+    try {
+      const hubRes = await fetch(`/api/building/hub?address=${encodeURIComponent(targetAddressForHub)}`);
+      if (hubRes.ok) {
+        const hubData = await hubRes.json();
+        if (hubData.success && hubData.building) {
+          const b = hubData.building;
+          detail.groundFloors = b.grndFlrCnt || detail.groundFloors;
+          detail.undergroundFloors = b.ugrndFlrCnt || detail.undergroundFloors;
+          detail.buildingHeight = b.calculatedHeight || b.heit || detail.buildingHeight;
+          detail.mainPurps = b.mainPurpsCdNm || detail.mainPurps;
+          if (b.bldNm && b.bldNm !== '일반건축물') {
+            detail.officialBuildingName = b.bldNm;
+            if (!detail.name) detail.name = b.bldNm;
+          }
+        }
+      }
+    } catch {
+      // ignore hub error
+    }
+  }
+
+  // 5. Fallback to local landmark if nearby
   if (!detail.name) {
     try {
       const { HAEUNDAE_PLACES } = await import('../data/haeundaePlaces');
@@ -352,7 +384,7 @@ export async function fetchKakaoBuildingDetail({ lat, lng, name }) {
   }
 
   if (!detail.name) {
-    detail.name = detail.roadAddress ? detail.roadAddress.split(' ').slice(-2).join(' ') + ' 건물' : '도심 빌딩';
+    detail.name = detail.officialBuildingName || (detail.roadAddress ? detail.roadAddress.split(' ').slice(-2).join(' ') + ' 건물' : '도심 빌딩');
   }
   if (!detail.category) {
     detail.category = '일반 건축물';

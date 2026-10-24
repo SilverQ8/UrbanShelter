@@ -8,6 +8,7 @@ import { formatDistance, formatDuration } from '../utils/format';
 import { filterValidUrbanMarkers, isInvalidOceanCoordinate } from '../utils/geoSanity';
 import { normalizeFacilityDataset } from '../utils/geoConverter';
 import { searchKakaoBuildings, fetchKakaoBuildingDetail } from '../services/kakaoService';
+import { POI_CATEGORIES } from '../data/poiCategories';
 
 export default function MapComponent({
   userGps,
@@ -35,11 +36,13 @@ export default function MapComponent({
   trees = [],
   travelMode = 'foot',
   locateTarget = null,
-  poiSelected = {}
+  poiSelected = {},
+  pois = []
 }) {
   const mapContainerRef = useRef(null);
   const mapInstanceRef = useRef(null);
   const basemapRef = useRef(null);
+  const poiLayerRef = useRef(null);
   const latestThemeRef = useRef(mapTheme);
   const latestPoiRef = useRef(poiSelected);
   latestThemeRef.current = mapTheme;
@@ -115,6 +118,7 @@ export default function MapComponent({
     // 건물 윤곽·가로수는 CCTV·가로등·경로보다 아래에 깐다
     buildingLayerRef.current = L.layerGroup().addTo(map);
     kakaoBuildingLayerRef.current = L.layerGroup().addTo(map);
+    poiLayerRef.current = L.layerGroup().addTo(map);
     treeLayerRef.current = L.layerGroup().addTo(map);
 
     cctvLayerRef.current = L.layerGroup().addTo(map);
@@ -242,36 +246,28 @@ export default function MapComponent({
       ? `지상 ${bld.groundFloors}층 (공식 표제부)`
       : `~${Math.max(1, Math.round(height / 3.2))}층${bld.heightSource === 'estimate' ? ' (추정)' : ''}`;
 
-    const sourceTag = bld.heightSource === 'official_heit'
-      ? '국토교통부 실측'
-      : bld.heightSource === 'official_floor_calc'
-      ? '건축HUB 표제부'
-      : bld.heightSource === 'estimate'
-      ? 'OSM 건축 데이터'
-      : '공식 데이터';
-
-    const currentSun = latestSunPosRef.current;
-    let shadeText = '일몰/야간 시간대 (그늘 분석 대기)';
-    if (currentSun && currentSun.isDaylight && currentSun.altitudeDeg > 0) {
-      const shadowLen = Math.round(height / Math.tan(Math.max(5, currentSun.altitudeDeg) * Math.PI / 180));
-      const shadowAzimuth = Math.round((currentSun.azimuthDeg + 180) % 360);
-      const dirs = ['북', '북동', '동', '남동', '남', '남서', '서', '북서'];
-      const dirName = dirs[Math.round(shadowAzimuth / 45) % 8];
-      shadeText = `태양 고도 ${Math.round(currentSun.altitudeDeg)}° 기준 약 <strong style="color:#34d399;">${shadowLen}m</strong> 그늘 형성 (${dirName}방향 · 폭염 차폐)`;
-    }
-
     const initialTitle = (bld.name && bld.name !== '건물' && !bld.name.startsWith('osm_')
       ? bld.name
       : '도심 건축물').replace(/[\uFFFD\uFFFE\uFEFF]/g, '').trim();
 
-
     const renderHtml = (detail, loading = false) => {
       const title = detail?.name || initialTitle;
+      const officialName = detail?.officialBuildingName && detail.officialBuildingName !== title
+        ? detail.officialBuildingName
+        : '';
       const category = detail?.category || bld.category || (bld.height ? `건물 · 높이 ${height}m` : '도심 시설');
       const road = detail?.roadAddress || bld.address || '';
       const jibun = detail?.jibunAddress || '';
       const zoneNo = detail?.zoneNo || '';
       const phone = detail?.phone || bld.phone || '';
+
+      const groundFlrs = detail?.groundFloors || bld.groundFloors;
+      const underFlrs = detail?.undergroundFloors;
+      const bHeight = detail?.buildingHeight || height;
+      const flrBadge = groundFlrs
+        ? `지상 ${groundFlrs}층${underFlrs ? ` · 지하 ${underFlrs}층` : ''} (${bHeight}m)`
+        : (bld.height ? floorText : '');
+
       const roadviewUrl = detail?.roadviewUrl || `https://map.kakao.com/link/roadview/${centerLat},${centerLng}`;
       const kakaoMapUrl = detail?.placeUrl || detail?.searchUrl || `https://map.kakao.com/link/search/${encodeURIComponent(title)}`;
 
@@ -289,33 +285,35 @@ export default function MapComponent({
             </a>
           </div>
 
+          <!-- Official Building Name & Floors if Available -->
+          ${officialName ? `
+            <div style="font-size:12px; font-weight:700; color:#0284c7; margin-top:-2px;">
+              🏢 ${officialName}
+            </div>
+          ` : ''}
+
           <!-- Category & Height Meta -->
           <div class="kakao-category-row">
             <span class="kakao-category-text">${category}</span>
-            ${bld.height ? `<span class="kakao-floor-badge">${floorText}</span>` : ''}
+            ${flrBadge ? `<span class="kakao-floor-badge">${flrBadge}</span>` : ''}
           </div>
-
-          <!-- Realtime Sun Shadow Analysis (UrbanShelter feature) -->
-          ${shadeText ? `
-            <div class="kakao-shade-box">
-              <span class="kakao-shade-icon">☀️</span>
-              <span class="kakao-shade-desc">${shadeText}</span>
-            </div>
-          ` : ''}
 
           <!-- Address & Phone Info Body -->
           <div class="kakao-body-info">
             ${loading ? `
               <div class="kakao-loading-row">
                 <span class="kakao-spinner"></span>
-                <span>카카오 실시간 공식 주소 조회 중...</span>
+                <span>실시간 공식 건물 정보 및 주소 조회 중...</span>
               </div>
             ` : `
-              ${road ? `<div class="kakao-road-line">${road}</div>` : ''}
-              ${(jibun || zoneNo) ? `
+              ${road ? `
+                <div class="kakao-road-line">
+                  📍 ${road} ${zoneNo ? `<span class="kakao-zone-no">(우 ${zoneNo})</span>` : ''}
+                </div>
+              ` : ''}
+              ${jibun ? `
                 <div class="kakao-jibun-line">
-                  ${zoneNo ? `<span class="kakao-zone-no">(우) ${zoneNo}</span>` : ''}
-                  ${jibun ? `<span class="kakao-jibun-addr">(지번) ${jibun}</span>` : ''}
+                  <span class="kakao-jibun-addr">(지번) ${jibun}</span>
                 </div>
               ` : ''}
               ${phone ? `
@@ -341,10 +339,10 @@ export default function MapComponent({
             <button id="btn-copy-${popupId}" class="kakao-sublink-btn">주소 복사</button>
           </div>
 
-          <!-- Action Footer: [출발] & [+ 길찾기] -->
+          <!-- Action Footer: [출발지로] & [도착지 길찾기] -->
           <div class="kakao-footer-actions">
             <button id="btn-start-${popupId}" class="kakao-action-start" title="출발지로 설정">
-              <span>출발</span>
+              <span>출발지로</span>
             </button>
             <button id="btn-target-${popupId}" class="kakao-action-directions" title="도착지로 설정하고 길찾기">
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
@@ -405,11 +403,12 @@ export default function MapComponent({
 
     bindButtons(initialTitle, null);
 
-    // Fetch Kakao detail in background
+    // Fetch Kakao & 건축HUB detail in background
     fetchKakaoBuildingDetail({
       lat: centerLat,
       lng: centerLng,
-      name: bld.name
+      name: bld.name,
+      category: bld.category
     }).then((detail) => {
       if (!popup.isOpen()) return;
       const resolvedTitle = detail?.name || initialTitle;
@@ -424,107 +423,68 @@ export default function MapComponent({
     });
   };
 
-
-  // 2. Render 3D Building Footprints (Elevated Glowing Blocks with Click Interaction)
+  // 주변 장소 (병원, 약국, 편의점, 지하철 등) 선택된 칩에 따른 실시간 지도 핀 렌더링
   useEffect(() => {
-    const buildingLayer = buildingLayerRef.current;
-    if (!buildingLayer) return;
-    buildingLayer.clearLayers();
+    const poiLayer = poiLayerRef.current;
+    if (!poiLayer) return;
+    poiLayer.clearLayers();
 
-    const showHeight = layers.buildingHeight !== false;
-    const showInfo = layers.buildingInfo !== false;
-    const showBuildings = showHeight || showInfo || layers.buildings;
-    if (!showBuildings) return;
+    if (!pois || pois.length === 0) return;
 
-    let badgeCount = 0;
-    for (const b of buildings) {
-      const dense = buildings.length > 100;
-      const poly = L.polygon(b.polygon, {
-        color: '#38bdf8',
-        weight: dense ? 1.2 : 2,
-        opacity: dense ? 0.45 : 0.85,
-        fillColor: mapTheme === 'dark' ? '#0369a1' : '#0284c7',
-        fillOpacity: dense ? 0.18 : 0.45,
-        className: showInfo ? 'building-polygon-interactive' : ''
+    // 활성화된 카테고리 확인
+    const activeCategories = Object.keys(poiSelected).filter(k => poiSelected[k]);
+    if (activeCategories.length === 0) return;
+
+    const catMap = new Map(POI_CATEGORIES.map(c => [c.id, c]));
+
+    for (const p of pois) {
+      if (!poiSelected[p.category]) continue;
+      const catInfo = catMap.get(p.category) || { emoji: '📍', color: '#38bdf8', label: '장소' };
+
+      const isSubway = p.category === 'subway';
+      const markerSize = isSubway ? 30 : 28;
+      const poiIcon = L.divIcon({
+        className: 'poi-custom-marker',
+        html: `
+          <div style="background: ${catInfo.color}; color: #ffffff; width: ${markerSize}px; height: ${markerSize}px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: ${isSubway ? 15 : 13}px; box-shadow: 0 3px 8px rgba(0,0,0,0.5); border: 2.2px solid #ffffff; cursor: pointer; transition: transform 0.15s ease;">
+            ${catInfo.emoji}
+          </div>
+        `,
+        iconSize: [markerSize, markerSize],
+        iconAnchor: [markerSize / 2, markerSize / 2]
       });
 
-      const floorText = b.groundFloors
-        ? `지상 ${b.groundFloors}층 (공식 표제부)`
-        : `~${Math.max(1, Math.round(b.height / 3.2))}층${b.heightSource === 'estimate' ? ' (추정)' : ''}`;
+      const marker = L.marker([p.lat, p.lng], { icon: poiIcon });
+      const placeName = p.name || catInfo.label;
 
-      const sourceTag = b.heightSource === 'official_heit'
-        ? ' · 국토교통부 실측'
-        : b.heightSource === 'official_floor_calc'
-        ? ' · 건축HUB 층수 계산'
-        : b.heightSource === 'estimate'
-        ? ' · 추정값'
-        : '';
+      const tooltipText = isSubway
+        ? `<strong>${catInfo.emoji} ${placeName}</strong><br/><span style="color:#a78bfa; font-size:11px; font-weight:700;">지하철역${p.entranceCount > 1 ? ` · ${p.entranceCount}개 출구 연결` : ''}</span>`
+        : `<strong>${catInfo.emoji} ${placeName}</strong><br/><span style="color:${catInfo.color}; font-size:11px; font-weight:700;">${catInfo.label}</span>`;
 
-      const tooltipContent = showHeight
-        ? `<strong>🏢 ${b.name}</strong><br/>` +
-          `<span style="color:#38bdf8; font-size:11px;">건물 높이: ${b.height}m (${floorText}${sourceTag})</span><br/>` +
-          (showInfo ? `<span style="color:#67e8f9; font-size:10px;">🖱️ 클릭하여 카카오 건물 정보·로드뷰 보기</span>` : '')
-        : `<strong>🏢 ${b.name}</strong><br/>` +
-          (showInfo ? `<span style="color:#67e8f9; font-size:10px;">🖱️ 클릭하여 카카오 건물 정보·로드뷰 보기</span>` : `<span style="color:#94a3b8; font-size:10px;">도심 건축물</span>`);
-
-      poly.bindTooltip(tooltipContent, { className: 'route-tooltip-custom' });
-
-      poly.on('mouseover', () => {
-        poly.setStyle({
-          color: '#67e8f9',
-          weight: 3,
-          opacity: 1,
-          fillColor: '#0ea5e9',
-          fillOpacity: 0.65
-        });
+      marker.bindTooltip(tooltipText, {
+        className: 'route-tooltip-custom',
+        offset: [0, -10]
       });
 
-      poly.on('mouseout', () => {
-        poly.setStyle({
-          color: '#38bdf8',
-          weight: dense ? 1.2 : 2,
-          opacity: dense ? 0.45 : 0.85,
-          fillColor: mapTheme === 'dark' ? '#0369a1' : '#0284c7',
-          fillOpacity: dense ? 0.18 : 0.45
-        });
+      // 클릭 시 실시간 공식 건물/장소 상세정보 및 로드뷰 팝업 연동
+      marker.on('click', () => {
+        openBuildingDetailPopup({
+          id: p.id,
+          name: placeName,
+          category: catInfo.label,
+          lat: p.lat,
+          lng: p.lng
+        }, [p.lat, p.lng]);
       });
 
-      if (showInfo) {
-        poly.on('click', (e) => {
-          openBuildingDetailPopup(b, e.latlng);
-        });
-      }
-
-      buildingLayer.addLayer(poly);
-
-      // 건물 높이 배지 표시 (layers.buildingHeight가 true 및 zoom >= 16일 때만 지도에 부착)
-      const currentZoom = mapInstanceRef.current ? mapInstanceRef.current.getZoom() : 16;
-      if (showHeight && currentZoom >= 16) {
-        if (b.heightSource === 'estimate' && b.height < 30) continue;
-        if (badgeCount >= 40) continue;
-        const centerLat = b.polygon.reduce((sum, p) => sum + p[0], 0) / b.polygon.length;
-        const centerLng = b.polygon.reduce((sum, p) => sum + p[1], 0) / b.polygon.length;
-        badgeCount += 1;
-        const bldIcon = L.divIcon({
-          className: 'building-height-badge',
-          html: `
-            <div style="background: rgba(15, 23, 42, 0.90); color: #38bdf8; padding: 1.5px 5px; border-radius: 4px; font-size: 9.5px; font-weight: 700; border: 1.2px solid rgba(56,189,248,0.65); white-space: nowrap; box-shadow: 0 2px 8px rgba(0,0,0,0.6); cursor: ${showInfo ? 'pointer' : 'default'};">
-              🏢 ${b.height}m
-            </div>
-          `,
-          iconSize: [44, 18],
-          iconAnchor: [22, 9]
-        });
-        const badgeMarker = L.marker([centerLat, centerLng], { icon: bldIcon, interactive: showInfo });
-        if (showInfo) {
-          badgeMarker.on('click', () => {
-            openBuildingDetailPopup(b, [centerLat, centerLng]);
-          });
-        }
-        buildingLayer.addLayer(badgeMarker);
-      }
+      poiLayer.addLayer(marker);
     }
-  }, [layers.buildings, layers.buildingHeight, layers.buildingInfo, mapTheme, buildings]);
+  }, [pois, poiSelected, setStartPoint, setTargetPoint]);
+
+  // 2-1. 건물 높이 배지 및 폴리곤은 지도에 표기하지 않음 (그늘 분석용으로만 백그라운드 활용)
+  useEffect(() => {
+    if (buildingLayerRef.current) buildingLayerRef.current.clearLayers();
+  }, [buildings]);
 
   // 2-2. Render Kakao Real-time Building & Landmark Information (With Zoom LOD & Collision Avoidance)
   useEffect(() => {

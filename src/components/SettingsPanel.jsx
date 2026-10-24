@@ -1,11 +1,10 @@
 import React, { useState } from 'react';
-import { X, Check, Sun, Building, Trees, Video, Clock, Lightbulb, ArrowUpToLine, Info } from 'lucide-react';
+import { X, Check, Sun, Building, Trees, Video, Clock, Lightbulb, Info } from 'lucide-react';
 import { NEED_OPTIONS } from '../utils/profile';
 import { MODE_LABELS } from '../utils/autoRouting';
 import TravelModeToggle from './TravelModeToggle';
 
 const LAYER_ITEMS = [
-  { key: 'buildingHeight', label: '건물 높이 (3D 높이 배지)', icon: ArrowUpToLine, color: '#38bdf8' },
   { key: 'buildingInfo', label: '건물 정보 (카카오 연동)', icon: Info, color: '#0ea5e9' },
   { key: 'trees', label: '가로수 그늘', icon: Trees, color: '#10b981' },
   { key: 'cctv', label: '방범 CCTV', icon: Video, color: '#38bdf8' },
