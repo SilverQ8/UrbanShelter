@@ -2192,6 +2192,46 @@ input:checked + .switch-slider:before {
 }
 
 /* =========================================================
+   Safety Coverage Zones (CCTV 20m Dome & Streetlight 15m Glow)
+   ========================================================= */
+
+.cctv-coverage-zone {
+  cursor: pointer;
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.cctv-coverage-zone:hover {
+  filter: drop-shadow(0 0 8px rgba(56, 189, 248, 0.85));
+}
+
+.cctv-core-dot {
+  cursor: pointer;
+  transition: transform 0.2s ease;
+}
+
+.cctv-core-dot:hover {
+  transform: scale(1.8);
+}
+
+.streetlight-lighting-zone {
+  cursor: pointer;
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.streetlight-lighting-zone:hover {
+  filter: drop-shadow(0 0 8px rgba(251, 191, 36, 0.85));
+}
+
+.streetlight-core-dot {
+  cursor: pointer;
+  transition: transform 0.2s ease;
+}
+
+.streetlight-core-dot:hover {
+  transform: scale(1.8);
+}
+
+/* =========================================================
    Interactive Building Information Popup (Kakao API & 3D Height)
    ========================================================= */
 

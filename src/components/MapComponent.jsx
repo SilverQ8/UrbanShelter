@@ -781,39 +781,44 @@ export default function MapComponent({
         cctvLayer.clearLayers();
 
         for (const cam of prioritizedCctvs) {
-          if (zoom >= 16) {
-            const circle = L.circle([cam.lat, cam.lng], {
-              radius: cam.radius || 20,
-              color: '#0284c7',
-              weight: 1.2,
-              opacity: 0.6,
-              fillColor: '#38bdf8',
-              fillOpacity: 0.16
-            });
-            circle.bindTooltip(`📹 ${cam.name}<br/>안전반경 20m`, { className: 'route-tooltip-custom' });
-            cctvLayer.addLayer(circle);
-          }
+          const tooltipContent = `
+            <strong>📹 방범 CCTV</strong><br/>
+            <span style="color:#38bdf8; font-weight:700;">감시범위: 반경 ${cam.radius || 20}m</span><br/>
+            <span style="color:#94a3b8; font-size:11px;">관할: ${cam.manager || '관할 지자체'}</span>
+          `;
 
-          const size = zoom >= 16 ? 18 : zoom >= 14 ? 13 : 10;
-          const cctvIcon = L.divIcon({
-            className: 'cctv-badge',
-            html: `<div style="background: #0284c7; color: white; width: ${size}px; height: ${size}px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: ${zoom >= 16 ? 9 : zoom >= 14 ? 7 : 5}px; font-weight: bold; border: 1.5px solid #ffffff; box-shadow: 0 0 8px rgba(56,189,248,0.8); cursor: pointer;">📹</div>`,
-            iconSize: [size, size],
-            iconAnchor: [size / 2, size / 2]
+          // 1. 방범 CCTV 20m 감시 구역 (Neon Cyan Safety Dome)
+          const circle = L.circle([cam.lat, cam.lng], {
+            radius: cam.radius || 20,
+            color: '#0284c7',
+            weight: 1.2,
+            opacity: 0.65,
+            fillColor: '#38bdf8',
+            fillOpacity: zoom >= 16 ? 0.22 : 0.16,
+            className: 'cctv-coverage-zone'
           });
 
-          const tooltipContent = `
-            <strong>📹 ${cam.name}</strong><br/>
-            <span style="color:#94a3b8; font-size:11px;">${cam.address || ''}</span><br/>
-            <div style="margin-top:4px; font-size:11px;">
-              설치목적: <span style="color:#38bdf8;">${cam.purpose || '방범'}</span> | 
-              카메라: <span style="color:#34d399;">${cam.cameraCount || 1}대</span><br/>
-              관리기관: ${cam.manager || '관할구청'} (안전반경 20m)
-            </div>
-          `;
-          const marker = L.marker([cam.lat, cam.lng], { icon: cctvIcon });
-          marker.bindTooltip(tooltipContent, { className: 'route-tooltip-custom' });
-          cctvLayer.addLayer(marker);
+          // 마우스 호버 시 감시 구역 밝기 강조
+          circle.on('mouseover', () => {
+            circle.setStyle({ weight: 2.2, opacity: 0.95, fillOpacity: 0.40, color: '#38bdf8' });
+          });
+          circle.on('mouseout', () => {
+            circle.setStyle({ weight: 1.2, opacity: 0.65, fillOpacity: zoom >= 16 ? 0.22 : 0.16, color: '#0284c7' });
+          });
+
+          circle.bindTooltip(tooltipContent, { className: 'route-tooltip-custom', sticky: true });
+          cctvLayer.addLayer(circle);
+
+          // 2. 중심점: 번잡한 이모지 뱃지 대신 세련된 6px 네온 센서 코어 (지도를 가리지 않음)
+          const sensorIcon = L.divIcon({
+            className: 'cctv-core-dot',
+            html: `<div style="width: 6px; height: 6px; border-radius: 50%; background: #38bdf8; border: 1.5px solid #ffffff; box-shadow: 0 0 8px rgba(56,189,248,0.95); cursor: pointer;"></div>`,
+            iconSize: [6, 6],
+            iconAnchor: [3, 3]
+          });
+          const dotMarker = L.marker([cam.lat, cam.lng], { icon: sensorIcon });
+          dotMarker.bindTooltip(tooltipContent, { className: 'route-tooltip-custom' });
+          cctvLayer.addLayer(dotMarker);
         }
       } catch (err) {
         if (err.name !== 'AbortError') {
@@ -906,48 +911,44 @@ export default function MapComponent({
         streetlightLayer.clearLayers();
 
         for (const light of prioritizedLights) {
-          if (zoom >= 16) {
-            // 15m radius warm illumination buffer (Golden-Amber glow)
-            const circle = L.circle([light.lat, light.lng], {
-              radius: light.radius || 15,
-              color: '#f59e0b',
-              weight: 1.2,
-              opacity: 0.65,
-              fillColor: '#fbbf24',
-              fillOpacity: 0.18
-            });
-            circle.bindTooltip(`💡 ${light.name}<br/>안심 조명반경 15m`, { className: 'route-tooltip-custom' });
-            streetlightLayer.addLayer(circle);
-          }
+          const tooltipContent = `
+            <strong>💡 안심 가로등</strong><br/>
+            <span style="color:#fbbf24; font-weight:700;">조명범위: 반경 ${light.radius || 15}m</span><br/>
+            <span style="color:#94a3b8; font-size:11px;">관할: ${light.manager || '관할 지자체'}</span>
+          `;
 
-          const size = zoom >= 16 ? 18 : zoom >= 14 ? 13 : 10;
-          const lightIcon = L.divIcon({
-            className: 'streetlight-badge',
-            html: `<div style="background: #d97706; color: #fffbeb; width: ${size}px; height: ${size}px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: ${zoom >= 16 ? 10 : zoom >= 14 ? 7 : 5}px; font-weight: bold; border: 1.5px solid #fef3c7; box-shadow: 0 0 10px rgba(245,158,11,0.9); cursor: pointer;">💡</div>`,
-            iconSize: [size, size],
-            iconAnchor: [size / 2, size / 2]
+          // 1. 가로등 15m 안심 조명길 (Warm Amber Glow Lighting Zone)
+          const circle = L.circle([light.lat, light.lng], {
+            radius: light.radius || 15,
+            color: '#f59e0b',
+            weight: 1.0,
+            opacity: 0.60,
+            fillColor: '#fbbf24',
+            fillOpacity: zoom >= 16 ? 0.24 : 0.16,
+            className: 'streetlight-lighting-zone'
           });
 
-          const typeLabel = light.type === 'smart_led' ? '스마트 LED 안심등'
-            : light.type === 'coastal_led' ? '해안 보행로 고효율 LED'
-            : light.type === 'smart_security' ? '스마트 보안등'
-            : light.type === 'security' ? '골목길 안심보안등'
-            : light.type === 'solar_led' ? '친환경 태양광 LED'
-            : '표준 보행 가로등';
+          // 마우스 호버 시 조명 밝기 강조
+          circle.on('mouseover', () => {
+            circle.setStyle({ weight: 2.2, opacity: 0.95, fillOpacity: 0.42, color: '#fde047' });
+          });
+          circle.on('mouseout', () => {
+            circle.setStyle({ weight: 1.0, opacity: 0.60, fillOpacity: zoom >= 16 ? 0.24 : 0.16, color: '#f59e0b' });
+          });
 
-          const tooltipContent = `
-            <strong>💡 ${light.name}</strong><br/>
-            <span style="color:#94a3b8; font-size:11px;">${light.address || ''}</span><br/>
-            <div style="margin-top:4px; font-size:11px;">
-              조명종류: <span style="color:#f59e0b;">${typeLabel}</span><br/>
-              조명밝기: <span style="color:#fbbf24; font-weight:600;">${light.lumens ? light.lumens.toLocaleString() + ' lm' : '고조도 LED'}</span> | 
-              조명반경: <span style="color:#34d399;">15m 안심조명구역</span><br/>
-              관리기관: ${light.manager || '관할구청 도로시설과'}
-            </div>
-          `;
-          const marker = L.marker([light.lat, light.lng], { icon: lightIcon });
-          marker.bindTooltip(tooltipContent, { className: 'route-tooltip-custom' });
-          streetlightLayer.addLayer(marker);
+          circle.bindTooltip(tooltipContent, { className: 'route-tooltip-custom', sticky: true });
+          streetlightLayer.addLayer(circle);
+
+          // 2. 중심점: 번잡한 이모지 뱃지 대신 세련된 5px 앰버 라이트 코어 (지도를 가리지 않음)
+          const lightCoreIcon = L.divIcon({
+            className: 'streetlight-core-dot',
+            html: `<div style="width: 5px; height: 5px; border-radius: 50%; background: #fbbf24; border: 1.5px solid #fffbeb; box-shadow: 0 0 8px rgba(245,158,11,0.95); cursor: pointer;"></div>`,
+            iconSize: [5, 5],
+            iconAnchor: [2.5, 2.5]
+          });
+          const dotMarker = L.marker([light.lat, light.lng], { icon: lightCoreIcon });
+          dotMarker.bindTooltip(tooltipContent, { className: 'route-tooltip-custom' });
+          streetlightLayer.addLayer(dotMarker);
         }
       } catch (err) {
         if (err.name !== 'AbortError') {
@@ -1303,47 +1304,7 @@ export default function MapComponent({
         </div>
       )}
 
-      {/* Real-time CCTV Visible Counter Pill on Map */}
-      {layers.cctv && (
-        <div className={`map-cctv-counter-pill ${cctvState.isZoomTooLow ? 'zoom-hint' : ''}`}>
-          {cctvState.isZoomTooLow ? (
-            <span>🔍 지도를 확대하면(골목·거리 축척) 해당 지역의 방범 CCTV가 표시됩니다</span>
-          ) : (
-            <>
-              <span className="live-dot-pulse"></span>
-              <span>현재 화면 내 방범 CCTV <strong>{cctvState.count}</strong>개소 안전보호구역 작동 중</span>
-            </>
-          )}
-        </div>
-      )}
 
-      {/* Real-time Streetlight Visible Counter Pill on Map */}
-      {layers.streetlight && (
-        <div className={`map-cctv-counter-pill map-streetlight-counter-pill ${streetlightState.isZoomTooLow ? 'zoom-hint' : ''}`}>
-          {streetlightState.isZoomTooLow ? (
-            <span>🔍 지도를 확대하면(골목·거리 축척) 가로등/보안등(15m 조명반경)이 표시됩니다</span>
-          ) : (
-            <>
-              <span className="live-dot-pulse-amber"></span>
-              <span>현재 화면 내 가로등/보안등 <strong>{streetlightState.count}</strong>개소 (15m 안심조도 작동 중)</span>
-            </>
-          )}
-        </div>
-      )}
-
-      {/* Real-time Roadside Trees Visible Counter Pill on Map */}
-      {layers.trees && (
-        <div className={`map-cctv-counter-pill map-tree-counter-pill ${treeState.isZoomTooLow ? 'zoom-hint' : ''}`}>
-          {treeState.isZoomTooLow ? (
-            <span>🔍 지도를 확대하면(골목·거리 축척) 가로수 그늘 캐노피가 표시됩니다</span>
-          ) : (
-            <>
-              <span className="live-dot-pulse-emerald"></span>
-              <span>현재 화면 내 가로수 그늘 <strong>{treeState.count}</strong>그루 작동 중</span>
-            </>
-          )}
-        </div>
-      )}
 
     </div>
   );
