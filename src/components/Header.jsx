@@ -11,7 +11,9 @@ export default function Header({
   sunPos,
   simulatedHour,
   isLiveTime = true,
-  onResetLive
+  onResetLive,
+  simulatedWeatherMode = 'live',
+  setSimulatedWeatherMode
 }) {
   const formattedHour = `${String(Math.floor(simulatedHour)).padStart(2, '0')}:${String(Math.round((simulatedHour % 1) * 60)).padStart(2, '0')}`;
 
@@ -32,6 +34,36 @@ export default function Header({
       </div>
 
       <div className="header-actions">
+        {/* 날씨 테스트 토글러: 실시간 / 비 / 눈 */}
+        {setSimulatedWeatherMode && (
+          <div className="header-weather-test-group" role="group" aria-label="날씨 테스트 모드">
+            <button
+              type="button"
+              className={`header-weather-pill ${simulatedWeatherMode === 'live' ? 'active' : ''}`}
+              onClick={() => setSimulatedWeatherMode('live')}
+              title="실시간 실제 기상청 날씨"
+            >
+              ☀️ 실시간
+            </button>
+            <button
+              type="button"
+              className={`header-weather-pill ${simulatedWeatherMode === 'rain' ? 'active rain' : ''}`}
+              onClick={() => setSimulatedWeatherMode(simulatedWeatherMode === 'rain' ? 'live' : 'rain')}
+              title="비 테스트 모드 (강수량 3.5mm/h + 3D 빗줄기)"
+            >
+              🌧️ 비 {simulatedWeatherMode === 'rain' ? 'ON' : ''}
+            </button>
+            <button
+              type="button"
+              className={`header-weather-pill ${simulatedWeatherMode === 'snow' ? 'active snow' : ''}`}
+              onClick={() => setSimulatedWeatherMode(simulatedWeatherMode === 'snow' ? 'live' : 'snow')}
+              title="눈 테스트 모드 (3D 눈송이 드리프트)"
+            >
+              ❄️ 눈 {simulatedWeatherMode === 'snow' ? 'ON' : ''}
+            </button>
+          </div>
+        )}
+
         {/* Real-time Sun Condition Quick Pill */}
         {sunPos && !isLiveTime && (
           <button type="button" onClick={onResetLive} title="미리 보기를 끝내고 현재 시각으로" aria-label="미리 보기를 끝내고 현재 시각으로" style={{
@@ -60,7 +92,7 @@ export default function Header({
 
         {/* 2D / 3D 지도 전환 */}
         <button
-          className="reset-btn"
+          className={`reset-btn ${viewMode === '3d' ? 'active-3d' : ''}`}
           onClick={() => setViewMode(viewMode === '3d' ? '2d' : '3d')}
           title={viewMode === '3d' ? '2D 지도로 전환' : '입체(3D) 지도로 전환'}
           aria-label={viewMode === '3d' ? '2D 지도로 전환' : '입체(3D) 지도로 전환'}

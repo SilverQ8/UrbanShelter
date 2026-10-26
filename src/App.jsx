@@ -77,6 +77,37 @@ export default function App() {
   const [modeOverride, setModeOverride] = useState('auto');
   const setMode = setModeOverride;
   const [weather, setWeather] = useState(null);
+  // 테스트용 날씨 시뮬레이션 토글: 'live' (실시간 기상) | 'rain' (비 3.5mm/h) | 'snow' (눈)
+  const [simulatedWeatherMode, setSimulatedWeatherMode] = useState('live');
+
+  const effectiveWeather = useMemo(() => {
+    if (simulatedWeatherMode === 'rain') {
+      return {
+        temperature: 17,
+        apparent: 16,
+        precipitation: 3.5,
+        uv: 1,
+        isDay: true,
+        isRaining: true,
+        isSnowing: false,
+        label: '비'
+      };
+    }
+    if (simulatedWeatherMode === 'snow') {
+      return {
+        temperature: -1,
+        apparent: -4,
+        precipitation: 1.5,
+        uv: 1,
+        isDay: true,
+        isRaining: false,
+        isSnowing: true,
+        label: '눈'
+      };
+    }
+    return weather;
+  }, [simulatedWeatherMode, weather]);
+
   const [sensitivity, setSensitivity] = useState(0.70); // 0.0 to 1.0 (70% shade priority)
   
   // Solar Simulation Time states (08:00 to 19:00, default 14:00 / 2 PM when sun is high)
@@ -132,7 +163,7 @@ export default function App() {
     };
   }, [weatherLat, weatherLng]);
 
-  const autoDecision = useMemo(() => decideAutoMode(weather, needs), [weather, needs]);
+  const autoDecision = useMemo(() => decideAutoMode(effectiveWeather, needs), [effectiveWeather, needs]);
   const mode = isCar ? 'standard' : modeOverride === 'auto' ? autoDecision.mode : modeOverride;
 
   const [startNodeId, setStartNodeId] = useState(null);
@@ -747,6 +778,8 @@ export default function App() {
         sunPos={sunPos}
         simulatedHour={simulatedHour}
         isLiveTime={isLiveTime}
+        simulatedWeatherMode={simulatedWeatherMode}
+        setSimulatedWeatherMode={setSimulatedWeatherMode}
       />
 
       {/* Main Workspace */}
@@ -754,7 +787,7 @@ export default function App() {
         {/* Full-bleed Map: 2D(Leaflet) 또는 3D(MapLibre 입체 건물) */}
         {viewMode === '3d' ? (
           <Map3D
-            weather={weather}
+            weather={effectiveWeather}
             startPoint={startPoint}
             targetPoint={targetPoint}
             setStartPoint={setStartPoint}
@@ -817,7 +850,7 @@ export default function App() {
         <div className="floating-overlay-left">
           {/* 날씨 기반 자동 경로 안내 */}
           <AutoBanner
-            weather={weather}
+            weather={effectiveWeather}
             mode={mode}
             isAuto={modeOverride === 'auto'}
             reason={autoDecision.reason}

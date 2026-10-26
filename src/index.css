@@ -120,7 +120,59 @@ html, body, #root {
 .header-actions {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
+}
+
+/* 상단 헤더 테스트용 날씨 토글러 */
+.header-weather-test-group {
+  display: flex;
+  align-items: center;
+  background: rgba(15, 23, 42, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 20px;
+  padding: 2px 4px;
+  gap: 2px;
+}
+
+.header-weather-pill {
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 14px;
+  color: var(--text-muted, #94a3b8);
+  font-size: 0.73rem;
+  font-weight: 500;
+  padding: 3px 8px;
+  cursor: pointer;
+  transition: all 0.18s ease;
+  white-space: nowrap;
+}
+
+.header-weather-pill:hover {
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.header-weather-pill.active {
+  background: rgba(255, 255, 255, 0.14);
+  color: #ffffff;
+  font-weight: 600;
+}
+
+.header-weather-pill.active.rain {
+  background: rgba(56, 189, 248, 0.25);
+  color: #38bdf8;
+  border-color: rgba(56, 189, 248, 0.5);
+}
+
+.header-weather-pill.active.snow {
+  background: rgba(224, 242, 254, 0.25);
+  color: #e0f2fe;
+  border-color: rgba(224, 242, 254, 0.5);
+}
+
+.reset-btn.active-3d {
+  background: rgba(56, 189, 248, 0.2);
+  border-color: rgba(56, 189, 248, 0.45);
 }
 
 .scenario-select {
