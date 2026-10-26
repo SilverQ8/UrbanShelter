@@ -1,10 +1,11 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState, useMemo } from 'react';
 import * as maplibregl from 'maplibre-gl';
 import * as turf from '@turf/turf';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { MAP_CENTER } from '../data/urbanNetwork';
 import { loadMapStyle, applyPedestrianTweaks, applyPoiFilter } from '../utils/mapStyle';
 import { fetchKakaoBuildingDetail } from '../services/kakaoService';
+import WeatherParticles from './WeatherParticles';
 
 // Vite 번들링 및 프로덕션(Vercel) 환경에서 워커와 shared 모듈이 항상 함께 로드되도록 정적 경로 지정
 if (typeof window !== 'undefined') {
@@ -127,14 +128,34 @@ export default function Map3D({
   userGps = null,
   locateTarget = null,
   mapTheme = 'light',
-  poiSelected = {}
+  poiSelected = {},
+  weather = null
 }) {
   const containerRef = useRef(null);
   const mapRef = useRef(null);
   const loadedRef = useRef(false);
   const latestRef = useRef({});
   const fittedKeyRef = useRef('');
-  latestRef.current = { startPoint, targetPoint, setStartPoint, setTargetPoint, recommendedRoute, mode, navigating, navPoint, shadows, trees, sunPos, userGps, baseLatlngs, mapTheme, poiSelected, applyNavCamera: latestRef.current.applyNavCamera };
+
+  // 3D 지도 날씨 시각 효과 모드: 'auto' (실제 날씨 연동) | 'rain' (비 강제 켬) | 'snow' (눈 강제 켬) | 'none' (끔)
+  const [weatherVisualMode, setWeatherVisualMode] = useState('auto');
+
+  const activeWeatherType = useMemo(() => {
+    if (weatherVisualMode === 'rain') return 'rain';
+    if (weatherVisualMode === 'snow') return 'snow';
+    if (weatherVisualMode === 'none') return null;
+    // auto: 실제 기상 데이터 연동
+    if (weather?.isRaining || (weather?.precipitation && weather.precipitation > 0)) return 'rain';
+    if (weather?.isSnowing) return 'snow';
+    return null;
+  }, [weatherVisualMode, weather]);
+
+  const weatherIntensity = useMemo(() => {
+    if (!weather?.precipitation || weather.precipitation <= 0) return 1.0;
+    return Math.min(2.0, Math.max(0.5, weather.precipitation / 3.0));
+  }, [weather?.precipitation]);
+
+  latestRef.current = { startPoint, targetPoint, setStartPoint, setTargetPoint, recommendedRoute, mode, navigating, navPoint, shadows, trees, sunPos, userGps, baseLatlngs, mapTheme, poiSelected, weather, activeWeatherType, applyNavCamera: latestRef.current.applyNavCamera };
 
   // 현재 props를 지도 소스·레이어에 반영한다.
   const syncData = () => {
@@ -142,7 +163,7 @@ export default function Map3D({
     if (!map || !loadedRef.current) return;
     const { startPoint: s, targetPoint: t, recommendedRoute: r, mode: m } = latestRef.current;
 
-    const { navigating: nav, navPoint: np, shadows: shs, trees: trs, sunPos: sun } = latestRef.current;
+    const { navigating: nav, navPoint: np, shadows: shs, trees: trs, sunPos: sun, activeWeatherType: wt } = latestRef.current;
 
     // 보행자 시점(탐색 중)에서만 그림자와 나무를 보여준다
     map.getSource('shadows')?.setData(nav ? toShadowFeatures(shs) : emptyLine);
@@ -152,12 +173,19 @@ export default function Map3D({
         ? { type: 'FeatureCollection', features: [{ type: 'Feature', properties: {}, geometry: { type: 'Point', coordinates: [np[1], np[0]] } }] }
         : emptyLine
     );
-    if (nav && sun?.isDaylight) {
+
+    // 날씨(비/눈) 및 태양 위치에 따른 3D 조명 연동
+    if (wt === 'rain') {
+      map.setLight({ anchor: 'viewport', color: '#93c5fd', intensity: 0.38, position: [1.2, 210, 30] });
+    } else if (wt === 'snow') {
+      map.setLight({ anchor: 'viewport', color: '#e0f2fe', intensity: 0.62, position: [1.1, 180, 45] });
+    } else if (nav && sun?.isDaylight) {
       // 건물 벽면의 밝고 어두움도 실제 태양 방향에 맞춘다
       map.setLight({ anchor: 'map', color: '#fff7e0', intensity: 0.45, position: [1.5, sun.azimuthDeg, Math.max(5, 90 - sun.altitudeDeg)] });
     } else {
       map.setLight({ anchor: 'viewport', color: '#ffffff', intensity: 0.5, position: [1.15, 210, 30] });
     }
+
     map.getStyle().layers.forEach((layer) => {
       if (layer.type === 'fill-extrusion' && !layer.id.startsWith('trees3d')) {
         map.setPaintProperty(layer.id, 'fill-extrusion-opacity', nav ? 0.85 : 0.55);
@@ -563,7 +591,7 @@ export default function Map3D({
   useEffect(() => {
     syncData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [startPoint, targetPoint, recommendedRoute, mode, navigating, navPoint, shadows, trees, sunPos, userGps]);
+  }, [startPoint, targetPoint, recommendedRoute, mode, navigating, navPoint, shadows, trees, sunPos, userGps, activeWeatherType]);
 
   // 탐색 시작: 보행자 시점으로 카메라를 낮추고 진행 방향을 바라본다. 종료하면 전체 보기로 되돌린다.
   const wasNavigatingRef = useRef(false);
@@ -613,5 +641,39 @@ export default function Map3D({
     });
   }, [focusPoint]);
 
-  return <div ref={containerRef} className="map3d-viewport" />;
+  return (
+    <div style={{ position: 'relative', width: '100%', height: '100%', overflow: 'hidden' }}>
+      <div ref={containerRef} className="map3d-viewport" />
+      <WeatherParticles type={activeWeatherType} intensity={weatherIntensity} />
+
+      {/* 3D 날씨 시각 효과 빠른 토글 버튼 (자동연동 / 비 / 눈) */}
+      <div className="map3d-weather-ctrl" role="toolbar" aria-label="3D 날씨 시각 효과">
+        <button
+          type="button"
+          className={`map3d-weather-btn ${weatherVisualMode === 'auto' ? 'active' : ''}`}
+          onClick={() => setWeatherVisualMode('auto')}
+          title={`실시간 기상 자동 연동 (현재: ${weather?.label || '맑음'}${weather?.precipitation > 0 ? ` ${weather.precipitation}mm/h` : ''})`}
+        >
+          <span>자동</span>
+          {weather?.isRaining ? '🌧️' : weather?.isSnowing ? '❄️' : '☀️'}
+        </button>
+        <button
+          type="button"
+          className={`map3d-weather-btn ${weatherVisualMode === 'rain' ? 'active' : ''}`}
+          onClick={() => setWeatherVisualMode(weatherVisualMode === 'rain' ? 'none' : 'rain')}
+          title="3D 비 내림 효과"
+        >
+          🌧️ 비
+        </button>
+        <button
+          type="button"
+          className={`map3d-weather-btn ${weatherVisualMode === 'snow' ? 'active' : ''}`}
+          onClick={() => setWeatherVisualMode(weatherVisualMode === 'snow' ? 'none' : 'snow')}
+          title="3D 눈 내림 효과"
+        >
+          ❄️ 눈
+        </button>
+      </div>
+    </div>
+  );
 }

@@ -754,6 +754,7 @@ export default function App() {
         {/* Full-bleed Map: 2D(Leaflet) 또는 3D(MapLibre 입체 건물) */}
         {viewMode === '3d' ? (
           <Map3D
+            weather={weather}
             startPoint={startPoint}
             targetPoint={targetPoint}
             setStartPoint={setStartPoint}
