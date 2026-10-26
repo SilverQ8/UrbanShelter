@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { MapPin, ChevronDown, ChevronUp } from 'lucide-react';
 import { POI_CATEGORIES } from '../data/poiCategories';
 
-export default function PoiPanel({ selected, onToggle, counts, status }) {
+export default function PoiPanel({ selected, onToggle, counts, status, isRouteBased = false }) {
   const [open, setOpen] = useState(false);
   const selectedCount = POI_CATEGORIES.filter((c) => selected[c.id]).length;
 
@@ -41,8 +41,12 @@ export default function PoiPanel({ selected, onToggle, counts, status }) {
           <p className="poi-panel-note">
             {status === 'loading' && '주변 장소를 불러오는 중…'}
             {status === 'error' && '장소 정보를 불러오지 못했어요'}
-            {status === 'skipped' && '경로가 길어 장소를 표시하지 않아요'}
-            {status === 'ok' && '지도에 이미 표시된 아이콘 중 고른 종류만 보여줘요. 아무것도 고르지 않으면 모두 보여요. (개수는 경로 주변 약 450m 기준)'}
+            {status === 'skipped' && '범위가 넓어 장소를 표시하지 않아요'}
+            {status === 'ok' && (
+              isRouteBased
+                ? '도보 경로 주변 약 450m 기준 시설이에요. 칩을 누르면 지도에 핀이 강조돼요.'
+                : '현재 지역 중심 약 600m 기준 시설이에요. 칩을 누르면 지도에 핀이 표시됩니다.'
+            )}
           </p>
         </>
       )}

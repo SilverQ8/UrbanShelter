@@ -5,7 +5,7 @@ import RouteSearch from './components/RouteSearch';
 import SettingsPanel from './components/SettingsPanel';
 import AutoBanner from './components/AutoBanner';
 import Dashboard from './components/Dashboard';
-import { NODES } from './data/urbanNetwork';
+import { NODES, MAP_CENTER } from './data/urbanNetwork';
 import { findNearestNode } from './engine/routingEngine';
 import { fetchOsrmPedestrianPath, analyzeRouteCctvSafety, findBestSafetyWaypoint } from './services/routingService';
 import { analyzeRouteStreetlightSafety } from './services/streetlightService';
@@ -544,24 +544,40 @@ export default function App() {
       // 저장소를 쓸 수 없어도 현재 세션에서는 그대로 적용된다
     }
   }, [poiSelected]);
-  useEffect(() => {
-    if (!routeBounds) return;
-    const controller = new AbortController();
-    const margin = 0.002; // 건물용 범위(이미 200m 여유)에 200m를 더해 약 450m
-    setPoiData((prev) => ({ ...prev, status: 'loading' }));
-    fetchPoisForBounds(
-      {
+  // 주변 장소(병원·편의점 등): 경로가 있으면 경로 주변(약 450m), 없으면 지도/현재 위치 중심(약 600m) 기준
+  const isRouteBasedPoi = Boolean(routeBounds);
+  const activePoiBounds = useMemo(() => {
+    if (routeBounds) {
+      const margin = 0.002; // 경로 주변 약 450m
+      return {
         south: routeBounds.south - margin,
         north: routeBounds.north + margin,
         west: routeBounds.west - margin,
         east: routeBounds.east + margin
-      },
-      controller.signal
-    ).then((result) => {
+      };
+    }
+    // 길찾기 전: 출발지 or GPS 내 위치 or 해운대 기본 중심 기준 약 600m 반경
+    const centerLat = startPoint?.lat || userGps?.lat || MAP_CENTER[0];
+    const centerLng = startPoint?.lng || userGps?.lng || MAP_CENTER[1];
+    const latDelta = 0.0055; // 약 600m
+    const lngDelta = 0.0065; // 약 600m
+    return {
+      south: centerLat - latDelta,
+      north: centerLat + latDelta,
+      west: centerLng - lngDelta,
+      east: centerLng + lngDelta
+    };
+  }, [routeBounds, startPoint, userGps]);
+
+  useEffect(() => {
+    if (!activePoiBounds) return;
+    const controller = new AbortController();
+    setPoiData((prev) => ({ ...prev, status: 'loading' }));
+    fetchPoisForBounds(activePoiBounds, controller.signal).then((result) => {
       if (!controller.signal.aborted) setPoiData(result);
     });
     return () => controller.abort();
-  }, [routeBounds]);
+  }, [activePoiBounds]);
   const poiCounts = useMemo(() => {
     const counts = {};
     POI_CATEGORIES.forEach((c) => (counts[c.id] = 0));
@@ -864,7 +880,7 @@ export default function App() {
 
         {/* Floating Right Overlay: Turn-by-turn route guide */}
         <div className="floating-overlay-right">
-          <PoiPanel selected={poiSelected} onToggle={togglePoi} counts={poiCounts} status={poiData.status} />
+          <PoiPanel selected={poiSelected} onToggle={togglePoi} counts={poiCounts} status={poiData.status} isRouteBased={isRouteBasedPoi} />
           {recommendedRoute && baseRoute && showGuide && (
             <RouteGuide
               steps={baseRoute.steps}
