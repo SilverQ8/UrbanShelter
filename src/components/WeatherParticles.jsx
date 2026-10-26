@@ -2,9 +2,9 @@ import React, { useEffect, useRef } from 'react';
 
 /**
  * 3D 지도 전용 고성능 비·눈 날씨 시각화 파티클 캔버스
- * - 비: 바람 각도, 속도감 있는 빗줄기 스트로크, 지면 수면 스플래시 리플, 빗방울 안개 분위기
- * - 눈: 흔들리는 사인파 드리프트 눈송이, 몽환적인 겨울 대기 효과
- * - 지도 클릭·패닝 등 상호작용 완전 투과 (pointer-events: none)
+ * - 비 (Rain): 강한 속도감의 사선 빗줄기(스트로크), 바닥 지면 물 튀김(Splash) 및 타원형 원근 파문(Ripple), 흐린 빗길 분위기
+ * - 눈 (Snow): 천천히 흩날리는 6각 눈 결정체(Crystalline Snowflake)와 몽글몽글한 함박눈(Soft Puff), 부드러운 회전 및 사인파 바람 흔들림
+ * - 상호작용 완전 투과 (pointer-events: none)
  */
 export default function WeatherParticles({ type = null, intensity = 1.0 }) {
   const canvasRef = useRef(null);
@@ -18,138 +18,221 @@ export default function WeatherParticles({ type = null, intensity = 1.0 }) {
     if (!ctx) return;
 
     let animId = null;
-    let width = (canvas.width = canvas.parentElement?.clientWidth || window.innerWidth);
-    let height = (canvas.height = canvas.parentElement?.clientHeight || window.innerHeight);
+    let dpr = window.devicePixelRatio || 1;
+    let cssWidth = canvas.parentElement?.clientWidth || window.innerWidth;
+    let cssHeight = canvas.parentElement?.clientHeight || window.innerHeight;
 
-    const handleResize = () => {
+    const resize = () => {
       if (!canvas || !canvas.parentElement) return;
-      width = canvas.width = canvas.parentElement.clientWidth;
-      height = canvas.height = canvas.parentElement.clientHeight;
+      cssWidth = canvas.parentElement.clientWidth;
+      cssHeight = canvas.parentElement.clientHeight;
+      dpr = window.devicePixelRatio || 1;
+      canvas.width = Math.round(cssWidth * dpr);
+      canvas.height = Math.round(cssHeight * dpr);
     };
-    window.addEventListener('resize', handleResize);
+    resize();
+    window.addEventListener('resize', resize);
 
-    // 파티클 생성 수 (강도 반영)
-    const rainCount = Math.min(280, Math.max(90, Math.round(150 * intensity)));
-    const snowCount = Math.min(180, Math.max(60, Math.round(90 * intensity)));
+    // 파티클 수량
+    const rainCount = Math.min(320, Math.max(120, Math.round(180 * intensity)));
+    const snowCount = Math.min(160, Math.max(65, Math.round(90 * intensity)));
 
-    // 비 파티클
+    // [1] 비 파티클 (빠른 속도, 날카로운 사선 스트로크)
     const raindrops = Array.from({ length: rainCount }, () => ({
-      x: Math.random() * (width + 200) - 100,
-      y: Math.random() * height,
-      len: 18 + Math.random() * 22,
-      speed: 18 + Math.random() * 14,
-      opacity: 0.18 + Math.random() * 0.45,
-      width: 0.9 + Math.random() * 1.2
+      x: Math.random() * (cssWidth + 200) - 100,
+      y: Math.random() * cssHeight,
+      len: 22 + Math.random() * 26,
+      speed: 24 + Math.random() * 16,
+      opacity: 0.25 + Math.random() * 0.5,
+      width: 1.0 + Math.random() * 1.4
     }));
 
-    // 빗방울 지면 착지 리플(Splash) 풀
+    // 빗방울 바닥 스플래시 (물 튀김 비드 & 타원형 파문)
     const ripples = [];
-    const createRipple = (x, y) => {
-      if (ripples.length < 35 && Math.random() > 0.45) {
+    const splashBeads = [];
+
+    const triggerSplash = (x, y) => {
+      if (ripples.length < 40 && Math.random() > 0.35) {
         ripples.push({
           x,
           y,
-          r: 1,
-          maxR: 4 + Math.random() * 8,
-          opacity: 0.4
+          rx: 1.5,
+          ry: 0.6,
+          maxRx: 7 + Math.random() * 10,
+          opacity: 0.45
         });
+      }
+      if (splashBeads.length < 30 && Math.random() > 0.6) {
+        for (let i = 0; i < 2; i++) {
+          splashBeads.push({
+            x,
+            y,
+            vx: (Math.random() - 0.5) * 2.2,
+            vy: -(1.5 + Math.random() * 2.5),
+            gravity: 0.16,
+            life: 1.0,
+            decay: 0.05 + Math.random() * 0.03
+          });
+        }
       }
     };
 
-    // 눈 파티클
-    const snowflakes = Array.from({ length: snowCount }, () => ({
-      x: Math.random() * width,
-      y: Math.random() * height,
-      radius: 1.5 + Math.random() * 3.5,
-      density: Math.random() * 30,
-      speed: 0.7 + Math.random() * 1.6,
-      opacity: 0.3 + Math.random() * 0.55,
-      swing: Math.random() * Math.PI * 2
-    }));
+    // [2] 눈 파티클 (천천히 흩날리는 결정체 & 함박눈)
+    const snowflakes = Array.from({ length: snowCount }, () => {
+      const isCrystal = Math.random() > 0.6; // 40%는 정교한 6각 눈 결정체
+      const size = isCrystal ? 4.5 + Math.random() * 5.5 : 2.0 + Math.random() * 5.0;
+      return {
+        x: Math.random() * cssWidth,
+        y: Math.random() * cssHeight,
+        size,
+        isCrystal,
+        speed: 0.8 + Math.random() * 1.4, // 비보다 15~20배 천천히 하강
+        swing: Math.random() * Math.PI * 2,
+        swingSpeed: 0.015 + Math.random() * 0.02,
+        swingRadius: 0.8 + Math.random() * 1.5,
+        rotation: Math.random() * Math.PI * 2,
+        rotSpeed: (Math.random() - 0.5) * 0.03,
+        opacity: 0.35 + Math.random() * 0.55
+      };
+    });
 
-    let frame = 0;
+    // 6각 눈 결정체 그리기 헬퍼
+    const drawCrystal = (c, x, y, size, rot, opacity) => {
+      c.save();
+      c.translate(x, y);
+      c.rotate(rot);
+      c.strokeStyle = `rgba(255, 255, 255, ${opacity})`;
+      c.lineWidth = size > 6 ? 1.6 : 1.1;
+      c.lineCap = 'round';
+
+      for (let arm = 0; arm < 3; arm++) {
+        c.beginPath();
+        c.moveTo(-size, 0);
+        c.lineTo(size, 0);
+        c.stroke();
+
+        // 곁가지 (V자 바늘)
+        const branchDist = size * 0.55;
+        const branchLen = size * 0.32;
+        c.beginPath();
+        c.moveTo(branchDist - branchLen * 0.7, -branchLen);
+        c.lineTo(branchDist, 0);
+        c.lineTo(branchDist - branchLen * 0.7, branchLen);
+
+        c.moveTo(-branchDist + branchLen * 0.7, -branchLen);
+        c.lineTo(-branchDist, 0);
+        c.lineTo(-branchDist + branchLen * 0.7, branchLen);
+        c.stroke();
+
+        c.rotate(Math.PI / 3);
+      }
+      c.restore();
+    };
 
     const render = () => {
-      frame++;
-      ctx.clearRect(0, 0, width, height);
+      ctx.save();
+      ctx.scale(dpr, dpr);
+      ctx.clearRect(0, 0, cssWidth, cssHeight);
 
       if (type === 'rain') {
-        // 비 대기 분위기 (미세한 안개 틴트)
-        ctx.fillStyle = 'rgba(15, 23, 42, 0.08)';
-        ctx.fillRect(0, 0, width, height);
+        // [비] 살짝 어둡고 시원한 빗길 틴트
+        ctx.fillStyle = 'rgba(15, 23, 42, 0.06)';
+        ctx.fillRect(0, 0, cssWidth, cssHeight);
 
-        // 빗줄기 렌더링
-        ctx.strokeStyle = '#bae6fd';
+        // 빗줄기 (바람 각도 약 -18도)
         ctx.lineCap = 'round';
-
         for (let i = 0; i < raindrops.length; i++) {
           const p = raindrops[i];
           ctx.beginPath();
           ctx.lineWidth = p.width;
           ctx.strokeStyle = `rgba(186, 230, 253, ${p.opacity})`;
-          // -15도 살짝 기울어진 빗줄기
           ctx.moveTo(p.x, p.y);
-          ctx.lineTo(p.x - 3.5, p.y + p.len);
+          ctx.lineTo(p.x - 4.5, p.y + p.len);
           ctx.stroke();
 
           p.y += p.speed;
-          p.x -= 2.2;
+          p.x -= 3.2;
 
-          // 바닥 부근 도달 시 리플 발생
-          if (p.y > height - 120 && Math.random() > 0.7) {
-            createRipple(p.x, p.y + p.len * 0.7);
+          // 지면 부근 착지 시 물 튀김
+          if (p.y > cssHeight - 100 && Math.random() > 0.65) {
+            triggerSplash(p.x, p.y + p.len * 0.6);
           }
 
-          if (p.y > height) {
-            p.y = -p.len - Math.random() * 50;
-            p.x = Math.random() * (width + 200) - 50;
+          if (p.y > cssHeight) {
+            p.y = -p.len - Math.random() * 40;
+            p.x = Math.random() * (cssWidth + 200) - 50;
           }
-          if (p.x < -100) p.x = width + 50;
+          if (p.x < -100) p.x = cssWidth + 50;
         }
 
-        // 지면 착지 리플 렌더링
+        // 바닥 물 튀김 비드
+        for (let i = splashBeads.length - 1; i >= 0; i--) {
+          const b = splashBeads[i];
+          ctx.beginPath();
+          ctx.arc(b.x, b.y, 1.2, 0, Math.PI * 2);
+          ctx.fillStyle = `rgba(186, 230, 253, ${b.life * 0.7})`;
+          ctx.fill();
+
+          b.x += b.vx;
+          b.y += b.vy;
+          b.vy += b.gravity;
+          b.life -= b.decay;
+          if (b.life <= 0) splashBeads.splice(i, 1);
+        }
+
+        // 지면 착지 원근 파문 (타원형)
         for (let i = ripples.length - 1; i >= 0; i--) {
           const rip = ripples[i];
           ctx.beginPath();
-          ctx.arc(rip.x, rip.y, rip.r, 0, Math.PI * 2);
-          ctx.strokeStyle = `rgba(186, 230, 253, ${rip.opacity})`;
-          ctx.lineWidth = 0.8;
+          ctx.ellipse(rip.x, rip.y, rip.rx, rip.ry, 0, 0, Math.PI * 2);
+          ctx.strokeStyle = `rgba(186, 230, 253, ${rip.opacity * 0.6})`;
+          ctx.lineWidth = 0.9;
           ctx.stroke();
 
-          rip.r += 0.8;
-          rip.opacity -= 0.028;
-          if (rip.opacity <= 0 || rip.r >= rip.maxR) {
+          rip.rx += 0.9;
+          rip.ry += 0.36;
+          rip.opacity -= 0.024;
+          if (rip.opacity <= 0 || rip.rx >= rip.maxRx) {
             ripples.splice(i, 1);
           }
         }
       } else if (type === 'snow') {
-        // 눈 내리는 겨울 틴트
-        ctx.fillStyle = 'rgba(241, 245, 249, 0.04)';
-        ctx.fillRect(0, 0, width, height);
+        // [눈] 화사하고 맑은 겨울 하늘 틴트
+        ctx.fillStyle = 'rgba(224, 242, 254, 0.04)';
+        ctx.fillRect(0, 0, cssWidth, cssHeight);
 
         for (let i = 0; i < snowflakes.length; i++) {
           const s = snowflakes[i];
-          ctx.beginPath();
-          ctx.arc(s.x, s.y, s.radius, 0, Math.PI * 2);
-          ctx.fillStyle = `rgba(255, 255, 255, ${s.opacity})`;
-          ctx.shadowBlur = 4;
-          ctx.shadowColor = 'rgba(255, 255, 255, 0.6)';
-          ctx.fill();
-          ctx.shadowBlur = 0;
-
-          s.swing += 0.02;
-          s.x += Math.sin(s.swing) * 0.8;
+          s.swing += s.swingSpeed;
+          s.rotation += s.rotSpeed;
+          s.x += Math.sin(s.swing) * s.swingRadius;
           s.y += s.speed;
 
-          if (s.y > height) {
-            s.y = -10;
-            s.x = Math.random() * width;
+          if (s.isCrystal) {
+            // 정교한 6각 눈 결정체
+            drawCrystal(ctx, s.x, s.y, s.size, s.rotation, s.opacity);
+          } else {
+            // 부드러운 함박눈 솜송이 (Soft Puff with Glow)
+            ctx.save();
+            ctx.beginPath();
+            ctx.arc(s.x, s.y, s.size, 0, Math.PI * 2);
+            ctx.fillStyle = `rgba(255, 255, 255, ${s.opacity})`;
+            ctx.shadowBlur = 6;
+            ctx.shadowColor = 'rgba(224, 242, 254, 0.9)';
+            ctx.fill();
+            ctx.restore();
           }
-          if (s.x > width + 10) s.x = -10;
-          if (s.x < -10) s.x = width + 10;
+
+          if (s.y > cssHeight + 15) {
+            s.y = -15;
+            s.x = Math.random() * cssWidth;
+          }
+          if (s.x > cssWidth + 20) s.x = -20;
+          if (s.x < -20) s.x = cssWidth + 20;
         }
       }
 
+      ctx.restore();
       animId = requestAnimationFrame(render);
     };
 
@@ -157,7 +240,7 @@ export default function WeatherParticles({ type = null, intensity = 1.0 }) {
 
     return () => {
       if (animId) cancelAnimationFrame(animId);
-      window.removeEventListener('resize', handleResize);
+      window.removeEventListener('resize', resize);
     };
   }, [type, intensity]);
 

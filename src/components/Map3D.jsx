@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState, useMemo } from 'react';
+import React, { useEffect, useRef, useMemo } from 'react';
 import * as maplibregl from 'maplibre-gl';
 import * as turf from '@turf/turf';
 import 'maplibre-gl/dist/maplibre-gl.css';
@@ -137,18 +137,12 @@ export default function Map3D({
   const latestRef = useRef({});
   const fittedKeyRef = useRef('');
 
-  // 3D 지도 날씨 시각 효과 모드: 'auto' (실제 날씨 연동) | 'rain' (비 강제 켬) | 'snow' (눈 강제 켬) | 'none' (끔)
-  const [weatherVisualMode, setWeatherVisualMode] = useState('auto');
-
+  // 실시간 기상 데이터 연동 (눈 우선 판별 후 비/강수량 판별)
   const activeWeatherType = useMemo(() => {
-    if (weatherVisualMode === 'rain') return 'rain';
-    if (weatherVisualMode === 'snow') return 'snow';
-    if (weatherVisualMode === 'none') return null;
-    // auto: 실제 기상 데이터 연동
-    if (weather?.isRaining || (weather?.precipitation && weather.precipitation > 0)) return 'rain';
     if (weather?.isSnowing) return 'snow';
+    if (weather?.isRaining || (weather?.precipitation && weather.precipitation > 0)) return 'rain';
     return null;
-  }, [weatherVisualMode, weather]);
+  }, [weather]);
 
   const weatherIntensity = useMemo(() => {
     if (!weather?.precipitation || weather.precipitation <= 0) return 1.0;
@@ -646,34 +640,7 @@ export default function Map3D({
       <div ref={containerRef} className="map3d-viewport" />
       <WeatherParticles type={activeWeatherType} intensity={weatherIntensity} />
 
-      {/* 3D 날씨 시각 효과 빠른 토글 버튼 (자동연동 / 비 / 눈) */}
-      <div className="map3d-weather-ctrl" role="toolbar" aria-label="3D 날씨 시각 효과">
-        <button
-          type="button"
-          className={`map3d-weather-btn ${weatherVisualMode === 'auto' ? 'active' : ''}`}
-          onClick={() => setWeatherVisualMode('auto')}
-          title={`실시간 기상 자동 연동 (현재: ${weather?.label || '맑음'}${weather?.precipitation > 0 ? ` ${weather.precipitation}mm/h` : ''})`}
-        >
-          <span>자동</span>
-          {weather?.isRaining ? '🌧️' : weather?.isSnowing ? '❄️' : '☀️'}
-        </button>
-        <button
-          type="button"
-          className={`map3d-weather-btn ${weatherVisualMode === 'rain' ? 'active' : ''}`}
-          onClick={() => setWeatherVisualMode(weatherVisualMode === 'rain' ? 'none' : 'rain')}
-          title="3D 비 내림 효과"
-        >
-          🌧️ 비
-        </button>
-        <button
-          type="button"
-          className={`map3d-weather-btn ${weatherVisualMode === 'snow' ? 'active' : ''}`}
-          onClick={() => setWeatherVisualMode(weatherVisualMode === 'snow' ? 'none' : 'snow')}
-          title="3D 눈 내림 효과"
-        >
-          ❄️ 눈
-        </button>
-      </div>
+
     </div>
   );
 }

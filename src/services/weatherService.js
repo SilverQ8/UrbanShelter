@@ -26,14 +26,16 @@ export async function fetchCurrentWeather(lat, lng, signal) {
     const c = (await resp.json()).current;
     if (!c) return null;
     const code = c.weather_code;
+    const isSnowing = SNOW_CODES.has(code);
+    const isRaining = !isSnowing && (c.precipitation > 0 || RAIN_CODES.has(code));
     return {
       temperature: c.temperature_2m,
       apparent: c.apparent_temperature,
       precipitation: c.precipitation,
       uv: c.uv_index,
       isDay: c.is_day === 1,
-      isRaining: c.precipitation > 0 || RAIN_CODES.has(code),
-      isSnowing: SNOW_CODES.has(code),
+      isRaining,
+      isSnowing,
       label: describeWeather(code)
     };
   } catch (err) {
