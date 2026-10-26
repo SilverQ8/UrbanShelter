@@ -1,14 +1,15 @@
 import React, { useEffect, useRef } from 'react';
 import * as maplibregl from 'maplibre-gl';
 import * as turf from '@turf/turf';
-import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?url';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { MAP_CENTER } from '../data/urbanNetwork';
 import { loadMapStyle, applyPedestrianTweaks, applyPoiFilter } from '../utils/mapStyle';
 import { fetchKakaoBuildingDetail } from '../services/kakaoService';
 
-// Vite 번들링 환경에서 워커 경로를 직접 지정한다(지정하지 않으면 Worker failed to load 오류).
-maplibregl.setWorkerUrl(workerUrl);
+// Vite 번들링 및 프로덕션(Vercel) 환경에서 워커와 shared 모듈이 항상 함께 로드되도록 정적 경로 지정
+if (typeof window !== 'undefined') {
+  maplibregl.setWorkerUrl('/maplibre/maplibre-gl-worker.mjs');
+}
 
 // 오픈 벡터 타일(OpenFreeMap): API 키 없이 쓸 수 있고 건물 높이 데이터를 포함한다.
 
@@ -228,39 +229,46 @@ export default function Map3D({
     map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), 'bottom-right');
 
     // 'style.load'는 처음 로드와 테마 변경(setStyle) 때마다 발생하므로 그때마다 레이어를 다시 올린다.
-    map.on('style.load', () => {
+    const onStyleReady = () => {
       const isDark = latestRef.current.mapTheme === 'dark';
       if (isDark) {
         // 어두운 스타일에는 입체 건물이 없어 직접 추가한다(평면 건물 레이어는 숨김)
         if (map.getLayer('building')) map.setLayoutProperty('building', 'visibility', 'none');
-        map.addLayer(
-          {
-            id: 'building-3d',
-            type: 'fill-extrusion',
-            source: 'openmaptiles',
-            'source-layer': 'building',
-            minzoom: 13,
-            paint: {
-              'fill-extrusion-color': '#334155',
-              'fill-extrusion-height': ['coalesce', ['get', 'render_height'], 8],
-              'fill-extrusion-base': ['coalesce', ['get', 'render_min_height'], 0],
-              'fill-extrusion-opacity': 0.8
-            }
-          },
-          map.getLayer('highway_name_other') ? 'highway_name_other' : undefined
-        );
+        if (!map.getLayer('building-3d')) {
+          map.addLayer(
+            {
+              id: 'building-3d',
+              type: 'fill-extrusion',
+              source: 'openmaptiles',
+              'source-layer': 'building',
+              minzoom: 13,
+              paint: {
+                'fill-extrusion-color': '#334155',
+                'fill-extrusion-height': ['coalesce', ['get', 'render_height'], 8],
+                'fill-extrusion-base': ['coalesce', ['get', 'render_min_height'], 0],
+                'fill-extrusion-opacity': 0.8
+              }
+            },
+            map.getLayer('highway_name_other') ? 'highway_name_other' : undefined
+          );
+        }
       }
       // 보행자 중심 지도 조정 + 고른 종류의 장소 아이콘만 표시(지도 스타일에 이미 있는 아이콘 사용)
       applyPedestrianTweaks(map, latestRef.current.mapTheme);
       applyPoiFilter(map, latestRef.current.poiSelected);
 
-      map.addSource('route', { type: 'geojson', data: emptyLine });
-      map.addSource('endpoints', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
+      const addSourceSafe = (id, data) => {
+        if (!map.getSource(id)) {
+          map.addSource(id, { type: 'geojson', data });
+        }
+      };
 
-      map.addSource('shadows', { type: 'geojson', data: emptyLine });
-      map.addSource('trees3d', { type: 'geojson', data: emptyLine });
-      map.addSource('nav-position', { type: 'geojson', data: emptyLine });
-      map.addSource('me-position', { type: 'geojson', data: emptyLine });
+      addSourceSafe('route', emptyLine);
+      addSourceSafe('endpoints', { type: 'FeatureCollection', features: [] });
+      addSourceSafe('shadows', emptyLine);
+      addSourceSafe('trees3d', emptyLine);
+      addSourceSafe('nav-position', emptyLine);
+      addSourceSafe('me-position', emptyLine);
 
       // 그림자는 건물 아래(땅 위)에 깔고, 길과 함께 보이도록 반투명하게 칠한다 (어두운 지도 대비 보강)
       const firstExtrusion = map.getStyle().layers.find((l) => l.type === 'fill-extrusion')?.id;
@@ -528,8 +536,12 @@ export default function Map3D({
       loadedRef.current = true;
       syncData();
       latestRef.current.applyNavCamera?.();
-    });
+    };
 
+    map.on('style.load', onStyleReady);
+    if (map.isStyleLoaded()) {
+      onStyleReady();
+    }
   }
 
   // 고른 종류가 바뀌면 지도의 장소 아이콘 필터를 다시 건다
