@@ -12,9 +12,10 @@ export function decideAutoMode(weather, needs) {
     return { mode: 'night', reason: '밤이라 CCTV가 많은 안심 경로로 안내해요' };
   }
   if (weather.isRaining || weather.isSnowing) {
+    const amountText = weather.precipitation > 0 ? ` (시간당 ${Number(weather.precipitation.toFixed(1))}mm)` : '';
     return {
       mode: 'standard',
-      reason: `${weather.label} 중이라 가장 짧은 길로 안내해요 (우천 회피 경로는 준비 중)`
+      reason: `${weather.label}${amountText} 중이라 이동 시간을 줄이는 가장 짧은 길로 안내해요`
     };
   }
   if (weather.apparent >= HEAT_APPARENT_TEMP || weather.uv >= HEAT_UV_INDEX) {

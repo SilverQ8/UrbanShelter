@@ -18,14 +18,22 @@ export default function AutoBanner({ weather, mode, isAuto, reason, onResetAuto,
 
   const emoji = weather?.isRaining ? '🌧️' : weather?.isSnowing ? '❄️' : MODE_EMOJI[mode];
 
+  const getWeatherHeadline = () => {
+    if (!weather) return '날씨 확인 중';
+    const tempPart = `${Math.round(weather.temperature)}°C (체감 ${Math.round(weather.apparent)}°C)`;
+    if (weather.isRaining || weather.isSnowing || (weather.precipitation && weather.precipitation > 0)) {
+      const precipPart = weather.precipitation > 0 ? ` · 강수량 ${Number(weather.precipitation.toFixed(1))}mm/h` : '';
+      return `${weather.label}${precipPart} · ${tempPart}`;
+    }
+    return `${weather.label} ${tempPart}`;
+  };
+
   return (
     <div className="glass-panel auto-banner" role="status" aria-live="polite">
       <span className="auto-banner-icon" aria-hidden="true">{emoji}</span>
       <div className="auto-banner-text">
         <strong>
-          {weather
-            ? `${weather.label} ${Math.round(weather.temperature)}°C (체감 ${Math.round(weather.apparent)}°C)`
-            : '날씨 확인 중'}
+          {getWeatherHeadline()}
           {' · '}
           {MODE_LABELS[mode]}
         </strong>
