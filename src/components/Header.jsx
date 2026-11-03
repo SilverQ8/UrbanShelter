@@ -1,5 +1,5 @@
 import React from 'react';
-import { Shield, RotateCcw, Moon, Sun, SunMoon, Settings, Box, Map as MapIcon, CircleHelp } from 'lucide-react';
+import { RotateCcw, Moon, Sun, SunMoon, Settings, Box, Map as MapIcon, CircleHelp } from 'lucide-react';
 
 export default function Header({
   onResetPins,
@@ -19,12 +19,10 @@ export default function Header({
   return (
     <header className="app-header">
       <div className="brand-section">
-        <div className="brand-logo" style={{ background: 'linear-gradient(135deg, #0284c7 0%, #059669 100%)' }}>
-          <Shield size={22} strokeWidth={2.4} />
-        </div>
+        <img className="brand-logo-img" src="/logo.svg" alt="오솔길" />
         <div className="brand-title-wrap">
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-            <h1 className="brand-title">UrbanShelter</h1>
+            <h1 className="brand-title">오솔길</h1>
           </div>
           <span className="brand-tagline">
             실시간 건물 그늘 분석 기반 폭염 회피 & 방범 CCTV 안심 스마트 도보 라우팅

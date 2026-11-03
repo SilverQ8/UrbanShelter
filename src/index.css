@@ -2947,3 +2947,6 @@ input:checked + .switch-slider:before {
     border-radius: 18px;
   }
 }
+
+/* 로고 이미지(오솔길) */
+.brand-logo-img { width: 34px; height: 34px; border-radius: 10px; display: block; }
