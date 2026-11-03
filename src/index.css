@@ -1966,7 +1966,7 @@ input:checked + .switch-slider:before {
 
 .route-guide-nav-buttons {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(3, 1fr) !important;
   gap: 8px;
 }
 
@@ -2945,16 +2945,21 @@ input:checked + .switch-slider:before {
 
 /* 주변 장소: 아이콘 버튼으로 줄여 오른쪽 위 버튼들 옆에 붙이고, 누르면 아래로 펼친다 */
 .glass-panel.poi-panel {
-  position: relative;
-  width: auto;
-  padding: 0;
-  overflow: visible;
-  background: none;
-  border: none;
-  box-shadow: none;
-  z-index: 1001;
-  display: flex;
-  align-items: center;
+  position: relative !important;
+  top: auto !important;
+  right: auto !important;
+  bottom: auto !important;
+  left: auto !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  width: auto !important;
+  height: auto !important;
+  background: none !important;
+  border: none !important;
+  box-shadow: none !important;
+  display: flex !important;
+  align-items: center !important;
+  z-index: 1002 !important;
 }
 .poi-panel .poi-panel-header {
   position: relative;
@@ -2991,7 +2996,7 @@ input:checked + .switch-slider:before {
   .floating-overlay-left > .auto-banner { order: 8; margin-top: auto; }
   .floating-overlay-left > .sun-card { order: 9; }
 }
-.poi-dropdown { right: -176px; }
+.poi-dropdown { right: 0; }
 
 /* 오른쪽 위 버튼들을 하나의 도구 막대(알약)로 묶는다 */
 @media (min-width: 993px) {
@@ -3049,7 +3054,7 @@ input:checked + .switch-slider:before {
   .map-viewport { border-radius: 26px; overflow: hidden; }
   .brand-section { top: 28px; left: 32px; }
   .header-actions { top: 28px; right: 28px; }
-  .glass-panel.poi-panel { top: 28px; right: 204px; }
+  /* legacy poi pos removed */
   .poi-dropdown { right: -176px; }
 }
 
@@ -3061,8 +3066,8 @@ input:checked + .switch-slider:before {
 .help-item p { margin-top: 3px; font-size: 0.84rem; line-height: 1.5; color: var(--text-muted); }
 @media (min-width: 993px) {
   .header-actions::before { width: 290px; }
-  .glass-panel.poi-panel { right: 248px; }
-  .poi-dropdown { right: -220px; }
+  /* legacy poi pos removed */
+  .poi-dropdown { right: 0; }
 }
 
 /* 사이드바 아래쪽 정보(날씨·태양)는 작게 */
@@ -3183,11 +3188,22 @@ html, body {
 
   /* POI 패널: fixed 좌표 제거하고 header-actions flex item으로 */
   .glass-panel.poi-panel {
-    position: relative !important;
-    top: auto !important;
-    right: auto !important;
-    z-index: 1002 !important;
-  }
+  position: relative !important;
+  top: auto !important;
+  right: auto !important;
+  bottom: auto !important;
+  left: auto !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  width: auto !important;
+  height: auto !important;
+  background: none !important;
+  border: none !important;
+  box-shadow: none !important;
+  display: flex !important;
+  align-items: center !important;
+  z-index: 1002 !important;
+}
 
   /* POI 드롭다운: 모바일 정중앙 전체폭 오버레이 */
   .poi-dropdown {
@@ -3225,18 +3241,19 @@ html, body {
     right: 8px !important;
     width: auto !important;
     max-width: none !important;
-    max-height: 58vh !important;
-    padding: 8px 12px 24px !important;
-    gap: 8px !important;
-    background: rgba(20, 24, 35, 0.96) !important;
+    max-height: 72vh !important; /* 넉넉한 높이로 상단 핸들바부터 하단 탐색 버튼까지 한눈에 확보 */
+    padding: 8px 12px 28px !important;
+    gap: 6px !important;
+    background: rgba(18, 22, 34, 0.97) !important;
     backdrop-filter: blur(20px) !important;
     -webkit-backdrop-filter: blur(20px) !important;
     border: 1px solid rgba(255, 255, 255, 0.14) !important;
     border-radius: 20px !important;
-    box-shadow: 0 -4px 30px rgba(0, 0, 0, 0.7) !important;
+    box-shadow: 0 -6px 36px rgba(0, 0, 0, 0.75) !important;
     z-index: 900 !important;
     overflow-y: auto !important;
     overflow-x: hidden !important;
+    -webkit-overflow-scrolling: touch !important;
     transition: transform 0.28s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.2s ease !important;
   }
 
@@ -3345,21 +3362,43 @@ html, body {
 
   /* 탐색 버튼: 잘림 방지 및 모바일 한 손 터치 최적화 */
   .route-explore-btn {
-    position: sticky !important;
-    bottom: 0 !important;
-    z-index: 30 !important;
+    position: relative !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 8px !important;
     width: 100% !important;
-    min-height: 50px !important;
-    height: 50px !important;
-    margin-top: 14px !important;
-    margin-bottom: 4px !important;
+    min-height: 48px !important;
+    height: 48px !important;
+    margin-top: 12px !important;
+    margin-bottom: 8px !important;
     flex-shrink: 0 !important;
-    background: #10b981 !important;
+    background: var(--accent-emerald) !important;
     color: #04120d !important;
-    font-size: 1.05rem !important;
+    font-size: 1.02rem !important;
     font-weight: 800 !important;
     border-radius: 9999px !important;
-    box-shadow: 0 4px 20px rgba(16, 185, 129, 0.5), 0 -8px 24px rgba(20, 24, 35, 0.95) !important;
+    border: none !important;
+    box-shadow: 0 4px 18px rgba(16, 185, 129, 0.45) !important;
+    cursor: pointer !important;
+  }
+  .route-explore-btn:disabled {
+    opacity: 0.45 !important;
+    cursor: not-allowed !important;
+  }
+  
+  /* 모바일 travel-toggle 3열 가로 균등 1행 배치 */
+  .travel-toggle {
+    display: grid !important;
+    grid-template-columns: repeat(3, 1fr) !important;
+    gap: 6px !important;
+    margin-bottom: 8px !important;
+  }
+  .travel-toggle button {
+    min-height: 38px !important;
+    padding: 6px 0 !important;
+    font-size: 0.85rem !important;
+    border-radius: 10px !important;
   }
 
   .route-inputs-container {
