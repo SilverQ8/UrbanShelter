@@ -3177,9 +3177,10 @@ input:checked+.switch-slider:before {
 .poi-dropdown {
   position: absolute !important;
   top: 48px !important;
-  left: -6px !important; right: auto !important;
-  width: 320px !important;
-  padding: 14px !important;
+  left: -6px !important;
+  right: auto !important;
+  width: 274px !important;
+  padding: 12px 10px !important;
   background: #18181b !important;
   border: 1px solid rgba(255, 255, 255, 0.14) !important;
   border-radius: var(--radius-md) !important;
@@ -3219,9 +3220,9 @@ input:checked+.switch-slider:before {
     position: absolute;
     z-index: -1;
     top: -6px;
+    bottom: -6px;
+    left: -6px;
     right: -6px;
-    width: 270px;
-    height: 48px;
     background: #18181b;
     border: 1px solid rgba(255, 255, 255, 0.1);
     border-radius: 16px;
@@ -3254,7 +3255,9 @@ input:checked+.switch-slider:before {
 
 .poi-dropdown .poi-chip {
   min-width: 0;
-  padding: 0 12px;
+  padding: 0 8px !important;
+  font-size: 0.8rem !important;
+  gap: 4px !important;
 }
 
 .poi-dropdown .poi-chip-label {
@@ -3267,14 +3270,13 @@ input:checked+.switch-slider:before {
   padding: 0;
 }
 
-.poi-dropdown {
-  width: 350px;
-}
+.poi-dropdown { width: 274px !important; }
 
 .poi-dropdown .poi-chip {
-  gap: 5px;
-  padding: 0 10px;
-  font-size: 0.82rem;
+  min-width: 0;
+  padding: 0 8px !important;
+  font-size: 0.8rem !important;
+  gap: 4px !important;
 }
 
 .poi-dropdown .poi-chip-label {
@@ -3365,7 +3367,17 @@ input:checked+.switch-slider:before {
 
 @media (min-width: 993px) {
   .header-actions::before {
-    width: 290px;
+    content: '';
+    position: absolute;
+    z-index: -1;
+    top: -6px;
+    bottom: -6px;
+    left: -6px;
+    right: -6px;
+    background: #18181b;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 16px;
+    box-shadow: var(--shadow-card);
   }
 
   /* legacy poi pos removed */
@@ -3421,9 +3433,9 @@ body {
     position: absolute;
     z-index: -1;
     top: -6px;
+    bottom: -6px;
+    left: -6px;
     right: -6px;
-    width: 290px;
-    height: 48px;
     background: #18181b;
     border: 1px solid rgba(255, 255, 255, 0.1);
     border-radius: 16px;
@@ -3446,7 +3458,7 @@ body {
     top: 48px !important;
     left: -6px !important;
     right: auto !important;
-    width: 320px !important;
+    width: 274px !important;
     z-index: 9999 !important;
   }
 }
@@ -3886,9 +3898,11 @@ body {
   }
 
   .poi-dropdown .poi-chip {
-    padding: 0 6px !important;
-    font-size: 0.74rem !important;
-  }
+  min-width: 0;
+  padding: 0 8px !important;
+  font-size: 0.8rem !important;
+  gap: 4px !important;
+}
 }
 
 @keyframes mobileSlideUp {
