@@ -12,7 +12,8 @@ import {
   Loader2,
   X,
   CornerDownLeft,
-  SunMedium
+  SunMedium,
+  Bus
 } from 'lucide-react';
 import { NODES } from '../data/urbanNetwork';
 import { findNearestNode } from '../engine/routingEngine';
@@ -38,6 +39,11 @@ export default function RouteSearch({
   standardRoute,
   shadeRoute,
   nightRoute,
+  transitRoutes = [],
+  selectedTransitRoute = null,
+  selectedTransitIdx = 0,
+  onSelectTransit,
+  transitLoading = false,
   travelMode = 'foot',
   setTravelMode,
   walkSpeed = 75,
@@ -671,7 +677,120 @@ export default function RouteSearch({
           </div>
         )}
 
-        <div className="recommend-routes-grid" style={{ gridTemplateColumns: 'repeat(3, 1fr)', display: travelMode === 'car' ? 'none' : undefined }}>
+        {/* 대중교통 경로 목록 (TMAP API 연동) */}
+        {travelMode === 'transit' && (
+          <div>
+            {transitLoading ? (
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '8px',
+                padding: '24px 12px',
+                background: 'rgba(255, 255, 255, 0.04)',
+                borderRadius: '8px',
+                border: '1px solid rgba(56, 189, 248, 0.2)',
+                color: '#38bdf8',
+                fontSize: '0.82rem',
+                fontWeight: 600
+              }}>
+                <Loader2 size={16} className="spin-anim" />
+                <span>TMAP 실시간 대중교통 경로 탐색 중...</span>
+              </div>
+            ) : transitRoutes.length > 0 ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: `repeat(${Math.min(transitRoutes.length, 3)}, 1fr)`, gap: '6px' }}>
+                  {transitRoutes.map((tr, tIdx) => {
+                    const isSelected = selectedTransitIdx === tIdx;
+                    return (
+                      <div
+                        key={tIdx}
+                        className={`recommend-route-card ${isSelected ? 'selected standard-active' : ''}`}
+                        onClick={() => onSelectTransit && onSelectTransit(tIdx)}
+                        style={{
+                          borderColor: isSelected ? '#38bdf8' : undefined,
+                          background: isSelected ? 'rgba(56, 189, 248, 0.14)' : undefined,
+                          cursor: 'pointer'
+                        }}
+                      >
+                        <div className="card-top-row">
+                          <span className="route-card-title" style={{ color: isSelected ? '#38bdf8' : undefined }}>
+                            🚌 추천 {tIdx + 1}
+                          </span>
+                          {isSelected && <CheckCircle2 size={12} color="#38bdf8" />}
+                        </div>
+                        <div className="route-card-metrics">
+                          <strong style={{ fontSize: '1.2rem', color: isSelected ? '#38bdf8' : undefined }}>{tr.totalMinutes}분</strong>
+                          <span className="route-card-time">{tr.fare ? `${tr.fare.toLocaleString()}원` : '기본요금'}</span>
+                        </div>
+                        <div className="route-card-desc" style={{ color: '#f8fafc', fontWeight: 600, fontSize: '0.72rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          {tr.summary}
+                        </div>
+                        <div style={{ fontSize: '0.66rem', color: 'var(--text-muted)', marginTop: '2px' }}>
+                          도보 {tr.totalWalkMinutes}분 · 환승 {tr.transferCount}회
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* 선택된 대중교통 경로 구간 세부 안내 */}
+                {selectedTransitRoute && Array.isArray(selectedTransitRoute.legs) && (
+                  <div style={{
+                    background: 'rgba(15, 23, 42, 0.75)',
+                    border: '1px solid rgba(255, 255, 255, 0.1)',
+                    borderRadius: '8px',
+                    padding: '10px 12px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '6px'
+                  }}>
+                    <div style={{ fontSize: '0.74rem', fontWeight: 700, color: 'var(--text-muted)', marginBottom: '2px' }}>
+                      경로 세부 구간 ({selectedTransitRoute.summary})
+                    </div>
+                    {selectedTransitRoute.legs.map((leg, lIdx) => (
+                      <div key={lIdx} style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.72rem' }}>
+                        <span style={{
+                          background: leg.mode === 'WALK' ? '#475569' : leg.routeColor,
+                          color: '#ffffff',
+                          fontWeight: 700,
+                          fontSize: '0.66rem',
+                          padding: '2px 6px',
+                          borderRadius: '4px',
+                          flexShrink: 0
+                        }}>
+                          {leg.mode === 'WALK' ? '도보' : (leg.mode === 'SUBWAY' ? '지하철' : '버스')}
+                        </span>
+                        <div style={{ display: 'flex', flex: 1, minWidth: 0, justifyContent: 'space-between', alignItems: 'center' }}>
+                          <span style={{ color: '#f8fafc', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {leg.startName} ➔ {leg.endName} {leg.routeName !== '도보' ? `(${leg.routeName})` : ''}
+                          </span>
+                          <span style={{ color: 'var(--text-muted)', flexShrink: 0, marginLeft: '6px' }}>
+                            {leg.sectionMinutes}분 ({formatDistance(leg.distance)})
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div style={{
+                fontSize: '0.8rem',
+                color: 'var(--text-muted)',
+                padding: '16px 12px',
+                textAlign: 'center',
+                background: 'rgba(255, 255, 255, 0.04)',
+                borderRadius: '8px',
+                border: '1px dashed rgba(255, 255, 255, 0.12)'
+              }}>
+                출발지와 도착지 간 운행 중인 대중교통 노선이 없습니다.
+              </div>
+            )}
+          </div>
+        )}
+
+        <div className="recommend-routes-grid" style={{ gridTemplateColumns: 'repeat(3, 1fr)', display: travelMode !== 'foot' ? 'none' : undefined }}>
           {/* 1. 일반 최단 경로 */}
           {standardRoute && (
             <div
@@ -764,7 +883,7 @@ export default function RouteSearch({
         type="button"
         className="route-explore-btn"
         onClick={onShowGuide}
-        disabled={!standardRoute}
+        disabled={travelMode === 'transit' ? !selectedTransitRoute : !standardRoute}
         aria-pressed={guideOpen}
       >
         <Navigation size={18} />

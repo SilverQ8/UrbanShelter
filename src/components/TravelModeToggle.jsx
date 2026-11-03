@@ -1,8 +1,9 @@
 import React from 'react';
-import { Footprints, Car } from 'lucide-react';
+import { Footprints, Bus, Car } from 'lucide-react';
 
 const OPTIONS = [
   { id: 'foot', label: '도보 (보도 기준)', icon: Footprints },
+  { id: 'transit', label: '대중교통 (지하철·버스)', icon: Bus },
   { id: 'car', label: '차량', icon: Car }
 ];
 

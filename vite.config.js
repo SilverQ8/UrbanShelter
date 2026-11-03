@@ -492,7 +492,7 @@ async function fetchOsmRoadStreetlights(minLat, minLng, maxLat, maxLng) {
   return [];
 }
 
-function addressSearchPlugin(cctvApiKey, buildingApiKey, streetlightApiKey, streetlightDataId = 'DSSP-IF-00084', kakaoApiKey = 'c8d493c6110cd5e37a14a82a89e3690e') {
+function addressSearchPlugin(cctvApiKey, buildingApiKey, streetlightApiKey, streetlightDataId = 'DSSP-IF-00084', kakaoApiKey = 'c8d493c6110cd5e37a14a82a89e3690e', tmapApiKey = 'SwziAaNX2x4LattRuXxpa3BgkZXm1E3X3vgknMrP') {
   return {
     name: 'address-search-plugin',
     async configureServer(server) {
@@ -889,6 +889,73 @@ function addressSearchPlugin(cctvApiKey, buildingApiKey, streetlightApiKey, stre
 
         res.end(JSON.stringify(buildingData));
       });
+
+      // TMAP 대중교통 경로 안내 엔드포인트
+      server.middlewares.use('/api/transit/route', async (req, res) => {
+        res.setHeader('Content-Type', 'application/json; charset=utf-8');
+        res.setHeader('Access-Control-Allow-Origin', '*');
+        res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+        res.setHeader('Access-Control-Allow-Headers', 'Content-Type, appKey');
+
+        if (req.method === 'OPTIONS') {
+          res.statusCode = 200;
+          return res.end();
+        }
+
+        try {
+          const reqUrl = new URL(req.url, 'http://localhost');
+          let startX = reqUrl.searchParams.get('startX');
+          let startY = reqUrl.searchParams.get('startY');
+          let endX = reqUrl.searchParams.get('endX');
+          let endY = reqUrl.searchParams.get('endY');
+          let count = reqUrl.searchParams.get('count') || 3;
+
+          if (req.method === 'POST') {
+            const buffers = [];
+            for await (const chunk of req) buffers.push(chunk);
+            const rawBody = Buffer.concat(buffers).toString();
+            try {
+              const body = JSON.parse(rawBody);
+              startX = body.startX || startX;
+              startY = body.startY || startY;
+              endX = body.endX || endX;
+              endY = body.endY || endY;
+              count = body.count || count;
+            } catch {}
+          }
+
+          if (!startX || !startY || !endX || !endY) {
+            res.statusCode = 400;
+            return res.end(JSON.stringify({ error: 'startX, startY, endX, endY are required' }));
+          }
+
+          const activeKey = tmapApiKey || process.env.TMAP_APP_KEY || 'SwziAaNX2x4LattRuXxpa3BgkZXm1E3X3vgknMrP';
+          const tmapResp = await fetch('https://apis.openapi.sk.com/transit/routes', {
+            method: 'POST',
+            headers: {
+              'appKey': activeKey,
+              'Accept': 'application/json',
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              startX: String(startX),
+              startY: String(startY),
+              endX: String(endX),
+              endY: String(endY),
+              count: Number(count) || 3,
+              lang: 0,
+              format: 'json'
+            })
+          });
+
+          const data = await tmapResp.json();
+          res.statusCode = tmapResp.status;
+          return res.end(JSON.stringify(data));
+        } catch (err) {
+          res.statusCode = 500;
+          return res.end(JSON.stringify({ error: err.message }));
+        }
+      });
     }
   };
 }
@@ -1080,8 +1147,9 @@ export default defineConfig(({ mode }) => {
   const streetlightDataId = env.VITE_STREETLIGHT_DATA_ID || process.env.VITE_STREETLIGHT_DATA_ID || 'DSSP-IF-00084';
 
   const kakaoApiKey = env.VITE_KAKAO_MAP_API_KEY || 'c8d493c6110cd5e37a14a82a89e3690e';
+  const tmapApiKey = env.VITE_TMAP_APP_KEY || env.TMAP_APP_KEY || process.env.TMAP_APP_KEY || 'SwziAaNX2x4LattRuXxpa3BgkZXm1E3X3vgknMrP';
   return {
-    plugins: [react(), addressSearchPlugin(cctvApiKey, buildingApiKey, streetlightApiKey, streetlightDataId, kakaoApiKey)],
+    plugins: [react(), addressSearchPlugin(cctvApiKey, buildingApiKey, streetlightApiKey, streetlightDataId, kakaoApiKey, tmapApiKey)],
     server: {
       port: 5173,
       open: false,

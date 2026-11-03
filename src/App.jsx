@@ -29,6 +29,7 @@ import { speakGuide } from './utils/ttsService';
 import PoiPanel from './components/PoiPanel';
 import { fetchPoisForBounds } from './services/poiService';
 import { POI_CATEGORIES } from './data/poiCategories';
+import { fetchTransitRoutes } from './services/transitService';
 
 const DEFAULT_START = {
   name: '해운대역 3번 출구',
@@ -209,6 +210,58 @@ export default function App() {
     loadBaseRoute();
     return () => { isCancelled = true; };
   }, [startPoint, targetPoint, travelMode]);
+
+  // 대중교통(지하철·버스) 실시간 경로 (TMAP API 연동)
+  const [transitRoutes, setTransitRoutes] = useState([]);
+  const [selectedTransitIdx, setSelectedTransitIdx] = useState(0);
+  const [transitLoading, setTransitLoading] = useState(false);
+
+  useEffect(() => {
+    if (travelMode !== 'transit' || !startPoint || !targetPoint) {
+      setTransitRoutes([]);
+      return;
+    }
+    let cancelled = false;
+    setTransitLoading(true);
+    fetchTransitRoutes(startPoint, targetPoint).then((routes) => {
+      if (!cancelled) {
+        setTransitRoutes(routes);
+        setSelectedTransitIdx(0);
+        setTransitLoading(false);
+      }
+    }).catch(() => {
+      if (!cancelled) setTransitLoading(false);
+    });
+    return () => { cancelled = true; };
+  }, [startPoint, targetPoint, travelMode]);
+
+  const selectedTransitRoute = transitRoutes[selectedTransitIdx] || null;
+
+  // 대중교통 턴바이턴 안내 스텝 변환
+  const transitGuideSteps = useMemo(() => {
+    if (!selectedTransitRoute || !Array.isArray(selectedTransitRoute.legs)) return null;
+    return selectedTransitRoute.legs.map((leg, i) => {
+      const isStart = i === 0;
+      const isEnd = i === selectedTransitRoute.legs.length - 1;
+      let text = '';
+      let icon = 'straight';
+      if (leg.mode === 'WALK') {
+        text = isStart ? `출발지에서 ${leg.endName}까지 도보 이동` : (isEnd ? `${leg.startName}에서 목적지까지 도보 이동` : `${leg.startName}에서 ${leg.endName}까지 환승 이동`);
+        icon = isStart ? 'depart' : (isEnd ? 'arrive' : 'straight');
+      } else if (leg.mode === 'SUBWAY') {
+        text = `🚇 ${leg.startName}에서 [${leg.routeName}] 탑승 ➔ ${leg.endName} 하차 (${leg.stations.length}개 역, ${leg.sectionMinutes}분)`;
+      } else {
+        text = `🚌 ${leg.startName}에서 [${leg.routeName}] 탑승 ➔ ${leg.endName} 하차 (${leg.stations.length}개 정류소, ${leg.sectionMinutes}분)`;
+      }
+      return {
+        icon,
+        text,
+        name: leg.routeName,
+        distance: leg.distance,
+        point: leg.path && leg.path[0] ? leg.path[0] : null
+      };
+    });
+  }, [selectedTransitRoute]);
 
   // 경로 주변의 실제 건물·나무(OpenStreetMap)를 불러와 그림자 계산에 쓴다.
   const [osmData, setOsmData] = useState({ status: 'idle', buildings: [], trees: [] });
@@ -845,6 +898,7 @@ export default function App() {
           standardRoute={standardRoute}
           shadeRoute={shadeRoute}
           nightRoute={nightRoute}
+          transitRoute={selectedTransitRoute}
           sunPos={sunPos}
           shadows={shadows}
           simulatedHour={simulatedHour}
@@ -892,6 +946,11 @@ export default function App() {
             nightRoute={nightRoute}
             travelMode={travelMode}
             setTravelMode={setTravelMode}
+            transitRoutes={transitRoutes}
+            selectedTransitRoute={selectedTransitRoute}
+            selectedTransitIdx={selectedTransitIdx}
+            onSelectTransit={setSelectedTransitIdx}
+            transitLoading={transitLoading}
             walkSpeed={walkSpeed}
             onChangeWalkSpeed={changeWalkSpeed}
             sunPos={sunPos}
@@ -908,32 +967,55 @@ export default function App() {
             walkSpeed={walkSpeed}
             shadeInfo={shadeInfo}
             isCar={isCar}
+            travelMode={travelMode}
           />
         </div>
 
         {/* Floating Right Overlay: Turn-by-turn route guide */}
         <div className="floating-overlay-right">
           <PoiPanel selected={poiSelected} onToggle={togglePoi} counts={poiCounts} status={poiData.status} isRouteBased={isRouteBasedPoi} />
-          {recommendedRoute && baseRoute && showGuide && (
-            <RouteGuide
-              steps={baseRoute.steps}
-              totalDistance={recommendedRoute.totalDistance}
-              totalMinutes={recommendedRoute.estimatedMinutes}
-              onFocusStep={setFocusPoint}
-              mode={mode}
-              navigating={navigating}
-              navIndex={navIndex}
-              onStartNav={startNavigation}
-              onStopNav={stopNavigation}
-              onSelectNavStep={setNavIndex}
-              liveStatus={liveStatus}
-              nearDestination={Boolean(liveProgress?.nearDestination)}
-              walkSpeed={walkSpeed}
-              onChangeWalkSpeed={changeWalkSpeed}
-              isCar={isCar}
-              onClose={closeGuide}
-              onReroute={handleReroute}
-            />
+          {showGuide && (
+            travelMode === 'transit' && selectedTransitRoute && transitGuideSteps ? (
+              <RouteGuide
+                steps={transitGuideSteps}
+                totalDistance={selectedTransitRoute.totalDistance}
+                totalMinutes={selectedTransitRoute.totalMinutes}
+                onFocusStep={setFocusPoint}
+                mode="transit"
+                navigating={navigating}
+                navIndex={navIndex}
+                onStartNav={startNavigation}
+                onStopNav={stopNavigation}
+                onSelectNavStep={setNavIndex}
+                liveStatus={liveStatus}
+                nearDestination={Boolean(liveProgress?.nearDestination)}
+                walkSpeed={walkSpeed}
+                onChangeWalkSpeed={changeWalkSpeed}
+                isCar={false}
+                onClose={closeGuide}
+                onReroute={handleReroute}
+              />
+            ) : recommendedRoute && baseRoute ? (
+              <RouteGuide
+                steps={baseRoute.steps}
+                totalDistance={recommendedRoute.totalDistance}
+                totalMinutes={recommendedRoute.estimatedMinutes}
+                onFocusStep={setFocusPoint}
+                mode={mode}
+                navigating={navigating}
+                navIndex={navIndex}
+                onStartNav={startNavigation}
+                onStopNav={stopNavigation}
+                onSelectNavStep={setNavIndex}
+                liveStatus={liveStatus}
+                nearDestination={Boolean(liveProgress?.nearDestination)}
+                walkSpeed={walkSpeed}
+                onChangeWalkSpeed={changeWalkSpeed}
+                isCar={isCar}
+                onClose={closeGuide}
+                onReroute={handleReroute}
+              />
+            ) : null
           )}
         </div>
 

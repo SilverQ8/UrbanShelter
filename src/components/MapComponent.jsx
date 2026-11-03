@@ -8,6 +8,7 @@ import { formatDistance, formatDuration } from '../utils/format';
 import { filterValidUrbanMarkers, isInvalidOceanCoordinate } from '../utils/geoSanity';
 import { normalizeFacilityDataset } from '../utils/geoConverter';
 import { searchKakaoBuildings, fetchKakaoBuildingDetail, getInstantLocalBuildings } from '../services/kakaoService';
+import { getTransitArrivalInfo } from '../services/transitService';
 import { POI_CATEGORIES } from '../data/poiCategories';
 import rawFallbackCctvs from '../data/cctvRealData.json';
 import rawFallbackStreetlights from '../data/streetlightRealData.json';
@@ -35,6 +36,7 @@ export default function MapComponent({
   standardRoute,
   shadeRoute,
   nightRoute,
+  transitRoute = null,
   sunPos,
   layers,
   mapTheme = 'dark',
@@ -430,6 +432,121 @@ export default function MapComponent({
     });
   };
 
+  // 대중교통 정류장/지하철역 실시간 도착 정보 팝업
+  const openTransitArrivalPopup = (poi, popupLatLng) => {
+    const map = mapInstanceRef.current;
+    if (!map) return;
+
+    const arrivalInfo = getTransitArrivalInfo(poi);
+    if (!arrivalInfo) return;
+
+    const popupId = `transit-pop-${Date.now()}`;
+    const [centerLat, centerLng] = popupLatLng;
+
+    let arrivalHtml = '';
+    if (arrivalInfo.type === 'subway') {
+      arrivalHtml = `
+        <div style="margin-top: 8px;">
+          ${arrivalInfo.directions.map(dir => `
+            <div style="background: rgba(255, 255, 255, 0.05); padding: 7px 9px; border-radius: 6px; margin-bottom: 6px; border-left: 3.5px solid ${arrivalInfo.lineColor};">
+              <div style="font-size: 0.74rem; font-weight: 700; color: #cbd5e1; margin-bottom: 4px;">${dir.dir}</div>
+              <div style="display: flex; flex-direction: column; gap: 4px;">
+                ${dir.trains.map(tr => `
+                  <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.73rem;">
+                    <span style="color: #f8fafc; font-weight: 600;">🚇 ${tr.dest}</span>
+                    <div style="display: flex; align-items: center; gap: 5px;">
+                      <span style="color: ${tr.min === '곧 도착' ? '#ef4444' : '#38bdf8'}; font-weight: 700;">${tr.min}</span>
+                      <span style="font-size: 0.66rem; color: #94a3b8; background: rgba(255,255,255,0.08); padding: 1px 4px; border-radius: 3px;">${tr.status}</span>
+                    </div>
+                  </div>
+                `).join('')}
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      `;
+    } else {
+      // bus stop
+      arrivalHtml = `
+        <div style="margin-top: 8px; max-height: 170px; overflow-y: auto; display: flex; flex-direction: column; gap: 4px;">
+          ${arrivalInfo.buses.slice(0, 5).map(b => `
+            <div style="display: flex; justify-content: space-between; align-items: center; background: rgba(255, 255, 255, 0.05); padding: 5px 8px; border-radius: 6px; font-size: 0.73rem;">
+              <div style="display: flex; align-items: center; gap: 6px;">
+                <span style="background: ${b.color}; color: #ffffff; font-weight: 700; font-size: 0.68rem; padding: 1px 5px; border-radius: 4px;">${b.no}</span>
+                <span style="color: #94a3b8; font-size: 0.66rem;">${b.type}</span>
+              </div>
+              <div style="display: flex; align-items: center; gap: 5px;">
+                <span style="color: ${b.minText === '곧 도착' ? '#ef4444' : '#38bdf8'}; font-weight: 700;">${b.minText}</span>
+                <span style="font-size: 0.66rem; color: #64748b;">(${b.remStops})</span>
+                <span style="font-size: 0.65rem; color: ${b.crowd === '여유' ? '#10b981' : (b.crowd === '보통' ? '#f59e0b' : '#ef4444')};">${b.crowd}</span>
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      `;
+    }
+
+    const contentHtml = `
+      <div style="padding: 12px; font-family: -apple-system, BlinkMacSystemFont, 'Pretendard', sans-serif; color: #ffffff;">
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px;">
+          <div style="display: inline-flex; align-items: center; gap: 4px; background: rgba(16, 185, 129, 0.15); border: 1px solid rgba(16, 185, 129, 0.3); padding: 2px 7px; border-radius: 10px; font-size: 0.66rem; color: #10b981; font-weight: 700;">
+            <span style="width: 5px; height: 5px; border-radius: 50%; background: #10b981; display: inline-block;"></span>
+            실시간 도착 정보
+          </div>
+          ${arrivalInfo.arsId ? `<span style="font-size: 0.68rem; color: #94a3b8;">정류소ID: ${arrivalInfo.arsId}</span>` : ''}
+          ${arrivalInfo.line ? `<span style="font-size: 0.70rem; color: ${arrivalInfo.lineColor}; font-weight: 700;">${arrivalInfo.line}</span>` : ''}
+        </div>
+
+        <h4 style="margin: 0; font-size: 1.02rem; font-weight: 800; color: #f8fafc; letter-spacing: -0.3px;">
+          ${arrivalInfo.type === 'subway' ? '🚇' : '🚌'} ${arrivalInfo.title}
+        </h4>
+
+        ${arrivalHtml}
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 10px; padding-top: 8px; border-top: 1px solid rgba(255, 255, 255, 0.1);">
+          <button id="btn-start-${popupId}" style="background: #10b981; color: #ffffff; border: none; padding: 6px; border-radius: 6px; font-size: 0.73rem; font-weight: 700; cursor: pointer; transition: opacity 0.15s ease;">
+            출발지로 설정 (A)
+          </button>
+          <button id="btn-target-${popupId}" style="background: #f43f5e; color: #ffffff; border: none; padding: 6px; border-radius: 6px; font-size: 0.73rem; font-weight: 700; cursor: pointer; transition: opacity 0.15s ease;">
+            도착지로 설정 (B)
+          </button>
+        </div>
+      </div>
+    `;
+
+    const popup = L.popup({
+      maxWidth: 320,
+      minWidth: 270,
+      className: 'custom-building-popup',
+      autoPan: true,
+      autoPanPadding: [20, 20]
+    })
+      .setLatLng(popupLatLng)
+      .setContent(contentHtml)
+      .openOn(map);
+
+    setTimeout(() => {
+      const startBtn = document.getElementById(`btn-start-${popupId}`);
+      const targetBtn = document.getElementById(`btn-target-${popupId}`);
+      if (startBtn) {
+        startBtn.onclick = () => {
+          if (setStartPoint) {
+            setStartPoint({ lat: centerLat, lng: centerLng, name: arrivalInfo.title, roadAddress: arrivalInfo.title });
+          }
+          map.closePopup();
+        };
+      }
+      if (targetBtn) {
+        targetBtn.onclick = () => {
+          if (setTargetPoint) {
+            setTargetPoint({ lat: centerLat, lng: centerLng, name: arrivalInfo.title, roadAddress: arrivalInfo.title });
+          }
+          map.closePopup();
+        };
+      }
+    }, 50);
+  };
+
   // 주변 장소 (병원, 약국, 편의점, 지하철 등) 선택된 칩에 따른 실시간 지도 핀 렌더링
   useEffect(() => {
     const poiLayer = poiLayerRef.current;
@@ -473,15 +590,19 @@ export default function MapComponent({
         offset: [0, -10]
       });
 
-      // 클릭 시 실시간 공식 건물/장소 상세정보 및 로드뷰 팝업 연동
+      // 클릭 시 실시간 정류장/지하철 도착 정보 팝업 (또는 일반 건물 상세 팝업)
       marker.on('click', () => {
-        openBuildingDetailPopup({
-          id: p.id,
-          name: placeName,
-          category: catInfo.label,
-          lat: p.lat,
-          lng: p.lng
-        }, [p.lat, p.lng]);
+        if (p.category === 'bus' || p.category === 'subway') {
+          openTransitArrivalPopup(p, [p.lat, p.lng]);
+        } else {
+          openBuildingDetailPopup({
+            id: p.id,
+            name: placeName,
+            category: catInfo.label,
+            lat: p.lat,
+            lng: p.lng
+          }, [p.lat, p.lng]);
+        }
       });
 
       poiLayer.addLayer(marker);
@@ -1171,7 +1292,66 @@ export default function MapComponent({
         routeLayer.addLayer(mainPoly);
       }
     }
-  }, [mode, recommendedRoute, standardRoute, mapTheme, travelMode]);
+
+    // 3. Transit Route (Subway & Bus Multi-modal Legs)
+    if (travelMode === 'transit' && transitRoute && Array.isArray(transitRoute.legs)) {
+      for (const leg of transitRoute.legs) {
+        if (!leg.path || leg.path.length < 2) continue;
+
+        if (leg.mode === 'WALK') {
+          // Walk section - dashed line
+          const walkPoly = L.polyline(leg.path, {
+            color: '#94a3b8',
+            weight: 5,
+            dashArray: '6, 8',
+            opacity: 0.9,
+            lineCap: 'round'
+          });
+          walkPoly.bindTooltip(`👣 도보 (${leg.sectionMinutes}분 · ${formatDistance(leg.distance)})`, { className: 'route-tooltip-custom', sticky: true });
+          routeLayer.addLayer(walkPoly);
+        } else {
+          // Transit Vehicle Section (Bus or Subway)
+          const glowPoly = L.polyline(leg.path, {
+            color: leg.routeColor,
+            weight: 14,
+            opacity: 0.4,
+            lineCap: 'round',
+            lineJoin: 'round'
+          });
+          routeLayer.addLayer(glowPoly);
+
+          const mainPoly = L.polyline(leg.path, {
+            color: leg.routeColor,
+            weight: 6.5,
+            opacity: 1.0,
+            lineCap: 'round',
+            lineJoin: 'round'
+          });
+          const iconPrefix = leg.mode === 'SUBWAY' ? '🚇' : '🚌';
+          mainPoly.bindTooltip(`<strong>${iconPrefix} ${leg.routeName}</strong><br/>${leg.startName} ➔ ${leg.endName} (${leg.sectionMinutes}분)`, { className: 'route-tooltip-custom', sticky: true });
+          routeLayer.addLayer(mainPoly);
+
+          // Draw Station / Stop markers along transit leg
+          if (Array.isArray(leg.stations)) {
+            for (const st of leg.stations) {
+              const stIcon = L.divIcon({
+                className: 'transit-stop-marker',
+                html: `<div style="width: 10px; height: 10px; border-radius: 50%; background: #ffffff; border: 2.5px solid ${leg.routeColor}; box-shadow: 0 1px 4px rgba(0,0,0,0.5); cursor: pointer;"></div>`,
+                iconSize: [10, 10],
+                iconAnchor: [5, 5]
+              });
+              const stMarker = L.marker([st.lat, st.lng], { icon: stIcon });
+              stMarker.bindTooltip(`<strong>${iconPrefix} ${st.name}</strong><br/><span style="color:#38bdf8; font-size:10px;">터치하여 실시간 도착 시간 확인</span>`, { className: 'route-tooltip-custom' });
+              stMarker.on('click', () => {
+                openTransitArrivalPopup({ name: st.name, category: leg.mode === 'SUBWAY' ? 'subway' : 'bus' }, [st.lat, st.lng]);
+              });
+              routeLayer.addLayer(stMarker);
+            }
+          }
+        }
+      }
+    }
+  }, [mode, recommendedRoute, standardRoute, transitRoute, mapTheme, travelMode]);
 
   // 3. Interactive Markers (User GPS, Start A, Target B)
   useEffect(() => {

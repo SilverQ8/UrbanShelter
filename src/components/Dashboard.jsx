@@ -18,7 +18,8 @@ export default function Dashboard({
   sunPos,
   walkSpeed = 75,
   shadeInfo = '',
-  isCar = false
+  isCar = false,
+  travelMode = 'foot'
 }) {
   if (!recommendedRoute || !standardRoute) {
     return (
@@ -46,29 +47,42 @@ export default function Dashboard({
       {/* 대시보드 헤더 */}
       <div className="dashboard-header">
         <div className="route-badge-row">
-          {mode === 'standard' && (
-            <span className="route-type-badge badge-standard">
+          {travelMode === 'transit' ? (
+            <span className="route-type-badge" style={{ background: 'rgba(56, 189, 248, 0.18)', color: '#38bdf8', border: '1px solid rgba(56, 189, 248, 0.35)' }}>
               <Navigation size={13} />
-              <span>{isCar ? '차량 기준 경로' : '가장 짧은 도보 경로 (비교 기준)'}</span>
+              <span>대중교통 최적 경로 (TMAP 실시간 지하철·버스 노선 연동)</span>
             </span>
-          )}
-          {mode === 'shade' && (
-            <span className="route-type-badge badge-rain" style={{ background: 'rgba(16, 185, 129, 0.18)', color: '#10b981', border: '1px solid rgba(16, 185, 129, 0.35)' }}>
-              <SunMedium size={13} />
-              <span>폭염 안심 그늘 경로 (실시간 태양 위치 및 건물 그늘 분석)</span>
-            </span>
-          )}
-          {mode === 'night' && (
-            <span className="route-type-badge badge-night">
-              <ShieldCheck size={13} />
-              <span>야간 안심 추천 경로 (전국 방범 CCTV 안전구역 연계)</span>
-            </span>
+          ) : (
+            <>
+              {mode === 'standard' && (
+                <span className="route-type-badge badge-standard">
+                  <Navigation size={13} />
+                  <span>{isCar ? '차량 기준 경로' : '가장 짧은 도보 경로 (비교 기준)'}</span>
+                </span>
+              )}
+              {mode === 'shade' && (
+                <span className="route-type-badge badge-rain" style={{ background: 'rgba(16, 185, 129, 0.18)', color: '#10b981', border: '1px solid rgba(16, 185, 129, 0.35)' }}>
+                  <SunMedium size={13} />
+                  <span>폭염 안심 그늘 경로 (실시간 태양 위치 및 건물 그늘 분석)</span>
+                </span>
+              )}
+              {mode === 'night' && (
+                <span className="route-type-badge badge-night">
+                  <ShieldCheck size={13} />
+                  <span>야간 안심 추천 경로 (전국 방범 CCTV 안전구역 연계)</span>
+                </span>
+              )}
+            </>
           )}
         </div>
 
         <div style={{ fontSize: '0.75rem', color: 'var(--text-dim)' }}>
-          {isCar ? '자동차 도로 기준 · 소요 시간은 평균 주행 속도로 계산' : `도보 속도 기준: ${walkSpeed}m/분 (약 ${(walkSpeed * 0.06).toFixed(1)}km/h)`}
-          {!isCar && shadeInfo && <div>그림자 계산: {shadeInfo}</div>}
+          {travelMode === 'transit'
+            ? '실시간 대중교통 배차 및 정류장 기준 · 첫/마지막 도보 구간은 보행자 맞춤 안내'
+            : isCar
+            ? '자동차 도로 기준 · 소요 시간은 평균 주행 속도로 계산'
+            : `도보 속도 기준: ${walkSpeed}m/분 (약 ${(walkSpeed * 0.06).toFixed(1)}km/h)`}
+          {!isCar && travelMode !== 'transit' && shadeInfo && <div>그림자 계산: {shadeInfo}</div>}
         </div>
       </div>
 

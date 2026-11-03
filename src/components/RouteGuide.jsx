@@ -186,11 +186,11 @@ export default function RouteGuide({
                 className="route-guide-start"
                 onClick={() => {
                   onStartNav();
-                  speakGuide('보행 길 안내를 시작합니다.');
+                  speakGuide(mode === 'transit' ? '대중교통 길 안내를 시작합니다.' : '보행 길 안내를 시작합니다.');
                 }}
               >
                 <Footprints size={20} />
-                보행자 시점으로 걷기
+                {mode === 'transit' ? '대중교통 길 안내 시작' : '보행자 시점으로 걷기'}
               </button>
             </div>
           )}
