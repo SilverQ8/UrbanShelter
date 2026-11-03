@@ -1,3 +1,3 @@
-# UrbanShelter
+# 오솔길
 
-UrbanShelter project repository.
+오솔길 project repository.

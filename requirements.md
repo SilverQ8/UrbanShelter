@@ -1,4 +1,4 @@
-# 📋 UrbanShelter - 기능 명세서 (Functional Specification)
+# 📋 오솔길 - 기능 명세서 (Functional Specification)
 
 ---
 

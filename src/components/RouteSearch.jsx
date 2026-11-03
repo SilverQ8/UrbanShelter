@@ -605,7 +605,7 @@ export default function RouteSearch({
           gap: '6px'
         }}>
           <div style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-muted)' }}>
-            경로 비교 (눌러서 선택)
+            경로 비교
           </div>
           {travelMode === 'foot' && onChangeWalkSpeed && (
             <div
@@ -651,7 +651,7 @@ export default function RouteSearch({
           )}
         </div>
 
-        {!standardRoute && (
+        {travelMode !== 'transit' && !standardRoute && (
           <div style={{
             fontSize: '0.8rem',
             color: 'var(--text-muted)',

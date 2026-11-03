@@ -71,6 +71,8 @@ export function applyPedestrianTweaks(map, theme) {
     map.setPaintProperty(id, 'line-width', ['interpolate', ['linear'], ['zoom'], 14, 1, 18, 3]);
   });
 
+  if (theme === 'dark') applyCharcoalLook(map);
+
   // 주차장·주유소 같은 차량용 장소는 뺀다. 이 값이 장소 필터의 기준이 된다.
   const carFilter = ['!', ['match', ['get', 'class'], CAR_POI_CLASSES, true, false]];
   map.__poiBaseFilters = {};
@@ -107,5 +109,31 @@ export function applyPoiFilter(map, selected) {
     if (typeof size === 'number' || size === undefined) {
       map.setLayoutProperty(id, 'icon-size', chosen.length > 0 ? 1.3 : 1);
     }
+  });
+}
+
+// 어두운 지도를 "차콜 바탕 + 밝은 회색 도로" 느낌으로 바꾼다(시안 ff/1.png 참고).
+const CHARCOAL = {
+  background: ['background', 'background-color', '#1b1b1d'],
+  water: ['water', 'fill-color', '#121214'],
+  waterway: ['waterway', 'line-color', '#121214'],
+  park: ['landuse_park', 'fill-color', '#222224'],
+  wood: ['landcover_wood', 'fill-color', '#222224'],
+  residential: ['landuse_residential', 'fill-color', '#1b1b1d'],
+  building: ['building', 'fill-color', '#242426'],
+  minor: ['highway_minor', 'line-color', '#38383b'],
+  path: ['highway_path', 'line-color', '#303033'],
+  majorCasing: ['highway_major_casing', 'line-color', '#141416'],
+  majorInner: ['highway_major_inner', 'line-color', '#46464a'],
+  majorSubtle: ['highway_major_subtle', 'line-color', '#3a3a3d'],
+  motorwayCasing: ['highway_motorway_casing', 'line-color', '#141416'],
+  motorwayInner: ['highway_motorway_inner', 'line-color', '#52525a'],
+  roadName: ['highway_name_other', 'text-color', '#8c8c92'],
+  roadNameMajor: ['highway_name_motorway', 'text-color', '#9a9aa0']
+};
+
+function applyCharcoalLook(map) {
+  Object.values(CHARCOAL).forEach(([id, prop, value]) => {
+    if (map.getLayer(id)) map.setPaintProperty(id, prop, value);
   });
 }

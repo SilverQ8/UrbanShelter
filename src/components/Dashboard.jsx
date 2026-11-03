@@ -22,13 +22,7 @@ export default function Dashboard({
   travelMode = 'foot'
 }) {
   if (!recommendedRoute || !standardRoute) {
-    return (
-      <div className="glass-panel dashboard-card">
-        <div style={{ color: 'var(--text-muted)', fontSize: '0.85rem', textAlign: 'center', padding: '6px 0' }}>
-          출발지와 도착지를 설정하여 안심 스마트 길찾기를 시작해 보세요.
-        </div>
-      </div>
-    );
+    return null;
   }
 
   // Differences between recommended route and baseline shortest
@@ -205,12 +199,12 @@ export default function Dashboard({
             )}
             <span>
               {mode === 'shade'
-                ? `☀️ [폭염 안심 그늘]: 현재 태양 고도(${sunPos?.altitudeDeg || 65}°)와 주변 건물 그늘을 분석하여 ${formatDistance(recommendedRoute.shadedDistance)}${recommendedRoute.shadeRatio != null ? `(${recommendedRoute.shadeRatio}%)` : ''}를 그늘로 보행합니다. 체감 온도 저감 및 자외선 노출을 최소화합니다.`
+                ? `☀️ 그늘 ${formatDistance(recommendedRoute.shadedDistance)}${recommendedRoute.shadeRatio != null ? ` (${recommendedRoute.shadeRatio}%)` : ''}`
                 : mode === 'night'
-                ? `🌙 [야간 안심 경로]: 전국 실시간 방범 CCTV 및 가로등(보안등) 공공데이터 기반으로 15m 안심조도와 안전구역을 최대 경유하는 안심 도보 경로입니다 (CCTV ${recommendedRoute.cctvCount}대, 안심 가로등 ${recommendedRoute.streetlightCount || 0}개소, 조명 안전도 ${recommendedRoute.lightCoverageRatio || 85}%).`
+                ? `🌙 CCTV ${recommendedRoute.cctvCount}대 · 가로등 ${recommendedRoute.streetlightCount || 0}개 · 조명 ${recommendedRoute.lightCoverageRatio || 85}%`
                 : isCar
-                ? '🚗 [차량 기준]: 자동차가 다닐 수 있는 도로를 따라가는 경로입니다. 걸어갈 때는 설정에서 [도보(보도 기준)]로 바꿔 주세요.'
-                : '🧭 [가장 짧은 길]: 걸어서 갈 수 있는 가장 짧은 보행 경로입니다. 한여름 한낮에는 [폭염 그늘], 야간에는 [야간 안심] 탭을 눌러 특화 경로를 확인하세요.'}
+                ? '🚗 차량 기준 경로'
+                : '🧭 가장 짧은 길'}
             </span>
           </div>
         </div>
