@@ -2388,8 +2388,10 @@ input:checked+.switch-slider:before {
 }
 
 .poi-chip-count {
-  font-size: 0.78rem;
+  font-size: 0.74rem !important;
   color: var(--text-muted);
+  font-weight: 700 !important;
+  margin-left: auto !important;
 }
 
 .poi-panel-note {
@@ -3177,9 +3179,9 @@ input:checked+.switch-slider:before {
 .poi-dropdown {
   position: absolute !important;
   top: 48px !important;
-  left: -6px !important;
+  left: -8px !important;
   right: auto !important;
-  width: 274px !important;
+  width: 288px !important;
   padding: 12px 10px !important;
   background: #18181b !important;
   border: 1px solid rgba(255, 255, 255, 0.14) !important;
@@ -3211,7 +3213,7 @@ input:checked+.switch-slider:before {
   }
 }
 
-.poi-dropdown { left: -6px !important; right: auto !important; }
+.poi-dropdown { left: -8px !important; right: auto !important; }
 
 /* 오른쪽 위 버튼들을 하나의 도구 막대(알약)로 묶는다 */
 @media (min-width: 993px) {
@@ -3248,46 +3250,58 @@ input:checked+.switch-slider:before {
 
 /* 주변 장소 펼침 카드: 좌우 여백과 칸 폭을 똑같이 */
 .poi-dropdown .poi-chip-grid {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
-  padding: 0 0 12px;
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  gap: 6px !important;
+  padding: 0 0 8px !important;
 }
 
 .poi-dropdown .poi-chip {
-  min-width: 0;
-  padding: 0 8px !important;
-  font-size: 0.8rem !important;
+  min-width: 0 !important;
+  padding: 0 6px !important;
+  font-size: 0.76rem !important;
   gap: 4px !important;
+  min-height: 40px !important;
 }
 
 .poi-dropdown .poi-chip-label {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  white-space: nowrap !important;
+  overflow: visible !important;
+  text-overflow: clip !important;
+  font-size: 0.76rem !important;
+  letter-spacing: -0.3px !important;
+  line-height: 1 !important;
 }
 
 .poi-dropdown .poi-panel-note {
   padding: 0;
 }
 
-.poi-dropdown { width: 274px !important; }
+.poi-dropdown { width: 288px !important; }
 
 .poi-dropdown .poi-chip {
-  min-width: 0;
-  padding: 0 8px !important;
-  font-size: 0.8rem !important;
+  min-width: 0 !important;
+  padding: 0 6px !important;
+  font-size: 0.76rem !important;
   gap: 4px !important;
+  min-height: 40px !important;
 }
 
 .poi-dropdown .poi-chip-label {
-  overflow: visible;
-  text-overflow: clip;
+  white-space: nowrap !important;
+  overflow: visible !important;
+  text-overflow: clip !important;
+  font-size: 0.76rem !important;
+  letter-spacing: -0.3px !important;
+  line-height: 1 !important;
 }
 
 .poi-dropdown .poi-chip-label {
-  white-space: normal;
-  line-height: 1.2;
-  font-size: 0.8rem;
+  white-space: nowrap !important;
+  overflow: visible !important;
+  text-overflow: clip !important;
+  font-size: 0.76rem !important;
+  letter-spacing: -0.3px !important;
+  line-height: 1 !important;
 }
 
 /* 사이드바와 지도를 둥근 카드처럼: 가장자리에서 띄우고 모서리를 크게 깎는다 */
@@ -3323,7 +3337,7 @@ input:checked+.switch-slider:before {
   }
 
   /* legacy poi pos removed */
-  .poi-dropdown { left: -6px !important; right: auto !important; }
+  .poi-dropdown { left: -8px !important; right: auto !important; }
 }
 
 /* 사용 안내 */
@@ -3381,7 +3395,7 @@ input:checked+.switch-slider:before {
   }
 
   /* legacy poi pos removed */
-  .poi-dropdown { left: -6px !important; right: auto !important; }
+  .poi-dropdown { left: -8px !important; right: auto !important; }
 }
 
 /* 사이드바 아래쪽 정보(날씨·태양)는 작게 */
@@ -3456,9 +3470,9 @@ body {
   .poi-dropdown {
     position: absolute !important;
     top: 48px !important;
-    left: -6px !important;
+    left: -8px !important;
     right: auto !important;
-    width: 274px !important;
+    width: 288px !important;
     z-index: 9999 !important;
   }
 }
@@ -3893,15 +3907,17 @@ body {
   }
 
   .poi-dropdown .poi-chip-grid {
-    grid-template-columns: 1fr 1fr !important;
-    gap: 5px !important;
-  }
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  gap: 6px !important;
+  padding: 0 0 8px !important;
+}
 
   .poi-dropdown .poi-chip {
-  min-width: 0;
-  padding: 0 8px !important;
-  font-size: 0.8rem !important;
+  min-width: 0 !important;
+  padding: 0 6px !important;
+  font-size: 0.76rem !important;
   gap: 4px !important;
+  min-height: 40px !important;
 }
 }
 
