@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { Navigation as NavigationIcon, ChevronUp as ChevronUpIcon } from 'lucide-react';
 import Header from './components/Header';
 import MapComponent from './components/MapComponent';
 import RouteSearch from './components/RouteSearch';
@@ -147,6 +148,7 @@ export default function App() {
   const [focusPoint, setFocusPoint] = useState(null);
   const [pinSelectMode, setPinSelectMode] = useState(null); // null | 'start' | 'target'
   // 지도 테마: 'auto'(해가 있으면 밝게, 없으면 어둡게) | 'light' | 'dark'
+  const [isMobileSearchOpen, setIsMobileSearchOpen] = useState(true);
   const [mapThemeSetting, setMapThemeSettingState] = useState(() => {
     try {
       const saved = window.localStorage.getItem('urbanshelter.mapTheme');
@@ -843,6 +845,15 @@ export default function App() {
 
       {/* Top Header */}
       <Header
+        poiSlot={
+          <PoiPanel
+            selected={poiSelected}
+            onToggle={togglePoi}
+            counts={poiCounts}
+            status={poiData.status}
+            isRouteBased={isRouteBasedPoi}
+          />
+        }
         onResetPins={handleResetPins}
         onOpenSettings={() => setShowSettings(true)}
         onOpenHelp={() => setShowHelp(true)}
@@ -921,7 +932,7 @@ export default function App() {
         )}
 
         {/* Floating Left Overlay: Route Search & Control Panel */}
-        <div className={`floating-overlay-left ${showGuide ? "guide-active" : ""}`}>
+        <div className={`floating-overlay-left ${showGuide ? "guide-active" : ""} ${isMobileSearchOpen ? "mobile-open" : "mobile-closed"}`}>
 
           {/* 날씨 기반 자동 경로 안내 */}
           <AutoBanner
@@ -935,6 +946,7 @@ export default function App() {
 
           {/* Route Search & Recommendation Component */}
           <RouteSearch
+            onCollapseMobile={() => setIsMobileSearchOpen(false)}
             userGps={userGps}
             onRequestGps={requestGpsLocation}
             gpsStatus={gpsStatus}
@@ -982,7 +994,7 @@ export default function App() {
 
         {/* Floating Right Overlay: Turn-by-turn route guide */}
         <div className="floating-overlay-right">
-          <PoiPanel selected={poiSelected} onToggle={togglePoi} counts={poiCounts} status={poiData.status} isRouteBased={isRouteBasedPoi} />
+          
           {showGuide && (
             travelMode === 'transit' && selectedTransitRoute && transitGuideSteps ? (
               <RouteGuide
@@ -1040,6 +1052,24 @@ export default function App() {
         >
           <LocateFixed size={22} className={locating ? 'spin-anim' : ''} />
         </button>
+      
+        {/* 모바일 전용 길찾기 검색창 다시 열기 플로팅 버튼 */}
+        {!isMobileSearchOpen && !showGuide && (
+          <button
+            type="button"
+            className="mobile-search-reopen-btn"
+            onClick={() => setIsMobileSearchOpen(true)}
+            aria-label="길찾기 검색창 열기"
+          >
+            <NavigationIcon size={16} />
+            <span className="mobile-reopen-text">
+              {startPoint?.name && targetPoint?.name
+                ? `${startPoint.name} → ${targetPoint.name}`
+                : '길찾기 · 경로 비교'}
+            </span>
+            <ChevronUpIcon size={16} />
+          </button>
+        )}
       </main>
     </div>
   );

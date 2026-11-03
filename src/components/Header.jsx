@@ -1,5 +1,5 @@
 import React from 'react';
-import { RotateCcw, Moon, Sun, SunMoon, Settings, Box, Map as MapIcon, CircleHelp } from 'lucide-react';
+import { RotateCcw, Moon, Sun, SunMoon, Settings, Box, Map as MapIcon, CircleHelp, SunMedium } from 'lucide-react';
 
 export default function Header({
   onResetPins,
@@ -12,7 +12,8 @@ export default function Header({
   sunPos,
   simulatedHour,
   isLiveTime = true,
-  onResetLive
+  onResetLive,
+  poiSlot = null
 }) {
   const formattedHour = `${String(Math.floor(simulatedHour)).padStart(2, '0')}:${String(Math.round((simulatedHour % 1) * 60)).padStart(2, '0')}`;
 
@@ -31,6 +32,9 @@ export default function Header({
       </div>
 
       <div className="header-actions">
+        {/* 주변 장소 POI (독립 좌표가 아닌 액션 바 내부 첫 번째 버튼으로 자동 정렬) */}
+        {poiSlot}
+
         {/* Real-time Sun Condition Quick Pill */}
         {sunPos && !isLiveTime && (
           <button type="button" onClick={onResetLive} title="미리 보기를 끝내고 현재 시각으로" aria-label="미리 보기를 끝내고 현재 시각으로" style={{

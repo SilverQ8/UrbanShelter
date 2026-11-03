@@ -52,7 +52,8 @@ export default function RouteSearch({
   onChangeWalkSpeed,
   sunPos,
   onShowGuide,
-  guideOpen = false
+  guideOpen = false,
+  onCollapseMobile
 }) {
   const [startQuery, setStartQuery] = useState('');
   const [destQuery, setDestQuery] = useState('');
@@ -302,23 +303,19 @@ export default function RouteSearch({
   };
 
   return (
-    <div ref={containerRef} className={`glass-panel route-search-card ${isMobileCollapsed ? 'mobile-collapsed' : ''}`}>
+    <div ref={containerRef} className="glass-panel route-search-card">
       {/* Mobile Collapse/Expand Handle Bar */}
       <div
         className="mobile-collapse-handle"
-        onClick={() => setIsMobileCollapsed(!isMobileCollapsed)}
+        onClick={onCollapseMobile}
         role="button"
         tabIndex={0}
-        aria-label={isMobileCollapsed ? "경로 검색창 펼치기" : "지도 넓게 보기 (접기)"}
+        aria-label="지도 넓게 보기 (검색창 닫기)"
       >
         <div className="mobile-handle-pill" />
         <div className="mobile-handle-content">
-          <span className="mobile-handle-title">
-            {isMobileCollapsed
-              ? (startPoint?.name ? `${startPoint.name} → ${targetPoint?.name || '도착지'}` : '길찾기 · 경로 비교')
-              : '지도 넓게 보기'}
-          </span>
-          {isMobileCollapsed ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+          <span className="mobile-handle-title">지도 넓게 보기 (접기)</span>
+          <ChevronDown size={18} />
         </div>
       </div>
       {/* Search Header */}
