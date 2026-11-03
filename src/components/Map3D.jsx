@@ -635,6 +635,17 @@ export default function Map3D({
     });
   }, [focusPoint]);
 
+  // 출발지·도착지를 정하면 그 위치로 지도가 따라간다(이미 보이면 가만히 둔다).
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    [startPoint, targetPoint].forEach((pt) => {
+      if (!pt || pt.lat == null || pt.lng == null) return;
+      if (map.getBounds().contains([pt.lng, pt.lat])) return;
+      map.easeTo({ center: [pt.lng, pt.lat], zoom: Math.max(map.getZoom(), 16), duration: 800 });
+    });
+  }, [startPoint?.lat, startPoint?.lng, targetPoint?.lat, targetPoint?.lng]);
+
   return (
     <div style={{ position: 'relative', width: '100%', height: '100%', overflow: 'hidden' }}>
       <div ref={containerRef} className="map3d-viewport" />

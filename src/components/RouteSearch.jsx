@@ -587,21 +587,9 @@ export default function RouteSearch({
 
       {/* 3대 추천 루트 카드 */}
       <div style={{ marginTop: '12px' }}>
-        <div style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '8px' }}>
-          경로 비교 (눌러서 선택)
-        </div>
-
-        {!standardRoute && (
-          <div style={{
-            fontSize: '0.8rem',
-            color: 'var(--text-muted)',
-            padding: '16px 12px',
-            textAlign: 'center',
-            background: 'rgba(255, 255, 255, 0.04)',
-            borderRadius: '8px',
-            border: '1px dashed rgba(255, 255, 255, 0.12)'
-          }}>
-            출발지와 도착지를 설정하면 폭염 그늘 · 야간 안심 맞춤 경로가 비교됩니다.
+        {standardRoute && (
+          <div style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '8px' }}>
+            경로 비교
           </div>
         )}
 

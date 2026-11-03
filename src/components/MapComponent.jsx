@@ -207,6 +207,17 @@ export default function MapComponent({
     map.setView([focusPoint.lat, focusPoint.lng], Math.max(map.getZoom(), 18), { animate: true });
   }, [focusPoint]);
 
+  // 출발지·도착지를 정하면 그 위치가 화면 안에 오도록 지도가 따라간다(이미 잘 보이면 가만히 둔다).
+  useEffect(() => {
+    const map = mapInstanceRef.current;
+    if (!map) return;
+    [startPoint, targetPoint].forEach((pt) => {
+      if (!pt || pt.lat == null || pt.lng == null) return;
+      if (map.getBounds().pad(-0.2).contains([pt.lat, pt.lng])) return;
+      map.setView([pt.lat, pt.lng], Math.max(map.getZoom(), 16), { animate: true });
+    });
+  }, [startPoint?.lat, startPoint?.lng, targetPoint?.lat, targetPoint?.lng]);
+
   // 테마가 바뀌면 바닥 지도에 반영한다
   useEffect(() => {
     if (basemapRef.current) basemapRef.current.setTheme(mapTheme);
@@ -1245,64 +1256,6 @@ export default function MapComponent({
         </div>
       )}
 
-      {/* Floating Solar Simulation Compass Dial on Map */}
-      {sunPos && (
-        <div style={{
-          position: 'absolute',
-          top: '16px',
-          right: '54px',
-          zIndex: 1000,
-          background: 'rgba(15, 23, 42, 0.90)',
-          backdropFilter: 'blur(12px)',
-          border: '1.5px solid rgba(245, 158, 11, 0.4)',
-          borderRadius: '12px',
-          padding: '8px 14px',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '12px',
-          boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
-          pointerEvents: 'auto'
-        }}>
-          {/* Rotating Sun Direction Dial */}
-          <div style={{
-            position: 'relative',
-            width: '36px',
-            height: '36px',
-            borderRadius: '50%',
-            background: 'rgba(245, 158, 11, 0.20)',
-            border: '2px solid #f59e0b',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            boxShadow: '0 0 12px rgba(245,158,11,0.5)'
-          }}>
-            <div style={{
-              transform: `rotate(${sunPos.azimuthDeg}deg)`,
-              transition: 'transform 0.15s ease-out',
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center'
-            }}>
-              <span style={{ fontSize: '11px', lineHeight: 1 }}>☀️</span>
-              <span style={{ width: '2.5px', height: '8px', background: '#f59e0b', borderRadius: '1px' }}></span>
-            </div>
-          </div>
-
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <span style={{ fontSize: '0.8rem', fontWeight: 800, color: '#f59e0b' }}>
-                태양 고도 {sunPos.altitudeDeg}°
-              </span>
-              <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
-                방위 {sunPos.azimuthDeg}°
-              </span>
-            </div>
-            <div style={{ fontSize: '0.7rem', color: sunPos.uvEstimate >= 7 ? '#f43f5e' : '#34d399', fontWeight: 700 }}>
-              {sunPos.sunStatus} (자외선 {sunPos.uvEstimate})
-            </div>
-          </div>
-        </div>
-      )}
 
 
 

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { MapPin, ChevronDown, ChevronUp } from 'lucide-react';
+import { MapPin } from 'lucide-react';
 import { POI_CATEGORIES } from '../data/poiCategories';
 
 export default function PoiPanel({ selected, onToggle, counts, status, isRouteBased = false }) {
@@ -8,17 +8,20 @@ export default function PoiPanel({ selected, onToggle, counts, status, isRouteBa
 
   return (
     <aside className="glass-panel poi-panel" aria-label="주변 장소">
-      <button type="button" className="poi-panel-header" onClick={() => setOpen((v) => !v)} aria-expanded={open}>
-        <span className="poi-panel-title">
-          <MapPin size={16} />
-          주변 장소
-          {selectedCount > 0 && <span className="poi-panel-badge">{selectedCount}</span>}
-        </span>
-        {open ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+      <button
+        type="button"
+        className="poi-panel-header"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        aria-label="주변 장소"
+        title="주변 장소"
+      >
+        <MapPin size={18} />
+        {selectedCount > 0 && <span className="poi-panel-badge">{selectedCount}</span>}
       </button>
 
       {open && (
-        <>
+        <div className="poi-dropdown">
           <div className="poi-chip-grid">
             {POI_CATEGORIES.map((cat) => {
               const on = Boolean(selected[cat.id]);
@@ -42,13 +45,8 @@ export default function PoiPanel({ selected, onToggle, counts, status, isRouteBa
             {status === 'loading' && '주변 장소를 불러오는 중…'}
             {status === 'error' && '장소 정보를 불러오지 못했어요'}
             {status === 'skipped' && '범위가 넓어 장소를 표시하지 않아요'}
-            {status === 'ok' && (
-              isRouteBased
-                ? '도보 경로 주변 약 450m 기준 시설이에요. 칩을 누르면 지도에 핀이 강조돼요.'
-                : '현재 지역 중심 약 600m 기준 시설이에요. 칩을 누르면 지도에 핀이 표시됩니다.'
-            )}
           </p>
-        </>
+        </div>
       )}
     </aside>
   );

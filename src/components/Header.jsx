@@ -1,9 +1,10 @@
 import React from 'react';
-import { Shield, RotateCcw, Moon, Sun, SunMoon, Settings, Box, Map as MapIcon } from 'lucide-react';
+import { Shield, RotateCcw, Moon, Sun, SunMoon, Settings, Box, Map as MapIcon, CircleHelp } from 'lucide-react';
 
 export default function Header({
   onResetPins,
   onOpenSettings,
+  onOpenHelp,
   viewMode,
   setViewMode,
   mapThemeSetting = 'auto',
@@ -77,6 +78,11 @@ export default function Header({
           aria-label={`지도 테마: ${{ auto: '자동(시간에 따라)', light: '밝게', dark: '어둡게' }[mapThemeSetting]}`}
         >
           {mapThemeSetting === 'auto' ? <SunMoon size={18} color="#a78bfa" /> : mapThemeSetting === 'light' ? <Sun size={18} color="#f59e0b" /> : <Moon size={18} color="#38bdf8" />}
+        </button>
+
+        {/* 사용 안내 */}
+        <button className="reset-btn" onClick={onOpenHelp} title="사용 안내" aria-label="사용 안내">
+          <CircleHelp size={18} />
         </button>
 
         {/* 이용자 맞춤 설정 */}

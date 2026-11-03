@@ -5,6 +5,8 @@ import RouteSearch from './components/RouteSearch';
 import SettingsPanel from './components/SettingsPanel';
 import AutoBanner from './components/AutoBanner';
 import Dashboard from './components/Dashboard';
+import SunCard from './components/SunCard';
+import HelpPanel from './components/HelpPanel';
 import { NODES, MAP_CENTER } from './data/urbanNetwork';
 import { findNearestNode } from './engine/routingEngine';
 import { fetchOsrmPedestrianPath, analyzeRouteCctvSafety, findBestSafetyWaypoint } from './services/routingService';
@@ -52,6 +54,7 @@ export default function App() {
   const walkSpeed = getWalkSpeed(needs);
 
   const [showSettings, setShowSettings] = useState(false);
+  const [showHelp, setShowHelp] = useState(false);
 
   // 이동 수단: 기본은 보도(도보) 기준이고, 이용자가 직접 차량 기준으로 바꿀 수 있다
   const [travelMode, setTravelModeState] = useState(() => {
@@ -427,7 +430,7 @@ export default function App() {
       type: 'night',
       latlngs: nightLatlngs,
       totalDistance: nightDist,
-      estimatedMinutes: activeNight.durationMinutes || toMinutes(nightDist),
+      estimatedMinutes: toMinutes(nightDist),
       cctvCount: finalNightCctv,
       streetlightCount: finalNightLight,
       lightCoverageRatio: Math.max(nightLights.lightCoverageRatio, 85),
@@ -752,10 +755,13 @@ export default function App() {
         />
       )}
 
+      {showHelp && <HelpPanel onClose={() => setShowHelp(false)} />}
+
       {/* Top Header */}
       <Header
         onResetPins={handleResetPins}
         onOpenSettings={() => setShowSettings(true)}
+        onOpenHelp={() => setShowHelp(true)}
         viewMode={viewMode}
         setViewMode={changeViewMode}
         mapThemeSetting={mapThemeSetting}
@@ -876,6 +882,8 @@ export default function App() {
             shadeInfo={shadeInfo}
             isCar={isCar}
           />
+
+          <SunCard sunPos={sunPos} />
         </div>
 
         {/* Floating Right Overlay: Turn-by-turn route guide */}
