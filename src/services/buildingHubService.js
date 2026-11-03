@@ -55,11 +55,10 @@ export async function getBuildingHubInfo(params = {}) {
     }
 
     const data = await response.json();
-    if (!data || !data.success || !data.building) {
+    const b = data?.building || data?.data;
+    if (!data || !data.success || !b) {
       return null;
     }
-
-    const b = data.building;
     const groundFloors = Number(b.grndFlrCnt) || 0;
     const undergroundFloors = Number(b.ugrndFlrCnt) || 0;
     const exactHeight = Number(b.heit) || 0;

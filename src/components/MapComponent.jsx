@@ -7,8 +7,13 @@ import { NODES, MAP_CENTER, DEFAULT_ZOOM } from '../data/urbanNetwork';
 import { formatDistance, formatDuration } from '../utils/format';
 import { filterValidUrbanMarkers, isInvalidOceanCoordinate } from '../utils/geoSanity';
 import { normalizeFacilityDataset } from '../utils/geoConverter';
-import { searchKakaoBuildings, fetchKakaoBuildingDetail } from '../services/kakaoService';
+import { searchKakaoBuildings, fetchKakaoBuildingDetail, getInstantLocalBuildings } from '../services/kakaoService';
 import { POI_CATEGORIES } from '../data/poiCategories';
+import rawFallbackCctvs from '../data/cctvRealData.json';
+import rawFallbackStreetlights from '../data/streetlightRealData.json';
+
+const LOCAL_CCTVS = normalizeFacilityDataset(rawFallbackCctvs);
+const LOCAL_STREETLIGHTS = normalizeFacilityDataset(rawFallbackStreetlights);
 
 export default function MapComponent({
   userGps,
@@ -486,7 +491,7 @@ export default function MapComponent({
     if (buildingLayerRef.current) buildingLayerRef.current.clearLayers();
   }, [buildings]);
 
-  // 2-2. Render Kakao Real-time Building & Landmark Information (With Zoom LOD & Collision Avoidance)
+  // 2-2. Render Kakao Real-time Building & Landmark Information (Instant Local Render + Debounced Sync)
   useEffect(() => {
     const map = mapInstanceRef.current;
     const kakaoLayer = kakaoBuildingLayerRef.current;
@@ -499,10 +504,83 @@ export default function MapComponent({
     }
 
     let abort = false;
+    let debounceTimer = null;
 
-    const loadBuildings = async () => {
+    const drawBuildingMarkers = (blds, zoom, bounds) => {
+      kakaoLayer.clearLayers();
+
+      const placedPoints = [];
+      const isDetailedZoom = zoom >= 17;
+      const maxMarkers = isDetailedZoom ? 30 : 16;
+      const minDx = isDetailedZoom ? 85 : 45;
+      const minDy = isDetailedZoom ? 28 : 22;
+
+      for (const b of blds) {
+        if (!bounds.contains([b.lat, b.lng])) continue;
+        if (placedPoints.length >= maxMarkers) break;
+
+        const pt = map.latLngToContainerPoint([b.lat, b.lng]);
+        let collided = false;
+        for (const p of placedPoints) {
+          if (Math.abs(pt.x - p.x) < minDx && Math.abs(pt.y - p.y) < minDy) {
+            collided = true;
+            break;
+          }
+        }
+        if (collided) continue;
+        placedPoints.push(pt);
+
+        const displayName = b.name.length > 12 ? b.name.slice(0, 11) + '…' : b.name;
+
+        const bldIcon = L.divIcon({
+          className: 'kakao-building-marker',
+          html: isDetailedZoom ? `
+            <div class="kakao-map-badge" title="${b.name}">
+              <span class="kakao-badge-icon">🏢</span>
+              <span class="kakao-badge-text">${displayName}</span>
+            </div>
+          ` : `
+            <div class="kakao-map-dot" title="${b.name}">
+              <span class="kakao-dot-inner"></span>
+            </div>
+          `,
+          iconSize: isDetailedZoom ? [0, 0] : [14, 14],
+          iconAnchor: isDetailedZoom ? [0, 0] : [7, 7]
+        });
+
+        const marker = L.marker([b.lat, b.lng], { icon: bldIcon });
+
+        if (!isDetailedZoom) {
+          marker.bindTooltip(b.name, {
+            direction: 'top',
+            offset: [0, -8],
+            className: 'custom-map-tooltip'
+          });
+        }
+
+        marker.on('click', () => {
+          const matchedBld = buildings.find(bldg => {
+            if (!Array.isArray(bldg.polygon) || bldg.polygon.length === 0) return false;
+            const bLat = bldg.polygon[0][0];
+            const bLng = bldg.polygon[0][1];
+            const dist = Math.hypot(bLat - b.lat, (bLng - b.lng) * 0.8);
+            return dist < 0.0006;
+          });
+          const enriched = {
+            ...b,
+            height: matchedBld?.height || 28,
+            groundFloors: matchedBld?.groundFloors,
+            heightSource: matchedBld?.heightSource || 'official_floor_calc'
+          };
+          openBuildingDetailPopup(enriched, [b.lat, b.lng]);
+        });
+
+        kakaoLayer.addLayer(marker);
+      }
+    };
+
+    const loadBuildings = () => {
       const zoom = map.getZoom();
-      // Zoom < 15: Hide building text labels completely to prevent unreadable text clutter
       if (zoom < 15) {
         kakaoLayer.clearLayers();
         return;
@@ -511,95 +589,32 @@ export default function MapComponent({
       const center = map.getCenter();
       const bounds = map.getBounds();
 
-      try {
-        const blds = await searchKakaoBuildings({
-          lat: center.lat,
-          lng: center.lng,
-          bounds: {
-            south: bounds.getSouth(),
-            north: bounds.getNorth(),
-            west: bounds.getWest(),
-            east: bounds.getEast()
-          }
-        });
-
-        if (abort) return;
-        kakaoLayer.clearLayers();
-
-        const placedPoints = [];
-        const isDetailedZoom = zoom >= 17;
-        const maxMarkers = isDetailedZoom ? 30 : 16;
-        const minDx = isDetailedZoom ? 85 : 45;
-        const minDy = isDetailedZoom ? 28 : 22;
-
-        for (const b of blds) {
-          if (!bounds.contains([b.lat, b.lng])) continue;
-          if (placedPoints.length >= maxMarkers) break;
-
-          // Screen pixel collision check: Prevent overlapping markers
-          const pt = map.latLngToContainerPoint([b.lat, b.lng]);
-          let collided = false;
-          for (const p of placedPoints) {
-            if (Math.abs(pt.x - p.x) < minDx && Math.abs(pt.y - p.y) < minDy) {
-              collided = true;
-              break;
-            }
-          }
-          if (collided) continue; // Skip to prevent text overlap
-          placedPoints.push(pt);
-
-          // Truncate overly long names (max 12 chars)
-          const displayName = b.name.length > 12 ? b.name.slice(0, 11) + '…' : b.name;
-
-          const bldIcon = L.divIcon({
-            className: 'kakao-building-marker',
-            html: isDetailedZoom ? `
-              <div class="kakao-map-badge" title="${b.name}">
-                <span class="kakao-badge-icon">🏢</span>
-                <span class="kakao-badge-text">${displayName}</span>
-              </div>
-            ` : `
-              <div class="kakao-map-dot" title="${b.name}">
-                <span class="kakao-dot-inner"></span>
-              </div>
-            `,
-            iconSize: isDetailedZoom ? [0, 0] : [14, 14],
-            iconAnchor: isDetailedZoom ? [0, 0] : [7, 7]
-          });
-
-          const marker = L.marker([b.lat, b.lng], { icon: bldIcon });
-
-          // Tooltip on hover for mid-zoom levels
-          if (!isDetailedZoom) {
-            marker.bindTooltip(b.name, {
-              direction: 'top',
-              offset: [0, -8],
-              className: 'custom-map-tooltip'
-            });
-          }
-
-          marker.on('click', () => {
-            const matchedBld = buildings.find(bldg => {
-              if (!Array.isArray(bldg.polygon) || bldg.polygon.length === 0) return false;
-              const bLat = bldg.polygon[0][0];
-              const bLng = bldg.polygon[0][1];
-              const dist = Math.hypot(bLat - b.lat, (bLng - b.lng) * 0.8);
-              return dist < 0.0006;
-            });
-            const enriched = {
-              ...b,
-              height: matchedBld?.height || 28,
-              groundFloors: matchedBld?.groundFloors,
-              heightSource: matchedBld?.heightSource || 'official_floor_calc'
-            };
-            openBuildingDetailPopup(enriched, [b.lat, b.lng]);
-          });
-
-          kakaoLayer.addLayer(marker);
-        }
-      } catch (err) {
-        console.warn('Kakao building fetch error:', err);
+      // 1. 0ms 즉시 렌더링: 로컬/캐시 건물 데이터를 먼저 화면에 표시
+      const instantBlds = getInstantLocalBuildings(center.lat, center.lng);
+      if (instantBlds.length > 0) {
+        drawBuildingMarkers(instantBlds, zoom, bounds);
       }
+
+      // 2. 디바운스 후 카카오 실시간 건물 데이터 백그라운드 병합
+      if (debounceTimer) clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(async () => {
+        try {
+          const blds = await searchKakaoBuildings({
+            lat: center.lat,
+            lng: center.lng,
+            bounds: {
+              south: bounds.getSouth(),
+              north: bounds.getNorth(),
+              west: bounds.getWest(),
+              east: bounds.getEast()
+            }
+          });
+          if (abort) return;
+          drawBuildingMarkers(blds, map.getZoom(), map.getBounds());
+        } catch (err) {
+          console.warn('Kakao building fetch error:', err);
+        }
+      }, 120);
     };
 
     loadBuildings();
@@ -612,6 +627,7 @@ export default function MapComponent({
 
     return () => {
       abort = true;
+      if (debounceTimer) clearTimeout(debounceTimer);
       map.off('moveend zoomend', handleMove);
     };
   }, [layers.buildings, layers.buildingInfo, buildings, setStartPoint, setTargetPoint]);
@@ -706,17 +722,82 @@ export default function MapComponent({
     };
   }, [layers.trees, sunPos, trees]);
 
-  // 4. Dynamic CCTV Viewport Rendering (Nationwide Government CCTV Integration)
+  // 4. Dynamic CCTV Viewport Rendering (Instant Local Render + Non-blocking Background Sync)
   useEffect(() => {
     const map = mapInstanceRef.current;
     const cctvLayer = cctvLayerRef.current;
     if (!map || !cctvLayer) return;
 
     let abortController = null;
+    let debounceTimer = null;
 
-    const renderVisibleCctvs = async () => {
+    const drawCctvItems = (items, zoom, center, currentBounds) => {
+      const visibleCctvs = items.filter(cam =>
+        cam.lat && cam.lng && currentBounds.contains([cam.lat, cam.lng])
+      );
+
+      visibleCctvs.sort((a, b) => {
+        const dLatA = a.lat - center.lat;
+        const dLngA = (a.lng - center.lng) * Math.cos((center.lat * Math.PI) / 180);
+        const dLatB = b.lat - center.lat;
+        const dLngB = (b.lng - center.lng) * Math.cos((center.lat * Math.PI) / 180);
+        return (dLatA * dLatA + dLngA * dLngA) - (dLatB * dLatB + dLngB * dLngB);
+      });
+
+      const maxLimit = zoom >= 17 ? 150 : 100;
+      const prioritizedCctvs = visibleCctvs.slice(0, maxLimit);
+
+      setCctvState({
+        count: visibleCctvs.length,
+        displayedCount: prioritizedCctvs.length,
+        isZoomTooLow: false,
+        zoom
+      });
+
       cctvLayer.clearLayers();
+
+      for (const cam of prioritizedCctvs) {
+        const tooltipContent = `
+          <strong>📹 방범 CCTV</strong><br/>
+          <span style="color:#38bdf8; font-weight:700;">감시범위: 반경 ${cam.radius || 20}m</span><br/>
+          <span style="color:#94a3b8; font-size:11px;">관할: ${cam.manager || '관할 지자체'}</span>
+        `;
+
+        const circle = L.circle([cam.lat, cam.lng], {
+          radius: cam.radius || 20,
+          color: '#0284c7',
+          weight: 1.2,
+          opacity: 0.65,
+          fillColor: '#38bdf8',
+          fillOpacity: zoom >= 16 ? 0.22 : 0.16,
+          className: 'cctv-coverage-zone'
+        });
+
+        circle.on('mouseover', () => {
+          circle.setStyle({ weight: 2.2, opacity: 0.95, fillOpacity: 0.40, color: '#38bdf8' });
+        });
+        circle.on('mouseout', () => {
+          circle.setStyle({ weight: 1.2, opacity: 0.65, fillOpacity: zoom >= 16 ? 0.22 : 0.16, color: '#0284c7' });
+        });
+
+        circle.bindTooltip(tooltipContent, { className: 'route-tooltip-custom', sticky: true });
+        cctvLayer.addLayer(circle);
+
+        const sensorIcon = L.divIcon({
+          className: 'cctv-core-dot',
+          html: `<div style="width: 6px; height: 6px; border-radius: 50%; background: #38bdf8; border: 1.5px solid #ffffff; box-shadow: 0 0 8px rgba(56,189,248,0.95); cursor: pointer;"></div>`,
+          iconSize: [6, 6],
+          iconAnchor: [3, 3]
+        });
+        const dotMarker = L.marker([cam.lat, cam.lng], { icon: sensorIcon });
+        dotMarker.bindTooltip(tooltipContent, { className: 'route-tooltip-custom' });
+        cctvLayer.addLayer(dotMarker);
+      }
+    };
+
+    const renderVisibleCctvs = () => {
       if (!layers.cctv) {
+        cctvLayer.clearLayers();
         setCctvState({ count: 0, displayedCount: 0, isZoomTooLow: false, zoom: map.getZoom() });
         return;
       }
@@ -724,129 +805,143 @@ export default function MapComponent({
       const zoom = map.getZoom();
 
       if (zoom < 13) {
+        cctvLayer.clearLayers();
         setCctvState({ count: 0, displayedCount: 0, isZoomTooLow: true, zoom });
         return;
       }
 
-      const bounds = map.getBounds().pad(0.08);
+      const currentBounds = map.getBounds();
+      const bounds = currentBounds.pad(0.08);
       const center = map.getCenter();
 
-      if (abortController) abortController.abort();
-      abortController = new AbortController();
+      // 1. 0ms 즉시 렌더링: 로컬 검증 데이터셋(LOCAL_CCTVS)에서 현재 화면 내 마커를 즉시 표시
+      const localMatches = LOCAL_CCTVS.filter(c => bounds.contains([c.lat, c.lng]));
+      drawCctvItems(localMatches, zoom, center, currentBounds);
 
-      try {
-        const params = new URLSearchParams({
-          lat: center.lat.toFixed(6),
-          lng: center.lng.toFixed(6),
-          minLat: bounds.getSouth().toFixed(6),
-          maxLat: bounds.getNorth().toFixed(6),
-          minLng: bounds.getWest().toFixed(6),
-          maxLng: bounds.getEast().toFixed(6),
-          zoom: String(zoom)
-        });
+      // 2. 디바운스 후 서버리스 API 백그라운드 조회 (기존 마커를 지우지 않고 응답 도착 시에만 병합 갱신)
+      if (debounceTimer) clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(async () => {
+        if (abortController) abortController.abort();
+        abortController = new AbortController();
 
-        const resp = await fetch(`/api/cctv/viewport?${params.toString()}`, { signal: abortController.signal });
-        if (!resp.ok) throw new Error('CCTV viewport HTTP error');
-
-        const data = await resp.json();
-        const rawCctvs = data.cctvs || [];
-        const items = normalizeFacilityDataset(rawCctvs);
-
-        // 1. 화면 밖 마커 완전 배제 (현재 뷰포트 strictBounds 내 좌표만 필터)
-        const currentBounds = map.getBounds();
-        const visibleCctvs = items.filter(cam =>
-          cam.lat && cam.lng && currentBounds.contains([cam.lat, cam.lng])
-        );
-
-        // 2. 화면 중앙(center)과의 거리가 가장 가까운 마커부터 우선 정렬 (Center-First)
-        visibleCctvs.sort((a, b) => {
-          const dLatA = a.lat - center.lat;
-          const dLngA = (a.lng - center.lng) * Math.cos((center.lat * Math.PI) / 180);
-          const dLatB = b.lat - center.lat;
-          const dLngB = (b.lng - center.lng) * Math.cos((center.lat * Math.PI) / 180);
-          return (dLatA * dLatA + dLngA * dLngA) - (dLatB * dLatB + dLngB * dLngB);
-        });
-
-        // 3. 화면 중앙 우선 표시 한도 적용 (외곽 마커는 한도 초과 시 배제)
-        const maxLimit = zoom >= 17 ? 150 : 100;
-        const prioritizedCctvs = visibleCctvs.slice(0, maxLimit);
-
-        setCctvState({
-          count: visibleCctvs.length,
-          displayedCount: prioritizedCctvs.length,
-          isZoomTooLow: false,
-          zoom
-        });
-
-        cctvLayer.clearLayers();
-
-        for (const cam of prioritizedCctvs) {
-          const tooltipContent = `
-            <strong>📹 방범 CCTV</strong><br/>
-            <span style="color:#38bdf8; font-weight:700;">감시범위: 반경 ${cam.radius || 20}m</span><br/>
-            <span style="color:#94a3b8; font-size:11px;">관할: ${cam.manager || '관할 지자체'}</span>
-          `;
-
-          // 1. 방범 CCTV 20m 감시 구역 (Neon Cyan Safety Dome)
-          const circle = L.circle([cam.lat, cam.lng], {
-            radius: cam.radius || 20,
-            color: '#0284c7',
-            weight: 1.2,
-            opacity: 0.65,
-            fillColor: '#38bdf8',
-            fillOpacity: zoom >= 16 ? 0.22 : 0.16,
-            className: 'cctv-coverage-zone'
+        try {
+          const params = new URLSearchParams({
+            lat: center.lat.toFixed(6),
+            lng: center.lng.toFixed(6),
+            minLat: bounds.getSouth().toFixed(6),
+            maxLat: bounds.getNorth().toFixed(6),
+            minLng: bounds.getWest().toFixed(6),
+            maxLng: bounds.getEast().toFixed(6),
+            zoom: String(zoom)
           });
 
-          // 마우스 호버 시 감시 구역 밝기 강조
-          circle.on('mouseover', () => {
-            circle.setStyle({ weight: 2.2, opacity: 0.95, fillOpacity: 0.40, color: '#38bdf8' });
-          });
-          circle.on('mouseout', () => {
-            circle.setStyle({ weight: 1.2, opacity: 0.65, fillOpacity: zoom >= 16 ? 0.22 : 0.16, color: '#0284c7' });
-          });
+          const resp = await fetch(`/api/cctv/viewport?${params.toString()}`, { signal: abortController.signal });
+          if (!resp.ok) return;
 
-          circle.bindTooltip(tooltipContent, { className: 'route-tooltip-custom', sticky: true });
-          cctvLayer.addLayer(circle);
+          const data = await resp.json();
+          const rawCctvs = data.cctvs || [];
+          if (rawCctvs.length === 0) return;
 
-          // 2. 중심점: 번잡한 이모지 뱃지 대신 세련된 6px 네온 센서 코어 (지도를 가리지 않음)
-          const sensorIcon = L.divIcon({
-            className: 'cctv-core-dot',
-            html: `<div style="width: 6px; height: 6px; border-radius: 50%; background: #38bdf8; border: 1.5px solid #ffffff; box-shadow: 0 0 8px rgba(56,189,248,0.95); cursor: pointer;"></div>`,
-            iconSize: [6, 6],
-            iconAnchor: [3, 3]
-          });
-          const dotMarker = L.marker([cam.lat, cam.lng], { icon: sensorIcon });
-          dotMarker.bindTooltip(tooltipContent, { className: 'route-tooltip-custom' });
-          cctvLayer.addLayer(dotMarker);
+          const items = normalizeFacilityDataset(rawCctvs);
+          const mergedMap = new Map();
+          for (const lc of localMatches) mergedMap.set(lc.id, lc);
+          for (const rc of items) mergedMap.set(rc.id, rc);
+
+          drawCctvItems(Array.from(mergedMap.values()), map.getZoom(), map.getCenter(), map.getBounds());
+        } catch (err) {
+          if (err.name !== 'AbortError') {
+            console.warn('CCTV dynamic fetch fallback error:', err);
+          }
         }
-      } catch (err) {
-        if (err.name !== 'AbortError') {
-          console.warn('CCTV dynamic fetch fallback error:', err);
-        }
-      }
+      }, 150);
     };
 
     renderVisibleCctvs();
     map.on('moveend zoomend', renderVisibleCctvs);
 
     return () => {
+      if (debounceTimer) clearTimeout(debounceTimer);
       if (abortController) abortController.abort();
       map.off('moveend zoomend', renderVisibleCctvs);
     };
   }, [layers.cctv]);
 
-  // 5. Dynamic Streetlight Viewport Rendering (15m Illumination Zone)
+  // 5. Dynamic Streetlight Viewport Rendering (Instant Local Render + Non-blocking Background Sync)
   useEffect(() => {
     const map = mapInstanceRef.current;
     const streetlightLayer = streetlightLayerRef.current;
     if (!map || !streetlightLayer) return;
 
     let abortController = null;
+    let debounceTimer = null;
 
-    const renderVisibleStreetlights = async () => {
+    const drawStreetlightItems = (items, zoom, center, currentBounds) => {
+      const visibleStreetlights = items.filter(light =>
+        light.lat && light.lng && currentBounds.contains([light.lat, light.lng])
+      );
+
+      visibleStreetlights.sort((a, b) => {
+        const dLatA = a.lat - center.lat;
+        const dLngA = (a.lng - center.lng) * Math.cos((center.lat * Math.PI) / 180);
+        const dLatB = b.lat - center.lat;
+        const dLngB = (b.lng - center.lng) * Math.cos((center.lat * Math.PI) / 180);
+        return (dLatA * dLatA + dLngA * dLngA) - (dLatB * dLatB + dLngB * dLngB);
+      });
+
+      const maxLimit = zoom >= 17 ? 200 : 140;
+      const prioritizedLights = visibleStreetlights.slice(0, maxLimit);
+
+      setStreetlightState({
+        count: visibleStreetlights.length,
+        displayedCount: prioritizedLights.length,
+        isZoomTooLow: false,
+        zoom
+      });
+
       streetlightLayer.clearLayers();
+
+      for (const light of prioritizedLights) {
+        const tooltipContent = `
+          <strong>💡 안심 가로등</strong><br/>
+          <span style="color:#fbbf24; font-weight:700;">조명범위: 반경 ${light.radius || 15}m</span><br/>
+          <span style="color:#94a3b8; font-size:11px;">관할: ${light.manager || '관할 지자체'}</span>
+        `;
+
+        const circle = L.circle([light.lat, light.lng], {
+          radius: light.radius || 15,
+          color: '#f59e0b',
+          weight: 1.0,
+          opacity: 0.60,
+          fillColor: '#fbbf24',
+          fillOpacity: zoom >= 16 ? 0.24 : 0.16,
+          className: 'streetlight-lighting-zone'
+        });
+
+        circle.on('mouseover', () => {
+          circle.setStyle({ weight: 2.2, opacity: 0.95, fillOpacity: 0.42, color: '#fde047' });
+        });
+        circle.on('mouseout', () => {
+          circle.setStyle({ weight: 1.0, opacity: 0.60, fillOpacity: zoom >= 16 ? 0.24 : 0.16, color: '#f59e0b' });
+        });
+
+        circle.bindTooltip(tooltipContent, { className: 'route-tooltip-custom', sticky: true });
+        streetlightLayer.addLayer(circle);
+
+        const lightCoreIcon = L.divIcon({
+          className: 'streetlight-core-dot',
+          html: `<div style="width: 5px; height: 5px; border-radius: 50%; background: #fbbf24; border: 1.5px solid #fffbeb; box-shadow: 0 0 8px rgba(245,158,11,0.95); cursor: pointer;"></div>`,
+          iconSize: [5, 5],
+          iconAnchor: [2.5, 2.5]
+        });
+        const dotMarker = L.marker([light.lat, light.lng], { icon: lightCoreIcon });
+        dotMarker.bindTooltip(tooltipContent, { className: 'route-tooltip-custom' });
+        streetlightLayer.addLayer(dotMarker);
+      }
+    };
+
+    const renderVisibleStreetlights = () => {
       if (!layers.streetlight) {
+        streetlightLayer.clearLayers();
         setStreetlightState({ count: 0, displayedCount: 0, isZoomTooLow: false, zoom: map.getZoom() });
         return;
       }
@@ -854,113 +949,62 @@ export default function MapComponent({
       const zoom = map.getZoom();
 
       if (zoom < 13) {
+        streetlightLayer.clearLayers();
         setStreetlightState({ count: 0, displayedCount: 0, isZoomTooLow: true, zoom });
         return;
       }
 
-      const bounds = map.getBounds().pad(0.08);
+      const currentBounds = map.getBounds();
+      const bounds = currentBounds.pad(0.08);
       const center = map.getCenter();
 
-      if (abortController) abortController.abort();
-      abortController = new AbortController();
+      // 1. 0ms 즉시 렌더링: 로컬 검증 데이터셋(LOCAL_STREETLIGHTS)에서 현재 화면 내 가로등을 즉시 표시
+      const localMatches = LOCAL_STREETLIGHTS.filter(s => bounds.contains([s.lat, s.lng]));
+      drawStreetlightItems(localMatches, zoom, center, currentBounds);
 
-      try {
-        const params = new URLSearchParams({
-          lat: center.lat.toFixed(6),
-          lng: center.lng.toFixed(6),
-          minLat: bounds.getSouth().toFixed(6),
-          maxLat: bounds.getNorth().toFixed(6),
-          minLng: bounds.getWest().toFixed(6),
-          maxLng: bounds.getEast().toFixed(6),
-          zoom: String(zoom)
-        });
+      // 2. 디바운스 후 서버리스 API 백그라운드 조회 (응답 도착 시에만 병합 갱신)
+      if (debounceTimer) clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(async () => {
+        if (abortController) abortController.abort();
+        abortController = new AbortController();
 
-        const resp = await fetch(`/api/streetlight/viewport?${params.toString()}`, { signal: abortController.signal });
-        if (!resp.ok) throw new Error('Streetlight viewport HTTP error');
-
-        const data = await resp.json();
-        const rawLights = data.streetlights || [];
-        const items = normalizeFacilityDataset(rawLights);
-
-        // 1. 화면 밖 마커 완전 배제 (현재 뷰포트 strictBounds 내 좌표만 필터)
-        const currentBounds = map.getBounds();
-        const visibleStreetlights = items.filter(light =>
-          light.lat && light.lng && currentBounds.contains([light.lat, light.lng])
-        );
-
-        // 2. 화면 중앙(center)과의 거리가 가장 가까운 가로등부터 우선 정렬 (Center-First)
-        visibleStreetlights.sort((a, b) => {
-          const dLatA = a.lat - center.lat;
-          const dLngA = (a.lng - center.lng) * Math.cos((center.lat * Math.PI) / 180);
-          const dLatB = b.lat - center.lat;
-          const dLngB = (b.lng - center.lng) * Math.cos((center.lat * Math.PI) / 180);
-          return (dLatA * dLatA + dLngA * dLngA) - (dLatB * dLatB + dLngB * dLngB);
-        });
-
-        // 3. 화면 중앙 우선 표시 한도 적용 (외곽 가로등은 한도 초과 시 배제)
-        const maxLimit = zoom >= 17 ? 200 : 140;
-        const prioritizedLights = visibleStreetlights.slice(0, maxLimit);
-
-        setStreetlightState({
-          count: visibleStreetlights.length,
-          displayedCount: prioritizedLights.length,
-          isZoomTooLow: false,
-          zoom
-        });
-
-        streetlightLayer.clearLayers();
-
-        for (const light of prioritizedLights) {
-          const tooltipContent = `
-            <strong>💡 안심 가로등</strong><br/>
-            <span style="color:#fbbf24; font-weight:700;">조명범위: 반경 ${light.radius || 15}m</span><br/>
-            <span style="color:#94a3b8; font-size:11px;">관할: ${light.manager || '관할 지자체'}</span>
-          `;
-
-          // 1. 가로등 15m 안심 조명길 (Warm Amber Glow Lighting Zone)
-          const circle = L.circle([light.lat, light.lng], {
-            radius: light.radius || 15,
-            color: '#f59e0b',
-            weight: 1.0,
-            opacity: 0.60,
-            fillColor: '#fbbf24',
-            fillOpacity: zoom >= 16 ? 0.24 : 0.16,
-            className: 'streetlight-lighting-zone'
+        try {
+          const params = new URLSearchParams({
+            lat: center.lat.toFixed(6),
+            lng: center.lng.toFixed(6),
+            minLat: bounds.getSouth().toFixed(6),
+            maxLat: bounds.getNorth().toFixed(6),
+            minLng: bounds.getWest().toFixed(6),
+            maxLng: bounds.getEast().toFixed(6),
+            zoom: String(zoom)
           });
 
-          // 마우스 호버 시 조명 밝기 강조
-          circle.on('mouseover', () => {
-            circle.setStyle({ weight: 2.2, opacity: 0.95, fillOpacity: 0.42, color: '#fde047' });
-          });
-          circle.on('mouseout', () => {
-            circle.setStyle({ weight: 1.0, opacity: 0.60, fillOpacity: zoom >= 16 ? 0.24 : 0.16, color: '#f59e0b' });
-          });
+          const resp = await fetch(`/api/streetlight/viewport?${params.toString()}`, { signal: abortController.signal });
+          if (!resp.ok) return;
 
-          circle.bindTooltip(tooltipContent, { className: 'route-tooltip-custom', sticky: true });
-          streetlightLayer.addLayer(circle);
+          const data = await resp.json();
+          const rawLights = data.streetlights || [];
+          if (rawLights.length === 0) return;
 
-          // 2. 중심점: 번잡한 이모지 뱃지 대신 세련된 5px 앰버 라이트 코어 (지도를 가리지 않음)
-          const lightCoreIcon = L.divIcon({
-            className: 'streetlight-core-dot',
-            html: `<div style="width: 5px; height: 5px; border-radius: 50%; background: #fbbf24; border: 1.5px solid #fffbeb; box-shadow: 0 0 8px rgba(245,158,11,0.95); cursor: pointer;"></div>`,
-            iconSize: [5, 5],
-            iconAnchor: [2.5, 2.5]
-          });
-          const dotMarker = L.marker([light.lat, light.lng], { icon: lightCoreIcon });
-          dotMarker.bindTooltip(tooltipContent, { className: 'route-tooltip-custom' });
-          streetlightLayer.addLayer(dotMarker);
+          const items = normalizeFacilityDataset(rawLights);
+          const mergedMap = new Map();
+          for (const ls of localMatches) mergedMap.set(ls.id, ls);
+          for (const rs of items) mergedMap.set(rs.id, rs);
+
+          drawStreetlightItems(Array.from(mergedMap.values()), map.getZoom(), map.getCenter(), map.getBounds());
+        } catch (err) {
+          if (err.name !== 'AbortError') {
+            console.warn('Streetlight dynamic fetch fallback error:', err);
+          }
         }
-      } catch (err) {
-        if (err.name !== 'AbortError') {
-          console.warn('Streetlight dynamic fetch fallback error:', err);
-        }
-      }
+      }, 150);
     };
 
     renderVisibleStreetlights();
     map.on('moveend zoomend', renderVisibleStreetlights);
 
     return () => {
+      if (debounceTimer) clearTimeout(debounceTimer);
       if (abortController) abortController.abort();
       map.off('moveend zoomend', renderVisibleStreetlights);
     };

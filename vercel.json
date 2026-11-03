@@ -1,4 +1,10 @@
 {
+  "regions": ["icn1"],
+  "functions": {
+    "api/**/*.js": {
+      "includeFiles": "src/data/**"
+    }
+  },
   "rewrites": [
     {
       "source": "/api/route/:match*",

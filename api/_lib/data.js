@@ -1,35 +1,27 @@
 import fs from 'fs';
+import path from 'path';
 import { fileURLToPath } from 'url';
 
-let nationwideCctvCache = [];
-try {
-  const jsonPath = fileURLToPath(new URL('../../src/data/cctvRealData.json', import.meta.url));
-  if (fs.existsSync(jsonPath)) {
-    nationwideCctvCache = JSON.parse(fs.readFileSync(jsonPath, 'utf-8'));
+function loadJsonFile(relPathFromDataDir) {
+  const candidates = [
+    fileURLToPath(new URL(`../../src/data/${relPathFromDataDir}`, import.meta.url)),
+    path.join(process.cwd(), 'src', 'data', relPathFromDataDir)
+  ];
+  for (const p of candidates) {
+    try {
+      if (fs.existsSync(p)) {
+        return JSON.parse(fs.readFileSync(p, 'utf-8'));
+      }
+    } catch {
+      // try next candidate
+    }
   }
-} catch {
-  nationwideCctvCache = [];
+  return [];
 }
 
-let nationwideStreetlightCache = [];
-try {
-  const slJsonPath = fileURLToPath(new URL('../../src/data/streetlightRealData.json', import.meta.url));
-  if (fs.existsSync(slJsonPath)) {
-    nationwideStreetlightCache = JSON.parse(fs.readFileSync(slJsonPath, 'utf-8'));
-  }
-} catch {
-  nationwideStreetlightCache = [];
-}
-
-let koreaDistricts = [];
-try {
-  const dPath = fileURLToPath(new URL('../../src/data/koreaDistricts.json', import.meta.url));
-  if (fs.existsSync(dPath)) {
-    koreaDistricts = JSON.parse(fs.readFileSync(dPath, 'utf8'));
-  }
-} catch {
-  koreaDistricts = [];
-}
+const nationwideCctvCache = loadJsonFile('cctvRealData.json');
+const nationwideStreetlightCache = loadJsonFile('streetlightRealData.json');
+const koreaDistricts = loadJsonFile('koreaDistricts.json');
 
 export function getCctvCache() {
   return nationwideCctvCache;

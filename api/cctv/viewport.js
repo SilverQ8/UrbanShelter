@@ -16,49 +16,52 @@ async function fetchGovCctvsSmart(lat, lng, apiKey) {
   const results = [];
   const seenIds = new Set();
 
-  for (const qParams of queries) {
-    if (results.length >= 70) break;
-    const params = new URLSearchParams({
-      serviceKey: apiKey,
-      pageNo: '1',
-      numOfRows: '100',
-      returnType: 'JSON',
-      ...qParams
-    });
-
-    try {
-      const resp = await fetch(`https://apis.data.go.kr/1741000/cctv_info/info?${params.toString()}`, { signal: AbortSignal.timeout(3500) });
-      if (!resp.ok) continue;
+  // 병렬 호출로 지연 시간 최소화 (기존 직렬 3.5s × 3회 = 10.5s -> 병렬 최대 2.0s)
+  const responses = await Promise.allSettled(
+    queries.map(async (qParams) => {
+      const params = new URLSearchParams({
+        serviceKey: apiKey,
+        pageNo: '1',
+        numOfRows: '100',
+        returnType: 'JSON',
+        ...qParams
+      });
+      const resp = await fetch(`https://apis.data.go.kr/1741000/cctv_info/info?${params.toString()}`, {
+        signal: AbortSignal.timeout(2000)
+      });
+      if (!resp.ok) return [];
       const json = await resp.json();
-      const items = json?.response?.body?.items?.item || [];
+      return json?.response?.body?.items?.item || [];
+    })
+  );
 
-      for (const it of items) {
-        const itemLat = parseFloat(it.WGS84_LAT);
-        const itemLng = parseFloat(it.WGS84_LOT);
-        if (isInvalidOceanCoordinate(itemLat, itemLng)) continue;
+  for (const res of responses) {
+    if (res.status !== 'fulfilled' || !Array.isArray(res.value)) continue;
+    for (const it of res.value) {
+      if (results.length >= 100) break;
+      const itemLat = parseFloat(it.WGS84_LAT);
+      const itemLng = parseFloat(it.WGS84_LOT);
+      if (isInvalidOceanCoordinate(itemLat, itemLng)) continue;
 
-        const addr = it.LCTN_ROAD_NM_ADDR || it.LCTN_LOTNO_ADDR || '';
-        const mngNo = it.MNG_NO || `${itemLat}_${itemLng}`;
-        const cctvId = `CCTV_REAL_${mngNo}`;
+      const addr = it.LCTN_ROAD_NM_ADDR || it.LCTN_LOTNO_ADDR || '';
+      const mngNo = it.MNG_NO || `${itemLat}_${itemLng}`;
+      const cctvId = `CCTV_REAL_${mngNo}`;
 
-        if (!seenIds.has(cctvId)) {
-          seenIds.add(cctvId);
-          results.push({
-            cctv_id: cctvId,
-            id: cctvId,
-            name: addr ? `${addr} 방범 CCTV` : `${districtInfo.name} CCTV`,
-            address: addr,
-            lat: itemLat,
-            lng: itemLng,
-            purpose: it.INSTL_PRPS_SE_NM || '생활방범',
-            camera_count: parseInt(it.CAM_CNTOM || '1', 10) || 1,
-            manager: it.MNG_INST_NM || `${districtInfo.name} 관할기관`,
-            radius: 20
-          });
-        }
+      if (!seenIds.has(cctvId)) {
+        seenIds.add(cctvId);
+        results.push({
+          cctv_id: cctvId,
+          id: cctvId,
+          name: addr ? `${addr} 방범 CCTV` : `${districtInfo.name} CCTV`,
+          address: addr,
+          lat: itemLat,
+          lng: itemLng,
+          purpose: it.INSTL_PRPS_SE_NM || '생활방범',
+          camera_count: parseInt(it.CAM_CNTOM || '1', 10) || 1,
+          manager: it.MNG_INST_NM || `${districtInfo.name} 관할기관`,
+          radius: 20
+        });
       }
-    } catch {
-      // try next
     }
   }
 
@@ -89,6 +92,7 @@ async function fetchGovCctvsSmart(lat, lng, apiKey) {
 export default async function handler(req, res) {
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
   res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Cache-Control', 's-maxage=60, stale-while-revalidate=300');
 
   const zoom = parseInt(req.query.zoom || '16', 10);
   const minLat = parseFloat(req.query.minLat || '0');

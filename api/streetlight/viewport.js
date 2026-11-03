@@ -71,23 +71,28 @@ async function fetchOsmRoadStreetlights(minLat, minLng, maxLat, maxLng) {
     `https://router.project-osrm.org/route/v1/foot/${minLng},${minLat};${maxLng},${maxLat}?overview=full&geometries=geojson`
   ];
 
-  for (let i = 0; i < osrmUrls.length; i++) {
-    try {
-      const resp = await fetch(osrmUrls[i], { signal: AbortSignal.timeout(2200) });
-      if (resp.ok) {
-        const json = await resp.json();
-        const coords = json.routes?.[0]?.geometry?.coordinates;
-        const roadName = json.routes?.[0]?.legs?.[0]?.steps?.[0]?.name || '보행로';
-        if (Array.isArray(coords) && coords.length > 1) {
-          ways.push({
-            id: `OSRM_ROAD_${i}`,
-            tags: { name: roadName, highway: 'residential' },
-            geometry: coords.map(c => ({ lat: c[1], lon: c[0] }))
-          });
-        }
+  // 병렬 호출로 OSRM 대기 시간 단축 (기존 직렬 2.2s × 3회 = 6.6s -> 병렬 최대 1.5s)
+  const osrmResults = await Promise.allSettled(
+    osrmUrls.map(async (url, i) => {
+      const resp = await fetch(url, { signal: AbortSignal.timeout(1500) });
+      if (!resp.ok) return null;
+      const json = await resp.json();
+      const coords = json.routes?.[0]?.geometry?.coordinates;
+      const roadName = json.routes?.[0]?.legs?.[0]?.steps?.[0]?.name || '보행로';
+      if (Array.isArray(coords) && coords.length > 1) {
+        return {
+          id: `OSRM_ROAD_${i}`,
+          tags: { name: roadName, highway: 'residential' },
+          geometry: coords.map(c => ({ lat: c[1], lon: c[0] }))
+        };
       }
-    } catch {
-      // ignore
+      return null;
+    })
+  );
+
+  for (const r of osrmResults) {
+    if (r.status === 'fulfilled' && r.value) {
+      ways.push(r.value);
     }
   }
 
@@ -105,6 +110,7 @@ async function fetchOsmRoadStreetlights(minLat, minLng, maxLat, maxLng) {
 export default async function handler(req, res) {
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
   res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Cache-Control', 's-maxage=60, stale-while-revalidate=300');
 
   const zoom = parseInt(req.query.zoom || '16', 10);
   const minLat = parseFloat(req.query.minLat || '0');

@@ -3,12 +3,32 @@
  * Loads Kakao Maps JavaScript SDK and queries real-time official building & landmark POIs
  */
 
+import { HAEUNDAE_PLACES } from '../data/haeundaePlaces';
+
 const KAKAO_KEY = import.meta.env.VITE_KAKAO_MAP_API_KEY || '';
 
 let kakaoSdkPromise = null;
 
+function getLocalFallbackBuildings(lat, lng) {
+  return HAEUNDAE_PLACES.filter(p => {
+    const dLat = p.lat - lat;
+    const dLng = (p.lng - lng) * Math.cos(lat * Math.PI / 180);
+    return (dLat * dLat + dLng * dLng) < (0.018 * 0.018);
+  }).slice(0, 35).map(p => ({
+    id: `local_${p.name}`,
+    name: p.name,
+    category: p.category || '주요 건물',
+    address: p.roadAddress || p.name,
+    phone: '',
+    url: `https://map.kakao.com/link/search/${encodeURIComponent(p.name)}`,
+    lat: p.lat,
+    lng: p.lng,
+    source: 'local'
+  }));
+}
+
 /**
- * Dynamically loads and initializes Kakao Maps JavaScript SDK
+ * Dynamically loads and initializes Kakao Maps JavaScript SDK (with 1.8s fast timeout)
  * @returns {Promise<boolean>} whether SDK loaded successfully
  */
 export function initKakaoSdk() {
@@ -16,7 +36,6 @@ export function initKakaoSdk() {
 
   kakaoSdkPromise = new Promise((resolve) => {
     if (typeof window === 'undefined' || !KAKAO_KEY) return resolve(false);
-
 
     if (window.kakao && window.kakao.maps) {
       if (window.kakao.maps.load) {
@@ -27,6 +46,11 @@ export function initKakaoSdk() {
       return;
     }
 
+    const timer = setTimeout(() => {
+      kakaoSdkPromise = null;
+      resolve(false);
+    }, 1800);
+
     const script = document.createElement('script');
     script.src = `//dapi.kakao.com/v2/maps/sdk.js?appkey=${KAKAO_KEY}&libraries=services,clusterer&autoload=false`;
     script.async = true;
@@ -34,14 +58,19 @@ export function initKakaoSdk() {
     script.onload = () => {
       if (window.kakao && window.kakao.maps && window.kakao.maps.load) {
         window.kakao.maps.load(() => {
+          clearTimeout(timer);
           resolve(true);
         });
       } else {
+        clearTimeout(timer);
+        kakaoSdkPromise = null;
         resolve(false);
       }
     };
 
     script.onerror = (err) => {
+      clearTimeout(timer);
+      kakaoSdkPromise = null;
       console.warn('Kakao Map SDK load failed (확인: 카카오 개발자 콘솔에서 카카오맵 활성화 여부):', err);
       resolve(false);
     };
@@ -52,8 +81,21 @@ export function initKakaoSdk() {
   return kakaoSdkPromise;
 }
 
-// In-memory cache for queried areas to prevent duplicate API hits
+// In-memory cache & in-flight deduplication for queried areas
 const buildingCache = new Map();
+const inflightSearches = new Map();
+
+/**
+ * Get instant synchronous local buildings for immediate 0ms map rendering
+ */
+export function getInstantLocalBuildings(lat, lng) {
+  if (!lat || !lng) return [];
+  const cacheKey = `${lat.toFixed(3)}_${lng.toFixed(3)}`;
+  if (buildingCache.has(cacheKey)) {
+    return buildingCache.get(cacheKey);
+  }
+  return getLocalFallbackBuildings(lat, lng);
+}
 
 /**
  * Search for buildings, landmarks, and public facilities within a map area
@@ -67,132 +109,112 @@ export async function searchKakaoBuildings({ lat, lng, bounds }) {
   if (buildingCache.has(cacheKey)) {
     return buildingCache.get(cacheKey);
   }
+  if (inflightSearches.has(cacheKey)) {
+    return inflightSearches.get(cacheKey);
+  }
 
-  const isLoaded = await initKakaoSdk();
-  if (!isLoaded || !window.kakao || !window.kakao.maps || !window.kakao.maps.services) {
-    try {
-      const { HAEUNDAE_PLACES } = await import('../data/haeundaePlaces');
-      const localBuildings = HAEUNDAE_PLACES.filter(p => {
-        const dLat = p.lat - lat;
-        const dLng = (p.lng - lng) * Math.cos(lat * Math.PI / 180);
-        return (dLat * dLat + dLng * dLng) < (0.015 * 0.015);
-      }).slice(0, 30).map(p => ({
-        id: `local_${p.name}`,
-        name: p.name,
-        category: p.category || '주요 건물',
-        address: p.roadAddress || p.name,
-        phone: '',
-        url: `https://map.kakao.com/link/search/${encodeURIComponent(p.name)}`,
-        lat: p.lat,
-        lng: p.lng,
-        source: 'local'
-      }));
+  const searchTask = (async () => {
+    const localBuildings = getLocalFallbackBuildings(lat, lng);
+    const isLoaded = await initKakaoSdk();
+    if (!isLoaded || !window.kakao || !window.kakao.maps || !window.kakao.maps.services) {
       return localBuildings;
-    } catch {
-      return [];
     }
-  }
 
+    const ps = new window.kakao.maps.services.Places();
+    const searchPromises = [];
+    const resultsMap = new Map();
 
-  const ps = new window.kakao.maps.services.Places();
-  const searchPromises = [];
-  const resultsMap = new Map();
+    // 로컬 주요 랜드마크를 기본 포함하여 응답 즉시성 보장
+    for (const lb of localBuildings) {
+      resultsMap.set(lb.id, lb);
+    }
 
-  const searchLocation = new window.kakao.maps.LatLng(lat, lng);
-  const options = {
-    location: searchLocation,
-    radius: 1200, // 1.2km 주변 건물
-    size: 15
-  };
+    const searchLocation = new window.kakao.maps.LatLng(lat, lng);
+    const options = {
+      location: searchLocation,
+      radius: 1000,
+      size: 15
+    };
 
-  // 1. 주요 빌딩 및 타워 키워드 검색
-  const buildingKeywords = ['빌딩', '타워', '센텀', '오피스텔', '주민센터', '백화점'];
-  for (const kw of buildingKeywords) {
-    searchPromises.push(new Promise((resolve) => {
-      ps.keywordSearch(kw, (data, status) => {
-        if (status === window.kakao.maps.services.Status.OK && Array.isArray(data)) {
-          for (const item of data) {
-            const itemLat = parseFloat(item.y);
-            const itemLng = parseFloat(item.x);
-            if (!resultsMap.has(item.id)) {
-              resultsMap.set(item.id, {
-                id: `kakao_${item.id}`,
-                name: item.place_name,
-                category: item.category_name || '주요 건물',
-                address: item.road_address_name || item.address_name,
-                phone: item.phone,
-                url: item.place_url,
-                lat: itemLat,
-                lng: itemLng,
-                source: 'kakao'
-              });
+    const runWithTimeout = (fn) =>
+      new Promise((resolve) => {
+        const t = setTimeout(resolve, 1200);
+        fn(() => {
+          clearTimeout(t);
+          resolve();
+        });
+      });
+
+    // 핵심 키워드 3개 + 공공기관 카테고리 1개로 압축하여 API 지연 최소화 (기존 9개 요청 -> 4개)
+    const buildingKeywords = ['빌딩', '오피스텔', '백화점'];
+    for (const kw of buildingKeywords) {
+      searchPromises.push(
+        runWithTimeout((done) => {
+          ps.keywordSearch(kw, (data, status) => {
+            if (status === window.kakao.maps.services.Status.OK && Array.isArray(data)) {
+              for (const item of data) {
+                if (!resultsMap.has(item.id)) {
+                  resultsMap.set(item.id, {
+                    id: `kakao_${item.id}`,
+                    name: item.place_name,
+                    category: item.category_name || '주요 건물',
+                    address: item.road_address_name || item.address_name,
+                    phone: item.phone,
+                    url: item.place_url,
+                    lat: parseFloat(item.y),
+                    lng: parseFloat(item.x),
+                    source: 'kakao'
+                  });
+                }
+              }
+            }
+            done();
+          }, options);
+        })
+      );
+    }
+
+    searchPromises.push(
+      runWithTimeout((done) => {
+        ps.categorySearch('PO3', (data, status) => {
+          if (status === window.kakao.maps.services.Status.OK && Array.isArray(data)) {
+            for (const item of data) {
+              if (!resultsMap.has(item.id)) {
+                resultsMap.set(item.id, {
+                  id: `kakao_${item.id}`,
+                  name: item.place_name,
+                  category: item.category_name || '공공/편의시설',
+                  address: item.road_address_name || item.address_name,
+                  phone: item.phone,
+                  url: item.place_url,
+                  lat: parseFloat(item.y),
+                  lng: parseFloat(item.x),
+                  source: 'kakao'
+                });
+              }
             }
           }
-        }
-        resolve();
-      }, options);
-    }));
-  }
+          done();
+        }, options);
+      })
+    );
 
-  // 2. 카테고리 검색 (공공기관 PO3, 병원 HP8, 문화시설 CT1)
-  const categories = ['PO3', 'HP8', 'CT1'];
-  for (const cat of categories) {
-    searchPromises.push(new Promise((resolve) => {
-      ps.categorySearch(cat, (data, status) => {
-        if (status === window.kakao.maps.services.Status.OK && Array.isArray(data)) {
-          for (const item of data) {
-            const itemLat = parseFloat(item.y);
-            const itemLng = parseFloat(item.x);
-            if (!resultsMap.has(item.id)) {
-              resultsMap.set(item.id, {
-                id: `kakao_${item.id}`,
-                name: item.place_name,
-                category: item.category_name || '공공/편의시설',
-                address: item.road_address_name || item.address_name,
-                phone: item.phone,
-                url: item.place_url,
-                lat: itemLat,
-                lng: itemLng,
-                source: 'kakao'
-              });
-            }
-          }
-        }
-        resolve();
-      }, options);
-    }));
-  }
+    await Promise.allSettled(searchPromises);
 
-  await Promise.allSettled(searchPromises);
+    if (resultsMap.size > 0) {
+      const merged = Array.from(resultsMap.values());
+      buildingCache.set(cacheKey, merged);
+      return merged;
+    }
 
-  // If Kakao returns results, cache and return
-  if (resultsMap.size > 0) {
-    const buildings = Array.from(resultsMap.values());
-    buildingCache.set(cacheKey, buildings);
-    return buildings;
-  }
-
-  // Fallback: If Kakao SDK is not yet activated in console, load local landmark buildings
-  try {
-    const { HAEUNDAE_PLACES } = await import('../data/haeundaePlaces');
-    const localBuildings = HAEUNDAE_PLACES.filter(p => {
-      const dLat = p.lat - lat;
-      const dLng = (p.lng - lng) * Math.cos(lat * Math.PI / 180);
-      return (dLat * dLat + dLng * dLng) < (0.015 * 0.015);
-    }).slice(0, 30).map(p => ({
-      id: `local_${p.name}`,
-      name: p.name,
-      category: p.category || '주요 건물',
-      address: p.roadAddress || p.name,
-      phone: '',
-      url: `https://map.kakao.com/link/search/${encodeURIComponent(p.name)}`,
-      lat: p.lat,
-      lng: p.lng,
-      source: 'local'
-    }));
     return localBuildings;
-  } catch {
-    return [];
+  })();
+
+  inflightSearches.set(cacheKey, searchTask);
+  try {
+    return await searchTask;
+  } finally {
+    inflightSearches.delete(cacheKey);
   }
 }
 
@@ -254,13 +276,22 @@ export async function fetchKakaoBuildingDetail({ lat, lng, name, category }) {
     source: 'kakao'
   };
 
+  // 백엔드 역지오코딩을 Kakao SDK 조회와 병렬로 미리 시작하여 대기 시간 단축
+  const reverseApiPromise = fetch(`/api/address/reverse?lat=${lat}&lng=${lng}`, {
+    signal: AbortSignal.timeout(2000)
+  })
+    .then(r => (r.ok ? r.json() : null))
+    .catch(() => null);
+
   const isLoaded = await initKakaoSdk();
   if (isLoaded && window.kakao?.maps?.services) {
     try {
       // 1. Geocoder 역지오코딩 (공식 도로명주소 및 지번주소)
       const geocoder = new window.kakao.maps.services.Geocoder();
       const addrPromise = new Promise((resolve) => {
+        const t = setTimeout(() => resolve(null), 1500);
         geocoder.coord2Address(lng, lat, (data, status) => {
+          clearTimeout(t);
           if (status === window.kakao.maps.services.Status.OK && Array.isArray(data) && data[0]) {
             const item = data[0];
             resolve({
@@ -278,17 +309,22 @@ export async function fetchKakaoBuildingDetail({ lat, lng, name, category }) {
       // 2. Places 주변 장소 및 POI 검색
       const places = new window.kakao.maps.services.Places();
       const placePromise = new Promise((resolve) => {
+        const t = setTimeout(() => resolve(null), 1500);
+        const done = (val) => {
+          clearTimeout(t);
+          resolve(val);
+        };
         const searchLocation = new window.kakao.maps.LatLng(lat, lng);
         if (cleanInitialName) {
           places.keywordSearch(cleanInitialName, (data, status) => {
             if (status === window.kakao.maps.services.Status.OK && Array.isArray(data) && data.length > 0) {
-              resolve(data[0]);
+              done(data[0]);
             } else {
-              queryNearbyPoi(places, searchLocation, resolve);
+              queryNearbyPoi(places, searchLocation, done);
             }
           }, { location: searchLocation, radius: 120 });
         } else {
-          queryNearbyPoi(places, searchLocation, resolve);
+          queryNearbyPoi(places, searchLocation, done);
         }
       });
 
@@ -319,24 +355,17 @@ export async function fetchKakaoBuildingDetail({ lat, lng, name, category }) {
     }
   }
 
-  // 3. Backend Reverse Geocoding Fallback (100% 보장: 도로명, 지번, 우편번호)
+  // 3. Backend Reverse Geocoding Fallback 결과 병합 (이미 병렬로 요청됨)
   if (!detail.roadAddress || !detail.jibunAddress) {
-    try {
-      const res = await fetch(`/api/address/reverse?lat=${lat}&lng=${lng}`);
-      if (res.ok) {
-        const rev = await res.json();
-        if (rev.success) {
-          if (!detail.roadAddress) detail.roadAddress = rev.roadAddress || '';
-          if (!detail.jibunAddress) detail.jibunAddress = rev.jibunAddress || '';
-          if (!detail.zoneNo) detail.zoneNo = rev.zoneNo || '';
-          if (rev.buildingName && !detail.officialBuildingName) {
-            detail.officialBuildingName = rev.buildingName;
-            if (!detail.name) detail.name = rev.buildingName;
-          }
-        }
+    const rev = await reverseApiPromise;
+    if (rev && rev.success) {
+      if (!detail.roadAddress) detail.roadAddress = rev.roadAddress || '';
+      if (!detail.jibunAddress) detail.jibunAddress = rev.jibunAddress || '';
+      if (!detail.zoneNo) detail.zoneNo = rev.zoneNo || '';
+      if (rev.buildingName && !detail.officialBuildingName) {
+        detail.officialBuildingName = rev.buildingName;
+        if (!detail.name) detail.name = rev.buildingName;
       }
-    } catch {
-      // ignore
     }
   }
 
@@ -344,16 +373,18 @@ export async function fetchKakaoBuildingDetail({ lat, lng, name, category }) {
   const targetAddressForHub = detail.roadAddress || detail.jibunAddress;
   if (targetAddressForHub) {
     try {
-      const hubRes = await fetch(`/api/building/hub?address=${encodeURIComponent(targetAddressForHub)}`);
+      const hubRes = await fetch(`/api/building/hub?address=${encodeURIComponent(targetAddressForHub)}`, {
+        signal: AbortSignal.timeout(2500)
+      });
       if (hubRes.ok) {
         const hubData = await hubRes.json();
-        if (hubData.success && hubData.building) {
-          const b = hubData.building;
+        const b = hubData?.building || hubData?.data;
+        if (hubData?.success && b) {
           detail.groundFloors = b.grndFlrCnt || detail.groundFloors;
           detail.undergroundFloors = b.ugrndFlrCnt || detail.undergroundFloors;
           detail.buildingHeight = b.calculatedHeight || b.heit || detail.buildingHeight;
           detail.mainPurps = b.mainPurpsCdNm || detail.mainPurps;
-          if (b.bldNm && b.bldNm !== '일반건축물') {
+          if (b.bldNm && b.bldNm !== '일반건축물' && b.bldNm !== '건축물') {
             detail.officialBuildingName = b.bldNm;
             if (!detail.name) detail.name = b.bldNm;
           }

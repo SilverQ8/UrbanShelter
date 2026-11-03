@@ -68,7 +68,7 @@ async function parseAddressToCodes(addr) {
     const kakaoUrl = `https://dapi.kakao.com/v2/local/search/address.json?query=${encodeURIComponent(addr)}`;
     const resp = await fetch(kakaoUrl, {
       headers: { Authorization: `KakaoAK ${KAKAO_KEY}` },
-      signal: AbortSignal.timeout(3500)
+      signal: AbortSignal.timeout(1800)
     });
 
     if (resp.ok) {
@@ -92,7 +92,7 @@ async function parseAddressToCodes(addr) {
     const keywordUrl = `https://dapi.kakao.com/v2/local/search/keyword.json?query=${encodeURIComponent(addr)}&size=1`;
     const resp = await fetch(keywordUrl, {
       headers: { Authorization: `KakaoAK ${KAKAO_KEY}` },
-      signal: AbortSignal.timeout(3500)
+      signal: AbortSignal.timeout(1800)
     });
 
     if (resp.ok) {
@@ -102,7 +102,7 @@ async function parseAddressToCodes(addr) {
       if (addressName) {
         const subResp = await fetch(`https://dapi.kakao.com/v2/local/search/address.json?query=${encodeURIComponent(addressName)}`, {
           headers: { Authorization: `KakaoAK ${KAKAO_KEY}` },
-          signal: AbortSignal.timeout(3500)
+          signal: AbortSignal.timeout(1800)
         });
         if (subResp.ok) {
           const subJson = await subResp.json();
@@ -198,34 +198,46 @@ async function fetchBuildingHubBackend({ sigunguCd, bjdongCd, bun, ji }, apiKey)
     }
 
     const item = Array.isArray(items) ? items[0] : items;
+    const grndFlrCnt = Number(item.grndFlrCnt) || 1;
+    const ugrndFlrCnt = Number(item.ugrndFlrCnt) || 0;
+    const heit = Number(item.heit) || 0;
+    const mainPurps = item.mainPurpsCdNm || '일반건축물';
+    const floorHeight = (mainPurps.includes('판매') || mainPurps.includes('업무') || mainPurps.includes('상가') || mainPurps.includes('근린')) ? 3.5 : 3.2;
+    const calculatedHeight = heit > 0 ? heit : Math.round(grndFlrCnt * floorHeight * 10) / 10;
+
+    const buildingPayload = {
+      bldNm: item.bldNm || '건축물',
+      mainPurpsCdNm: mainPurps,
+      etcPurps: item.etcPurps || '',
+      strctCdNm: item.strctCdNm || '철근콘크리트구조',
+      grndFlrCnt,
+      ugrndFlrCnt,
+      heit,
+      calculatedHeight,
+      archArea: item.archArea || 0,
+      totArea: item.totArea || 0,
+      useAprDay: item.useAprDay || '',
+      platPlc: item.platPlc || '',
+      newPlatPlc: item.newPlatPlc || ''
+    };
+
     const result = {
       success: true,
-      data: {
-        bldNm: item.bldNm || '건축물',
-        mainPurpsCdNm: item.mainPurpsCdNm || '일반건축물',
-        etcPurps: item.etcPurps || '',
-        strctCdNm: item.strctCdNm || '철근콘크리트구조',
-        grndFlrCnt: item.grndFlrCnt || 1,
-        ugrndFlrCnt: item.ugrndFlrCnt || 0,
-        heit: item.heit || 0,
-        archArea: item.archArea || 0,
-        totArea: item.totArea || 0,
-        useAprDay: item.useAprDay || '',
-        platPlc: item.platPlc || '',
-        newPlatPlc: item.newPlatPlc || ''
-      }
+      building: buildingPayload,
+      data: buildingPayload
     };
 
     buildingCache.set(cacheKey, result);
     return result;
   } catch (err) {
-    return { success: false, message: err.message, data: null };
+    return { success: false, message: err.message, building: null, data: null };
   }
 }
 
 export default async function handler(req, res) {
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
   res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Cache-Control', 's-maxage=3600, stale-while-revalidate=86400');
 
   const address = req.query.address || '';
   let sigunguCd = req.query.sigunguCd;
