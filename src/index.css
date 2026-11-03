@@ -4,7 +4,7 @@
 
 :root {
   --font-family: 'Plus Jakarta Sans', 'Noto Sans KR', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  
+
   /* Color Palette */
   --bg-primary: #0a0f1d;
   --bg-surface: rgba(15, 23, 42, 0.78);
@@ -45,7 +45,9 @@
   padding: 0;
 }
 
-html, body, #root {
+html,
+body,
+#root {
   width: 100%;
   height: 100%;
   overflow: hidden;
@@ -194,6 +196,7 @@ html, body, #root {
 .map-theme-light .leaflet-tile-pane {
   filter: none;
 }
+
 .map-theme-light .leaflet-container {
   background: #f1f5f9 !important;
 }
@@ -243,7 +246,7 @@ html, body, #root {
   border-radius: 4px;
 }
 
-.floating-overlay-left > * {
+.floating-overlay-left>* {
   pointer-events: auto;
 }
 
@@ -484,11 +487,11 @@ html, body, #root {
   border-radius: 50%;
 }
 
-input:checked + .switch-slider {
+input:checked+.switch-slider {
   background-color: var(--accent-cyan);
 }
 
-input:checked + .switch-slider:before {
+input:checked+.switch-slider:before {
   transform: translateX(16px);
 }
 
@@ -570,9 +573,17 @@ input:checked + .switch-slider:before {
   background: var(--accent-cyan);
 }
 
-.metric-box.green::before { background: var(--accent-emerald); }
-.metric-box.amber::before { background: var(--accent-amber); }
-.metric-box.rose::before { background: var(--accent-rose); }
+.metric-box.green::before {
+  background: var(--accent-emerald);
+}
+
+.metric-box.amber::before {
+  background: var(--accent-amber);
+}
+
+.metric-box.rose::before {
+  background: var(--accent-rose);
+}
 
 .metric-title {
   font-size: 0.72rem;
@@ -610,9 +621,17 @@ input:checked + .switch-slider:before {
   margin-top: 2px;
 }
 
-.comparison-neutral { color: var(--text-dim); }
-.comparison-better { color: #34d399; }
-.comparison-warn { color: #f87171; }
+.comparison-neutral {
+  color: var(--text-dim);
+}
+
+.comparison-better {
+  color: #34d399;
+}
+
+.comparison-warn {
+  color: #f87171;
+}
 
 /* Hazard & Caution Alert Banners (3.2) */
 .hazard-banner-list {
@@ -658,14 +677,32 @@ input:checked + .switch-slider:before {
 
 /* Custom Marker Pulsing Animations */
 @keyframes pulseRing {
-  0% { transform: scale(0.85); opacity: 0.9; }
-  50% { transform: scale(1.35); opacity: 0.3; }
-  100% { transform: scale(0.85); opacity: 0.9; }
+  0% {
+    transform: scale(0.85);
+    opacity: 0.9;
+  }
+
+  50% {
+    transform: scale(1.35);
+    opacity: 0.3;
+  }
+
+  100% {
+    transform: scale(0.85);
+    opacity: 0.9;
+  }
 }
 
 @keyframes fadeIn {
-  from { opacity: 0; transform: translateY(4px); }
-  to { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .pin-marker-pulse {
@@ -681,7 +718,7 @@ input:checked + .switch-slider:before {
   font-family: var(--font-family) !important;
   border-radius: 8px !important;
   padding: 6px 10px !important;
-  box-shadow: 0 4px 15px rgba(0,0,0,0.5) !important;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5) !important;
   font-size: 0.78rem !important;
 }
 
@@ -695,9 +732,11 @@ input:checked + .switch-slider:before {
     left: 20px;
     right: 20px;
   }
+
   .floating-overlay-left {
     width: 340px;
   }
+
   .metrics-comparison-grid {
     grid-template-columns: repeat(2, 1fr);
   }
@@ -759,8 +798,13 @@ input:checked + .switch-slider:before {
 }
 
 @keyframes spin {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
+  from {
+    transform: rotate(0deg);
+  }
+
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .route-inputs-container {
@@ -906,8 +950,15 @@ input:checked + .switch-slider:before {
 }
 
 @keyframes dropdownFade {
-  from { opacity: 0; transform: translateY(-4px); }
-  to { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .dropdown-native-header {
@@ -1242,9 +1293,21 @@ input:checked + .switch-slider:before {
 }
 
 @keyframes pulseDot {
-  0% { transform: scale(0.9); opacity: 0.8; }
-  50% { transform: scale(1.3); opacity: 1; box-shadow: 0 0 12px #38bdf8; }
-  100% { transform: scale(0.9); opacity: 0.8; }
+  0% {
+    transform: scale(0.9);
+    opacity: 0.8;
+  }
+
+  50% {
+    transform: scale(1.3);
+    opacity: 1;
+    box-shadow: 0 0 12px #38bdf8;
+  }
+
+  100% {
+    transform: scale(0.9);
+    opacity: 0.8;
+  }
 }
 
 .map-cctv-counter-pill.zoom-hint {
@@ -1276,9 +1339,21 @@ input:checked + .switch-slider:before {
 }
 
 @keyframes pulseDotAmber {
-  0% { transform: scale(0.9); opacity: 0.8; }
-  50% { transform: scale(1.3); opacity: 1; box-shadow: 0 0 12px #f59e0b; }
-  100% { transform: scale(0.9); opacity: 0.8; }
+  0% {
+    transform: scale(0.9);
+    opacity: 0.8;
+  }
+
+  50% {
+    transform: scale(1.3);
+    opacity: 1;
+    box-shadow: 0 0 12px #f59e0b;
+  }
+
+  100% {
+    transform: scale(0.9);
+    opacity: 0.8;
+  }
 }
 
 /* Real-time Roadside Tree Canopy Visible Counter Pill */
@@ -1302,9 +1377,21 @@ input:checked + .switch-slider:before {
 }
 
 @keyframes pulseDotEmerald {
-  0% { transform: scale(0.9); opacity: 0.8; }
-  50% { transform: scale(1.3); opacity: 1; box-shadow: 0 0 12px #10b981; }
-  100% { transform: scale(0.9); opacity: 0.8; }
+  0% {
+    transform: scale(0.9);
+    opacity: 0.8;
+  }
+
+  50% {
+    transform: scale(1.3);
+    opacity: 1;
+    box-shadow: 0 0 12px #10b981;
+  }
+
+  100% {
+    transform: scale(0.9);
+    opacity: 0.8;
+  }
 }
 
 
@@ -1463,7 +1550,7 @@ input:checked + .switch-slider:before {
   pointer-events: none;
 }
 
-.floating-overlay-right > * {
+.floating-overlay-right>* {
   pointer-events: auto;
   flex: 0 0 auto;
 }
@@ -1850,9 +1937,20 @@ input:checked + .switch-slider:before {
 }
 
 @keyframes pulse-ring {
-  0% { transform: scale(0.9); opacity: 0.7; }
-  50% { transform: scale(1.3); opacity: 1; }
-  100% { transform: scale(0.9); opacity: 0.7; }
+  0% {
+    transform: scale(0.9);
+    opacity: 0.7;
+  }
+
+  50% {
+    transform: scale(1.3);
+    opacity: 1;
+  }
+
+  100% {
+    transform: scale(0.9);
+    opacity: 0.7;
+  }
 }
 
 .route-guide-eta-dist {
@@ -2458,7 +2556,8 @@ input:checked + .switch-slider:before {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding-right: 18px; /* space for close button */
+  padding-right: 18px;
+  /* space for close button */
 }
 
 .kakao-title-link {
@@ -2622,7 +2721,9 @@ input:checked + .switch-slider:before {
 }
 
 @keyframes kakaoSpin {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 /* Sub Links Bar */
@@ -2823,10 +2924,18 @@ input:checked + .switch-slider:before {
   --shadow-card: 0 12px 32px -8px rgba(0, 0, 0, 0.6);
 }
 
-.app-container { background: #121214; }
-.app-header { background: rgba(18, 18, 20, 0.92); }
+.app-container {
+  background: #121214;
+}
 
-.glass-panel { backdrop-filter: none; -webkit-backdrop-filter: none; }
+.app-header {
+  background: rgba(18, 18, 20, 0.92);
+}
+
+.glass-panel {
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
 
 .mode-tabs,
 .route-inputs-container,
@@ -2841,11 +2950,15 @@ input:checked + .switch-slider:before {
   border-radius: var(--radius-full);
   padding: 9px 36px 9px 14px;
 }
+
 .dest-search-input:focus {
   background: rgba(255, 255, 255, 0.06);
   box-shadow: 0 0 0 3px rgba(110, 231, 176, 0.15);
 }
-.input-value { color: var(--text-main); }
+
+.input-value {
+  color: var(--text-main);
+}
 
 .mode-tab-btn.active.mode-standard,
 .mode-tab-btn.active.mode-night,
@@ -2856,7 +2969,10 @@ input:checked + .switch-slider:before {
   box-shadow: 0 0 14px rgba(110, 231, 176, 0.18);
 }
 
-.recommend-route-card:hover { background: rgba(255, 255, 255, 0.06); }
+.recommend-route-card:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
 .recommend-route-card.selected.standard-active,
 .recommend-route-card.selected.night-active,
 .recommend-route-card.selected.rain-active {
@@ -2870,14 +2986,26 @@ input:checked + .switch-slider:before {
   background: rgba(110, 231, 176, 0.1);
   border-color: rgba(110, 231, 176, 0.3);
 }
-.swap-locations-btn { background: rgba(255, 255, 255, 0.04); }
-.swap-locations-btn:hover { background: rgba(110, 231, 176, 0.12); }
 
-.route-explore-btn { border-radius: var(--radius-full); color: #07140e; }
+.swap-locations-btn {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.swap-locations-btn:hover {
+  background: rgba(110, 231, 176, 0.12);
+}
+
+.route-explore-btn {
+  border-radius: var(--radius-full);
+  color: #07140e;
+}
 
 /* 데스크톱: 길찾기 영역을 왼쪽에 고정된 사이드바로 (시안 1 구조) */
 @media (min-width: 993px) {
-  .main-workspace { padding-left: 380px; }
+  .main-workspace {
+    padding-left: 380px;
+  }
+
   .floating-overlay-left {
     top: 0;
     left: 0;
@@ -2889,22 +3017,34 @@ input:checked + .switch-slider:before {
     border-right: 1px solid rgba(255, 255, 255, 0.08);
     gap: 14px;
   }
+
   .floating-overlay-left .glass-panel {
     background: rgba(255, 255, 255, 0.03);
     border: 1px solid rgba(255, 255, 255, 0.08);
     box-shadow: none;
     padding: 14px;
   }
+
   .floating-overlay-left .route-inputs-container,
-  .floating-overlay-left .recommend-route-card { border-radius: var(--radius-md); }
-  .floating-overlay-bottom { left: 400px; }
+  .floating-overlay-left .recommend-route-card {
+    border-radius: var(--radius-md);
+  }
+
+  .floating-overlay-bottom {
+    left: 400px;
+  }
 }
 
 /* 상단 바 제거: 로고는 사이드바 맨 위로, 버튼들은 지도 오른쪽 위로 띄운다 */
-:root { --header-height: 0px; }
+:root {
+  --header-height: 0px;
+}
+
 .app-header {
   position: absolute;
-  top: 0; left: 0; right: 0;
+  top: 0;
+  left: 0;
+  right: 0;
   height: 0;
   padding: 0;
   background: none;
@@ -2913,35 +3053,81 @@ input:checked + .switch-slider:before {
   -webkit-backdrop-filter: none;
   pointer-events: none;
 }
-.brand-section { position: absolute; top: 16px; left: 18px; pointer-events: auto; }
-.brand-tagline { display: none; }
+
+.brand-section {
+  position: absolute;
+  top: 16px;
+  left: 18px;
+  pointer-events: auto;
+}
+
+.brand-tagline {
+  display: none;
+}
+
 .brand-logo {
-  width: 34px; height: 34px;
+  width: 34px;
+  height: 34px;
   border-radius: 10px;
   background: var(--accent-emerald) !important;
   box-shadow: none;
   color: #07140e;
 }
-.brand-title { font-size: 1.1rem; background: none; -webkit-text-fill-color: var(--text-main); }
-.header-actions { position: absolute; top: 16px; right: 16px; gap: 8px; pointer-events: auto; }
+
+.brand-title {
+  font-size: 1.1rem;
+  background: none;
+  -webkit-text-fill-color: var(--text-main);
+}
+
+.header-actions {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  gap: 8px;
+  pointer-events: auto;
+}
+
 .header-actions .reset-btn {
-  width: 36px; height: 36px; padding: 0;
+  width: 36px;
+  height: 36px;
+  padding: 0;
   justify-content: center;
   background: #222226;
   border-color: #303034;
   border-radius: 12px;
 }
+
 @media (min-width: 993px) {
-  .floating-overlay-left { padding-top: 66px; }
+  .floating-overlay-left {
+    padding-top: 66px;
+  }
+
   /* 지도 오른쪽 위 버튼과 겹치지 않게 확대/축소와 정보 카드를 아래로 */
-  .leaflet-top.leaflet-right { top: 56px; }
+  .leaflet-top.leaflet-right {
+    top: 56px;
+  }
 }
+
 @media (max-width: 992px) {
-  .floating-overlay-left { top: 64px; }
-  .header-actions { top: 12px; }
+  .floating-overlay-left {
+    top: 64px;
+  }
+
+  .header-actions {
+    top: 12px;
+  }
 }
-.floating-overlay-right { top: 132px; }
-.map-cctv-counter-pill, .map-streetlight-counter-pill, .map-tree-counter-pill { margin-top: 56px; }
+
+.floating-overlay-right {
+  top: 132px;
+}
+
+.map-cctv-counter-pill,
+.map-streetlight-counter-pill,
+.map-tree-counter-pill {
+  margin-top: 56px;
+}
 
 /* 주변 장소: 아이콘 버튼으로 줄여 오른쪽 위 버튼들 옆에 붙이고, 누르면 아래로 펼친다 */
 .glass-panel.poi-panel {
@@ -2961,6 +3147,7 @@ input:checked + .switch-slider:before {
   align-items: center !important;
   z-index: 1002 !important;
 }
+
 .poi-panel .poi-panel-header {
   position: relative;
   width: 36px;
@@ -2975,12 +3162,22 @@ input:checked + .switch-slider:before {
   color: var(--text-muted);
   cursor: pointer;
 }
-.poi-panel .poi-panel-header[aria-expanded='true'] { border-color: var(--accent-emerald); color: var(--accent-emerald); }
-.poi-panel .poi-panel-badge { position: absolute; top: -5px; right: -5px; }
+
+.poi-panel .poi-panel-header[aria-expanded='true'] {
+  border-color: var(--accent-emerald);
+  color: var(--accent-emerald);
+}
+
+.poi-panel .poi-panel-badge {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+}
+
 .poi-dropdown {
   position: absolute !important;
   top: 48px !important;
-  right: 0 !important;
+  right: -226px !important;
   width: 320px !important;
   padding: 14px !important;
   background: #18181b !important;
@@ -2990,15 +3187,32 @@ input:checked + .switch-slider:before {
   z-index: 9999 !important;
   display: block !important;
 }
-.floating-overlay-right { z-index: 1001; }
+
+.floating-overlay-right {
+  z-index: 1001;
+}
 
 /* 날씨·태양 정보는 사이드바 맨 아래로 */
-.sun-card { display: flex; align-items: center; gap: 12px; }
-@media (min-width: 993px) {
-  .floating-overlay-left > .auto-banner { order: 8; margin-top: auto; }
-  .floating-overlay-left > .sun-card { order: 9; }
+.sun-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
 }
-.poi-dropdown { right: 0; }
+
+@media (min-width: 993px) {
+  .floating-overlay-left>.auto-banner {
+    order: 8;
+    margin-top: auto;
+  }
+
+  .floating-overlay-left>.sun-card {
+    order: 9;
+  }
+}
+
+.poi-dropdown {
+  right: 0;
+}
 
 /* 오른쪽 위 버튼들을 하나의 도구 막대(알약)로 묶는다 */
 @media (min-width: 993px) {
@@ -3008,22 +3222,29 @@ input:checked + .switch-slider:before {
     z-index: -1;
     top: -6px;
     right: -6px;
-    width: 224px;
+    width: 270px;
     height: 48px;
     background: #18181b;
     border: 1px solid rgba(255, 255, 255, 0.1);
     border-radius: 16px;
     box-shadow: var(--shadow-card);
   }
+
   .header-actions .reset-btn,
   .poi-panel .poi-panel-header {
     background: transparent;
     border-color: transparent;
   }
+
   .header-actions .reset-btn:hover,
-  .poi-panel .poi-panel-header:hover { background: #2a2a2f; }
+  .poi-panel .poi-panel-header:hover {
+    background: #2a2a2f;
+  }
+
   /* 막대가 커진 만큼 아래 요소를 조금 내린다 */
-  .poi-dropdown { top: 50px; }
+  .poi-dropdown {
+    top: 50px;
+  }
 }
 
 /* 주변 장소 펼침 카드: 좌우 여백과 칸 폭을 똑같이 */
@@ -3032,17 +3253,49 @@ input:checked + .switch-slider:before {
   gap: 8px;
   padding: 0 0 12px;
 }
-.poi-dropdown .poi-chip { min-width: 0; padding: 0 12px; }
-.poi-dropdown .poi-chip-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
-.poi-dropdown .poi-panel-note { padding: 0; }
-.poi-dropdown { width: 350px; }
-.poi-dropdown .poi-chip { gap: 5px; padding: 0 10px; font-size: 0.82rem; }
-.poi-dropdown .poi-chip-label { overflow: visible; text-overflow: clip; }
-.poi-dropdown .poi-chip-label { white-space: normal; line-height: 1.2; font-size: 0.8rem; }
+
+.poi-dropdown .poi-chip {
+  min-width: 0;
+  padding: 0 12px;
+}
+
+.poi-dropdown .poi-chip-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.poi-dropdown .poi-panel-note {
+  padding: 0;
+}
+
+.poi-dropdown {
+  width: 350px;
+}
+
+.poi-dropdown .poi-chip {
+  gap: 5px;
+  padding: 0 10px;
+  font-size: 0.82rem;
+}
+
+.poi-dropdown .poi-chip-label {
+  overflow: visible;
+  text-overflow: clip;
+}
+
+.poi-dropdown .poi-chip-label {
+  white-space: normal;
+  line-height: 1.2;
+  font-size: 0.8rem;
+}
 
 /* 사이드바와 지도를 둥근 카드처럼: 가장자리에서 띄우고 모서리를 크게 깎는다 */
 @media (min-width: 993px) {
-  .main-workspace { padding: 12px 12px 12px 380px; }
+  .main-workspace {
+    padding: 12px 12px 12px 380px;
+  }
+
   .floating-overlay-left {
     top: 12px;
     left: 12px;
@@ -3053,29 +3306,83 @@ input:checked + .switch-slider:before {
     box-shadow: var(--shadow-card);
     padding-top: 70px;
   }
-  .map-viewport { border-radius: 26px; overflow: hidden; }
-  .brand-section { top: 28px; left: 32px; }
-  .header-actions { top: 28px; right: 28px; }
+
+  .map-viewport {
+    border-radius: 26px;
+    overflow: hidden;
+  }
+
+  .brand-section {
+    top: 28px;
+    left: 32px;
+  }
+
+  .header-actions {
+    top: 28px;
+    right: 28px;
+  }
+
   /* legacy poi pos removed */
-  .poi-dropdown { right: -176px; }
+  .poi-dropdown {
+    right: -176px;
+  }
 }
 
 /* 사용 안내 */
-.help-list { list-style: none; display: flex; flex-direction: column; gap: 10px; margin-top: 14px; }
-.help-item { display: flex; gap: 12px; padding: 12px 14px; background: rgba(255, 255, 255, 0.03); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: var(--radius-md); }
-.help-icon { flex-shrink: 0; width: 34px; height: 34px; display: grid; place-items: center; background: #222226; border-radius: 10px; }
-.help-item strong { font-size: 0.95rem; }
-.help-item p { margin-top: 3px; font-size: 0.84rem; line-height: 1.5; color: var(--text-muted); }
+.help-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.help-item {
+  display: flex;
+  gap: 12px;
+  padding: 12px 14px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: var(--radius-md);
+}
+
+.help-icon {
+  flex-shrink: 0;
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  background: #222226;
+  border-radius: 10px;
+}
+
+.help-item strong {
+  font-size: 0.95rem;
+}
+
+.help-item p {
+  margin-top: 3px;
+  font-size: 0.84rem;
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+
 @media (min-width: 993px) {
-  .header-actions::before { width: 290px; }
+  .header-actions::before {
+    width: 290px;
+  }
+
   /* legacy poi pos removed */
-  .poi-dropdown { right: 0; }
+  .poi-dropdown {
+    right: 0;
+  }
 }
 
 /* 사이드바 아래쪽 정보(날씨·태양)는 작게 */
 @media (min-width: 993px) {
-  .floating-overlay-left > .auto-banner,
-  .floating-overlay-left > .sun-card {
+
+  .floating-overlay-left>.auto-banner,
+  .floating-overlay-left>.sun-card {
     zoom: 0.82;
     padding: 10px 14px;
     border-radius: 18px;
@@ -3083,14 +3390,20 @@ input:checked + .switch-slider:before {
 }
 
 /* 로고 이미지(오솔길) */
-.brand-logo-img { width: 34px; height: 34px; border-radius: 10px; display: block; }
+.brand-logo-img {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  display: block;
+}
 
 /* =========================================================
    Mobile & Smartphone Responsive Optimizations (오솔길 모바일 최적화)
    ========================================================= */
 
 /* 모바일 기본 터치 및 입력 개선 */
-html, body {
+html,
+body {
   -webkit-tap-highlight-color: transparent;
   touch-action: manipulation;
 }
@@ -3108,6 +3421,7 @@ html, body {
   .header-actions {
     overflow: visible !important;
   }
+
   .header-actions::before {
     content: '';
     position: absolute;
@@ -3121,15 +3435,18 @@ html, body {
     border-radius: 16px;
     box-shadow: var(--shadow-card);
   }
+
   .header-actions .reset-btn,
   .poi-panel .poi-panel-header {
     background: transparent;
     border-color: transparent;
   }
+
   .header-actions .reset-btn:hover,
   .poi-panel .poi-panel-header:hover {
     background: #2a2a2f;
   }
+
   .poi-dropdown {
     position: absolute !important;
     top: 48px !important;
@@ -3140,6 +3457,7 @@ html, body {
 }
 
 @media (max-width: 768px) {
+
   /* 1. iOS Safari 인풋 포커스 시 브라우저 자동 줌인 방지 */
   input[type="text"],
   input[type="search"],
@@ -3154,15 +3472,18 @@ html, body {
     gap: 8px !important;
     z-index: 1002 !important;
   }
+
   .brand-logo-img {
     width: 30px !important;
     height: 30px !important;
     border-radius: 9px !important;
   }
+
   .brand-title {
     font-size: 1.02rem !important;
     font-weight: 800 !important;
   }
+
   .brand-tagline {
     display: none !important;
   }
@@ -3178,9 +3499,11 @@ html, body {
     position: absolute !important;
     overflow: visible !important;
   }
+
   .header-actions::before {
     display: none !important;
   }
+
   .header-actions .reset-btn,
   .poi-panel .poi-panel-header {
     width: 33px !important;
@@ -3227,6 +3550,7 @@ html, body {
   .main-workspace {
     padding: 0 !important;
   }
+
   .map-viewport {
     border-radius: 0 !important;
   }
@@ -3251,7 +3575,8 @@ html, body {
     z-index: 900 !important;
     display: flex !important;
     flex-direction: column !important;
-    overflow: hidden !important; /* 바깥 시트는 넘치지 않고 내부 바디가 스크롤 */
+    overflow: hidden !important;
+    /* 바깥 시트는 넘치지 않고 내부 바디가 스크롤 */
     transition: transform 0.28s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.2s ease !important;
   }
 
@@ -3261,19 +3586,21 @@ html, body {
     opacity: 1 !important;
     pointer-events: auto !important;
   }
+
   .floating-overlay-left.mobile-closed {
     transform: translateY(120%) !important;
     opacity: 0 !important;
     pointer-events: none !important;
   }
+
   .floating-overlay-left.guide-active {
     display: none !important;
   }
 
   /* 모바일 바텀시트에서 보조 카드 숨김 (길찾기에 집중) */
-  .floating-overlay-left > .auto-banner,
-  .floating-overlay-left > .dashboard-card,
-  .floating-overlay-left > .sun-card {
+  .floating-overlay-left>.auto-banner,
+  .floating-overlay-left>.dashboard-card,
+  .floating-overlay-left>.sun-card {
     display: none !important;
   }
 
@@ -3305,12 +3632,14 @@ html, body {
     flex-shrink: 0 !important;
     user-select: none;
   }
+
   .mobile-handle-pill {
     width: 38px;
     height: 4px;
     border-radius: 4px;
     background: rgba(255, 255, 255, 0.3);
   }
+
   .mobile-handle-content {
     display: flex;
     align-items: center;
@@ -3341,6 +3670,7 @@ html, body {
     border-top: 1px solid rgba(255, 255, 255, 0.08) !important;
     z-index: 50 !important;
   }
+
   .route-explore-btn {
     position: relative !important;
     display: flex !important;
@@ -3360,6 +3690,7 @@ html, body {
     box-shadow: 0 4px 18px rgba(16, 185, 129, 0.5) !important;
     cursor: pointer !important;
   }
+
   .route-explore-btn:disabled {
     opacity: 0.45 !important;
     cursor: not-allowed !important;
@@ -3372,6 +3703,7 @@ html, body {
     gap: 6px !important;
     margin-bottom: 8px !important;
   }
+
   .travel-toggle button {
     min-height: 38px !important;
     padding: 6px 0 !important;
@@ -3383,20 +3715,25 @@ html, body {
     padding: 8px 10px !important;
     border-radius: 14px !important;
   }
+
   .dest-input-wrap {
     padding: 6px 10px !important;
   }
+
   .recommend-route-card {
     padding: 10px 12px !important;
     border-radius: 12px !important;
   }
+
   .recommend-route-card .route-card-metrics strong {
     font-size: 1.05rem !important;
   }
+
   .walk-speed-quick-selector button {
     font-size: 0.68rem !important;
     padding: 3px 6px !important;
   }
+
   .search-dropdown-menu {
     position: absolute !important;
     left: 0 !important;
@@ -3407,6 +3744,7 @@ html, body {
     border-radius: 14px !important;
     box-shadow: 0 8px 24px rgba(0, 0, 0, 0.75) !important;
   }
+
   .search-dropdown-item {
     padding: 9px 10px !important;
   }
@@ -3434,9 +3772,11 @@ html, body {
     user-select: none !important;
     animation: mobileSlideUp 0.22s ease-out !important;
   }
+
   .mobile-search-reopen-btn:active {
     transform: scale(0.97) !important;
   }
+
   .mobile-reopen-text {
     overflow: hidden;
     text-overflow: ellipsis;
@@ -3458,9 +3798,11 @@ html, body {
     overflow-y: auto !important;
     pointer-events: none;
   }
-  .floating-overlay-right > * {
+
+  .floating-overlay-right>* {
     pointer-events: auto;
   }
+
   .route-guide {
     width: 100% !important;
     border-radius: 20px !important;
@@ -3477,6 +3819,7 @@ html, body {
     top: 52px !important;
     right: 8px !important;
   }
+
   .map-cctv-counter-pill,
   .map-streetlight-counter-pill,
   .map-tree-counter-pill {
@@ -3490,10 +3833,12 @@ html, body {
     max-width: calc(100vw - 28px) !important;
     border-radius: 14px !important;
   }
+
   .leaflet-popup-content {
     margin: 10px 12px !important;
     font-size: 0.82rem !important;
   }
+
   .custom-building-popup,
   .transit-station-popup {
     max-width: 100% !important;
@@ -3504,6 +3849,7 @@ html, body {
   .onboarding-backdrop {
     padding: 12px !important;
   }
+
   .onboarding-card,
   .settings-card {
     max-width: calc(100vw - 24px) !important;
@@ -3511,9 +3857,11 @@ html, body {
     padding: 18px 14px 16px !important;
     border-radius: 20px !important;
   }
+
   .onboarding-title {
     font-size: 1.15rem !important;
   }
+
   .onboarding-option {
     padding: 10px 12px !important;
     min-height: 52px !important;
@@ -3525,19 +3873,23 @@ html, body {
   .brand-title {
     display: none !important;
   }
+
   .header-actions {
     gap: 3px !important;
   }
+
   .header-actions .reset-btn,
   .poi-panel .poi-panel-header {
     width: 30px !important;
     height: 30px !important;
     border-radius: 8px !important;
   }
+
   .poi-dropdown .poi-chip-grid {
     grid-template-columns: 1fr 1fr !important;
     gap: 5px !important;
   }
+
   .poi-dropdown .poi-chip {
     padding: 0 6px !important;
     font-size: 0.74rem !important;
@@ -3549,6 +3901,7 @@ html, body {
     transform: translateY(20px);
     opacity: 0;
   }
+
   to {
     transform: translateY(0);
     opacity: 1;
