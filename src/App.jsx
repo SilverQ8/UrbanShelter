@@ -929,6 +929,7 @@ export default function App() {
               liveStatus={liveStatus}
               nearDestination={Boolean(liveProgress?.nearDestination)}
               walkSpeed={walkSpeed}
+              onChangeWalkSpeed={changeWalkSpeed}
               isCar={isCar}
               onClose={closeGuide}
               onReroute={handleReroute}

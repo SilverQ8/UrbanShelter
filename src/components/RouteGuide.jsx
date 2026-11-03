@@ -18,10 +18,12 @@ import {
   Square,
   Volume2,
   VolumeX,
-  RotateCw
+  RotateCw,
+  Clock
 } from 'lucide-react';
 import { formatDistance, formatDuration } from '../utils/format';
 import { speakGuide, isTtsEnabled, toggleTts } from '../utils/ttsService';
+import { SPEED_LEVELS } from '../utils/profile';
 
 const ICONS = {
   depart: MapPin,
@@ -46,6 +48,7 @@ export default function RouteGuide({
   onStopNav,
   onSelectNavStep,
   walkSpeed = 75,
+  onChangeWalkSpeed,
   isCar = false,
   onClose,
   liveStatus = 'off',
@@ -55,6 +58,15 @@ export default function RouteGuide({
   const [open, setOpen] = useState(true);
   const [activeIdx, setActiveIdx] = useState(null);
   const [voiceOn, setVoiceOn] = useState(isTtsEnabled());
+  const [currentTime, setCurrentTime] = useState(() => new Date());
+
+  // 실시간 예상 도착 시각(ETA)을 위해 매 초마다 현재 시각을 갱신
+  React.useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentTime(new Date());
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
 
   const hasSteps = Array.isArray(steps) && steps.length > 0;
   // 남은 거리 및 실시간 남은 소요 시간 계산 (보행 단계 진행에 따라 실시간 갱신)
@@ -62,6 +74,19 @@ export default function RouteGuide({
     ? steps.slice(navIndex).reduce((sum, s) => sum + (s.distance || 0), 0)
     : (totalDistance || 0);
   const remainingMinutes = Math.max(1, Math.round(remainingDistance / (walkSpeed || 75)));
+
+  // 예상 도착 시각 (현재 시각 + 남은 분)
+  const etaDate = new Date(currentTime.getTime() + remainingMinutes * 60 * 1000);
+  const formatEta = (d) => {
+    let h = d.getHours();
+    const m = d.getMinutes();
+    const ampm = h >= 12 ? '오후' : '오전';
+    h = h % 12;
+    if (h === 0) h = 12;
+    const mStr = String(m).padStart(2, '0');
+    return `${ampm} ${h}:${mStr}`;
+  };
+  const etaText = formatEta(etaDate);
 
   // 걸음 수 추정: 느린 걸음(50m/분)은 보폭 0.5m, 보통 걸음은 0.7m 정도로 본다
   const stride = walkSpeed <= 50 ? 0.5 : 0.7;
@@ -119,8 +144,8 @@ export default function RouteGuide({
           </span>
           <span className="route-guide-summary">
             {navigating
-              ? `남은 ${formatDistance(remainingDistance)} · 약 ${formatDuration(remainingMinutes)}`
-              : `${formatDistance(totalDistance)} · 약 ${formatDuration(totalMinutes)}`}
+              ? `${etaText} 도착 · ${formatDistance(remainingDistance)}`
+              : `${etaText} 도착 · 약 ${formatDuration(totalMinutes)}`}
           </span>
           {open ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
         </button>
@@ -145,8 +170,11 @@ export default function RouteGuide({
       {open && (
         <>
           {!isCar && (
-            <div className="route-guide-steps-count">
-              👣 {navigating ? `남은 걸음: 약 ${stepCount.toLocaleString()}걸음 (약 ${formatDuration(remainingMinutes)} 남음)` : `약 ${stepCount.toLocaleString()}걸음`}
+            <div className="route-guide-steps-count" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span>👣 약 {stepCount.toLocaleString()}걸음</span>
+              <span style={{ color: 'var(--accent-cyan)', fontWeight: 700 }}>
+                🕒 {etaText} 도착 예정
+              </span>
             </div>
           )}
 
@@ -169,6 +197,52 @@ export default function RouteGuide({
 
           {navigating && currentStep && (
             <div className="route-guide-nav">
+              {/* 실시간 예상 도착시간 (ETA) 대시보드 카드 */}
+              <div className="route-guide-eta-box">
+                <div className="route-guide-eta-header">
+                  <div className="route-guide-eta-live-pill">
+                    <span className="live-dot-pulse" />
+                    <span>실시간 도착 안내</span>
+                  </div>
+                  <span className="route-guide-eta-dist">
+                    남은 {formatDistance(remainingDistance)} · 약 {stepCount.toLocaleString()}걸음
+                  </span>
+                </div>
+
+                <div className="route-guide-eta-main">
+                  <div className="route-guide-eta-time">
+                    <span className="eta-clock-val">{etaText}</span>
+                    <span className="eta-badge-arrive">도착</span>
+                  </div>
+                  <div className="route-guide-eta-rem">
+                    <Clock size={15} color="#38bdf8" />
+                    <span>약 <strong>{formatDuration(remainingMinutes)}</strong> 남음</span>
+                  </div>
+                </div>
+
+                {/* 도보일 때 실시간 보행 속도 즉시 조절 바 */}
+                {!isCar && onChangeWalkSpeed && (
+                  <div className="route-guide-speed-bar">
+                    <span className="speed-bar-label">걸음 속도:</span>
+                    <div className="speed-btn-group">
+                      {SPEED_LEVELS.map((lvl) => {
+                        const isActive = walkSpeed === lvl.speed;
+                        return (
+                          <button
+                            key={lvl.id}
+                            type="button"
+                            className={`nav-speed-btn ${isActive ? 'active' : ''}`}
+                            onClick={() => onChangeWalkSpeed(lvl.speed)}
+                            title={lvl.desc}
+                          >
+                            {lvl.label} ({lvl.kmh}k)
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
               {nearDestination && (
                 <div className="route-guide-arrival" role="status">
                   📍 목적지 이 주변이에요
