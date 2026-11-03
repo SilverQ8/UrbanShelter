@@ -318,8 +318,10 @@ export default function RouteSearch({
           <ChevronDown size={18} />
         </div>
       </div>
-      {/* Search Header */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
+      {/* 2. Scrollable Body */}
+      <div className="route-search-body">
+        {/* Search Header */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <div style={{
             width: '24px',
@@ -896,17 +898,21 @@ export default function RouteSearch({
         </div>
       </div>
 
-      {/* 탐색: 눌러야 길 안내 창이 열린다 */}
-      <button
-        type="button"
-        className="route-explore-btn"
-        onClick={onShowGuide}
-        disabled={travelMode === 'transit' ? !selectedTransitRoute : !standardRoute}
-        aria-pressed={guideOpen}
-      >
-        <Navigation size={18} />
-        탐색
-      </button>
+      </div>{/* end .route-search-body */}
+
+      {/* 3. Fixed Footer Explore Button */}
+      <div className="route-search-footer">
+        <button
+          type="button"
+          className="route-explore-btn"
+          onClick={onShowGuide}
+          disabled={travelMode === 'transit' ? !selectedTransitRoute : !standardRoute}
+          aria-pressed={guideOpen}
+        >
+          <Navigation size={18} />
+          탐색
+        </button>
+      </div>
     </div>
   );
 }

@@ -2220,7 +2220,7 @@ input:checked + .switch-slider:before {
 /* 주변 장소 선택 패널과 지도 위 장소 아이콘 */
 .poi-panel {
   padding: 0;
-  overflow: hidden;
+  overflow: visible !important;
 }
 
 .poi-panel-header {
@@ -2978,15 +2978,17 @@ input:checked + .switch-slider:before {
 .poi-panel .poi-panel-header[aria-expanded='true'] { border-color: var(--accent-emerald); color: var(--accent-emerald); }
 .poi-panel .poi-panel-badge { position: absolute; top: -5px; right: -5px; }
 .poi-dropdown {
-  position: absolute;
-  top: 44px;
-  right: 0;
-  width: 320px;
-  padding: 14px;
-  background: #18181b;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: var(--radius-md);
-  box-shadow: var(--shadow-card);
+  position: absolute !important;
+  top: 48px !important;
+  right: 0 !important;
+  width: 320px !important;
+  padding: 14px !important;
+  background: #18181b !important;
+  border: 1px solid rgba(255, 255, 255, 0.14) !important;
+  border-radius: var(--radius-md) !important;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.75) !important;
+  z-index: 9999 !important;
+  display: block !important;
 }
 .floating-overlay-right { z-index: 1001; }
 
@@ -3103,6 +3105,9 @@ html, body {
 
 /* 데스크톱 알약 바 (6개 버튼 포용) */
 @media (min-width: 993px) {
+  .header-actions {
+    overflow: visible !important;
+  }
   .header-actions::before {
     content: '';
     position: absolute;
@@ -3126,8 +3131,11 @@ html, body {
     background: #2a2a2f;
   }
   .poi-dropdown {
-    top: 50px;
-    right: 0;
+    position: absolute !important;
+    top: 48px !important;
+    right: 0 !important;
+    width: 320px !important;
+    z-index: 9999 !important;
   }
 }
 
@@ -3159,15 +3167,16 @@ html, body {
     display: none !important;
   }
 
-  /* 3. 오른쪽 상단 액션 버튼들 (POI와 완전히 한 줄로 자동 정렬) */
+  /* 3. 오른쪽 상단 도구 액션 버튼들 (POI 포함 6개 버튼) */
   .header-actions {
     top: 10px !important;
     right: 10px !important;
     display: flex !important;
     align-items: center !important;
     gap: 5px !important;
-    z-index: 1002 !important;
+    z-index: 1005 !important;
     position: absolute !important;
+    overflow: visible !important;
   }
   .header-actions::before {
     display: none !important;
@@ -3186,26 +3195,16 @@ html, body {
     justify-content: center !important;
   }
 
-  /* POI 패널: fixed 좌표 제거하고 header-actions flex item으로 */
+  /* POI 패널: header-actions flex item */
   .glass-panel.poi-panel {
-  position: relative !important;
-  top: auto !important;
-  right: auto !important;
-  bottom: auto !important;
-  left: auto !important;
-  margin: 0 !important;
-  padding: 0 !important;
-  width: auto !important;
-  height: auto !important;
-  background: none !important;
-  border: none !important;
-  box-shadow: none !important;
-  display: flex !important;
-  align-items: center !important;
-  z-index: 1002 !important;
-}
+    position: relative !important;
+    top: auto !important;
+    right: auto !important;
+    z-index: 1005 !important;
+    overflow: visible !important;
+  }
 
-  /* POI 드롭다운: 모바일 정중앙 전체폭 오버레이 */
+  /* POI 드롭다운: 모바일 정중앙 오버레이 */
   .poi-dropdown {
     position: fixed !important;
     top: 52px !important;
@@ -3232,62 +3231,78 @@ html, body {
     border-radius: 0 !important;
   }
 
-  /* 좌측 오버레이: 모바일에서는 하단 바텀 시트 */
+  /* 좌측 오버레이: 모바일에서는 하단 바텀 시트 컨테이너 */
   .floating-overlay-left {
-    position: absolute !important;
+    position: fixed !important;
     top: auto !important;
-    bottom: 10px !important;
+    bottom: 12px !important;
     left: 8px !important;
     right: 8px !important;
     width: auto !important;
     max-width: none !important;
-    max-height: 72vh !important; /* 넉넉한 높이로 상단 핸들바부터 하단 탐색 버튼까지 한눈에 확보 */
-    padding: 8px 12px 28px !important;
-    gap: 6px !important;
-    background: rgba(18, 22, 34, 0.97) !important;
-    backdrop-filter: blur(20px) !important;
-    -webkit-backdrop-filter: blur(20px) !important;
-    border: 1px solid rgba(255, 255, 255, 0.14) !important;
-    border-radius: 20px !important;
-    box-shadow: 0 -6px 36px rgba(0, 0, 0, 0.75) !important;
+    max-height: 70vh !important;
+    padding: 8px 12px 10px !important;
+    background: rgba(18, 22, 34, 0.98) !important;
+    backdrop-filter: blur(24px) !important;
+    -webkit-backdrop-filter: blur(24px) !important;
+    border: 1px solid rgba(255, 255, 255, 0.16) !important;
+    border-radius: 22px !important;
+    box-shadow: 0 -8px 36px rgba(0, 0, 0, 0.8) !important;
     z-index: 900 !important;
-    overflow-y: auto !important;
-    overflow-x: hidden !important;
-    -webkit-overflow-scrolling: touch !important;
+    display: flex !important;
+    flex-direction: column !important;
+    overflow: hidden !important; /* 바깥 시트는 넘치지 않고 내부 바디가 스크롤 */
     transition: transform 0.28s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.2s ease !important;
   }
 
-  /* 모바일에서 열려 있을 때 */
+  /* 모바일 열림/닫힘 상태 */
   .floating-overlay-left.mobile-open {
-    display: flex !important;
     transform: translateY(0) !important;
     opacity: 1 !important;
     pointer-events: auto !important;
   }
-
-  /* 모바일에서 접혔을 때: 완전히 숨기고 지도만 시원하게 노출 */
   .floating-overlay-left.mobile-closed {
     transform: translateY(120%) !important;
     opacity: 0 !important;
     pointer-events: none !important;
   }
-
-  /* 길안내 모드 활성화 시 검색창 자동 숨김 */
   .floating-overlay-left.guide-active {
     display: none !important;
   }
 
-  /* 모바일 검색창 접기 핸들 바 (상단) */
+  /* 모바일 바텀시트에서 보조 카드 숨김 (길찾기에 집중) */
+  .floating-overlay-left > .auto-banner,
+  .floating-overlay-left > .dashboard-card,
+  .floating-overlay-left > .sun-card {
+    display: none !important;
+  }
+
+  /* RouteSearch 3단 구조 (Header / Body / Footer) */
+  .route-search-card {
+    display: flex !important;
+    flex-direction: column !important;
+    height: 100% !important;
+    max-height: calc(70vh - 20px) !important;
+    overflow: hidden !important;
+    background: transparent !important;
+    border: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    box-shadow: none !important;
+  }
+
+  /* 상단 핸들 바 (고정) */
   .mobile-collapse-handle {
     display: flex !important;
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 5px;
-    padding: 2px 0 8px;
+    gap: 4px;
+    padding: 2px 0 6px;
     cursor: pointer;
     border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-    margin-bottom: 8px;
+    margin-bottom: 6px;
+    flex-shrink: 0 !important;
     user-select: none;
   }
   .mobile-handle-pill {
@@ -3301,22 +3316,106 @@ html, body {
     align-items: center;
     justify-content: space-between;
     width: 100%;
-    padding: 0 6px;
-    font-size: 0.8rem;
+    padding: 0 4px;
+    font-size: 0.78rem;
     font-weight: 700;
     color: var(--accent-cyan);
   }
-  .mobile-handle-title {
-    display: flex;
-    align-items: center;
-    gap: 4px;
+
+  /* 중앙 스크롤 본문 (부드러운 모바일 스크롤) */
+  .route-search-body {
+    flex: 1 1 auto !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    -webkit-overflow-scrolling: touch !important;
+    min-height: 0 !important;
+    padding-bottom: 8px !important;
   }
 
-  /* 5. 모바일 길찾기 다시 열기 플로팅 알약 버튼 (절대 사라지지 않음) */
+  /* 하단 고정 푸터: 탐색 버튼이 항시 100% 바닥에 노출 */
+  .route-search-footer {
+    flex-shrink: 0 !important;
+    padding-top: 8px !important;
+    padding-bottom: 2px !important;
+    background: rgba(18, 22, 34, 0.98) !important;
+    border-top: 1px solid rgba(255, 255, 255, 0.08) !important;
+    z-index: 50 !important;
+  }
+  .route-explore-btn {
+    position: relative !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 8px !important;
+    width: 100% !important;
+    min-height: 48px !important;
+    height: 48px !important;
+    margin: 0 !important;
+    background: var(--accent-emerald) !important;
+    color: #04120d !important;
+    font-size: 1.05rem !important;
+    font-weight: 800 !important;
+    border-radius: 9999px !important;
+    border: none !important;
+    box-shadow: 0 4px 18px rgba(16, 185, 129, 0.5) !important;
+    cursor: pointer !important;
+  }
+  .route-explore-btn:disabled {
+    opacity: 0.45 !important;
+    cursor: not-allowed !important;
+  }
+
+  /* 이동수단 3열 가로 균등 1행 배치 */
+  .travel-toggle {
+    display: grid !important;
+    grid-template-columns: repeat(3, 1fr) !important;
+    gap: 6px !important;
+    margin-bottom: 8px !important;
+  }
+  .travel-toggle button {
+    min-height: 38px !important;
+    padding: 6px 0 !important;
+    font-size: 0.85rem !important;
+    border-radius: 10px !important;
+  }
+
+  .route-inputs-container {
+    padding: 8px 10px !important;
+    border-radius: 14px !important;
+  }
+  .dest-input-wrap {
+    padding: 6px 10px !important;
+  }
+  .recommend-route-card {
+    padding: 10px 12px !important;
+    border-radius: 12px !important;
+  }
+  .recommend-route-card .route-card-metrics strong {
+    font-size: 1.05rem !important;
+  }
+  .walk-speed-quick-selector button {
+    font-size: 0.68rem !important;
+    padding: 3px 6px !important;
+  }
+  .search-dropdown-menu {
+    position: absolute !important;
+    left: 0 !important;
+    right: 0 !important;
+    width: 100% !important;
+    max-height: 200px !important;
+    z-index: 1000 !important;
+    border-radius: 14px !important;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.75) !important;
+  }
+  .search-dropdown-item {
+    padding: 9px 10px !important;
+  }
+
+  /* 5. 모바일 길찾기 다시 열기 플로팅 알약 버튼 */
   .mobile-search-reopen-btn {
     display: flex !important;
-    align-items: center;
-    justify-content: center;
+    align-items: center !important;
+    justify-content: center !important;
     gap: 8px;
     position: fixed !important;
     bottom: 18px !important;
@@ -3345,101 +3444,7 @@ html, body {
     max-width: 72%;
   }
 
-  /* 6. 모바일 검색창 내부 요소 최적화 */
-  .floating-overlay-left .glass-panel {
-    background: transparent !important;
-    border: none !important;
-    padding: 0 !important;
-    box-shadow: none !important;
-  }
-
-  /* 모바일 바텀시트: 검색과 탐색에 온전히 집중하도록 보조 카드 숨김 */
-  .floating-overlay-left > .auto-banner,
-  .floating-overlay-left > .dashboard-card,
-  .floating-overlay-left > .sun-card {
-    display: none !important;
-  }
-
-  /* 탐색 버튼: 잘림 방지 및 모바일 한 손 터치 최적화 */
-  .route-explore-btn {
-    position: relative !important;
-    display: flex !important;
-    align-items: center !important;
-    justify-content: center !important;
-    gap: 8px !important;
-    width: 100% !important;
-    min-height: 48px !important;
-    height: 48px !important;
-    margin-top: 12px !important;
-    margin-bottom: 8px !important;
-    flex-shrink: 0 !important;
-    background: var(--accent-emerald) !important;
-    color: #04120d !important;
-    font-size: 1.02rem !important;
-    font-weight: 800 !important;
-    border-radius: 9999px !important;
-    border: none !important;
-    box-shadow: 0 4px 18px rgba(16, 185, 129, 0.45) !important;
-    cursor: pointer !important;
-  }
-  .route-explore-btn:disabled {
-    opacity: 0.45 !important;
-    cursor: not-allowed !important;
-  }
-  
-  /* 모바일 travel-toggle 3열 가로 균등 1행 배치 */
-  .travel-toggle {
-    display: grid !important;
-    grid-template-columns: repeat(3, 1fr) !important;
-    gap: 6px !important;
-    margin-bottom: 8px !important;
-  }
-  .travel-toggle button {
-    min-height: 38px !important;
-    padding: 6px 0 !important;
-    font-size: 0.85rem !important;
-    border-radius: 10px !important;
-  }
-
-  .route-inputs-container {
-    padding: 8px 10px !important;
-    border-radius: 14px !important;
-  }
-  .dest-input-wrap {
-    padding: 6px 10px !important;
-  }
-  .travel-toggle {
-    margin-bottom: 8px !important;
-  }
-  .travel-toggle button {
-    padding: 7px 0 !important;
-  }
-  .recommend-route-card {
-    padding: 10px 12px !important;
-    border-radius: 12px !important;
-  }
-  .recommend-route-card .route-card-metrics strong {
-    font-size: 1.05rem !important;
-  }
-  .walk-speed-quick-selector button {
-    font-size: 0.68rem !important;
-    padding: 3px 6px !important;
-  }
-  .search-dropdown-menu {
-    position: absolute !important;
-    left: 0 !important;
-    right: 0 !important;
-    width: 100% !important;
-    max-height: 210px !important;
-    z-index: 1000 !important;
-    border-radius: 14px !important;
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.75) !important;
-  }
-  .search-dropdown-item {
-    padding: 9px 10px !important;
-  }
-
-  /* 7. 길안내(RouteGuide) 모바일 화면 하단 도킹 */
+  /* 6. 길안내(RouteGuide) 모바일 화면 하단 도킹 */
   .floating-overlay-right {
     position: fixed !important;
     top: auto !important;
@@ -3466,15 +3471,8 @@ html, body {
     box-shadow: 0 -4px 30px rgba(0, 0, 0, 0.75) !important;
     border: 1px solid rgba(255, 255, 255, 0.14) !important;
   }
-  .route-guide-eta-card {
-    padding: 10px 12px !important;
-    border-radius: 12px !important;
-  }
-  .route-guide-eta-time {
-    font-size: 1.15rem !important;
-  }
 
-  /* 8. 지도 컨트롤 (확대/축소 버튼 및 지도 알약) */
+  /* 7. 지도 컨트롤 (확대/축소 버튼 및 지도 알약) */
   .leaflet-top.leaflet-right {
     top: 52px !important;
     right: 8px !important;
@@ -3487,7 +3485,7 @@ html, body {
     padding: 4px 8px !important;
   }
 
-  /* 9. 지도 마커 팝업 반응형 너비 */
+  /* 8. 지도 마커 팝업 반응형 너비 */
   .leaflet-popup-content-wrapper {
     max-width: calc(100vw - 28px) !important;
     border-radius: 14px !important;
@@ -3502,7 +3500,7 @@ html, body {
     min-width: 0 !important;
   }
 
-  /* 10. 모달 (설정, 사용 안내) 반응형 */
+  /* 9. 모달 (설정, 사용 안내) 반응형 */
   .onboarding-backdrop {
     padding: 12px !important;
   }
