@@ -3076,3 +3076,343 @@ input:checked + .switch-slider:before {
 
 /* 로고 이미지(오솔길) */
 .brand-logo-img { width: 34px; height: 34px; border-radius: 10px; display: block; }
+
+/* =========================================================
+   Mobile & Smartphone Responsive Optimizations (오솔길 모바일 최적화)
+   ========================================================= */
+
+/* 모바일 기본 터치 및 입력 개선 */
+html, body {
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+.mobile-collapse-handle {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  /* 1. iOS Safari 인풋 포커스 시 브라우저 자동 줌인 방지 */
+  input[type="text"],
+  input[type="search"],
+  .dest-search-input {
+    font-size: 16px !important;
+  }
+
+  /* 2. 상단 헤더 브랜드 및 액션 버튼 */
+  .brand-section {
+    top: 10px !important;
+    left: 10px !important;
+    gap: 8px !important;
+  }
+  .brand-logo-img {
+    width: 30px !important;
+    height: 30px !important;
+    border-radius: 9px !important;
+  }
+  .brand-title {
+    font-size: 1.02rem !important;
+    font-weight: 800 !important;
+  }
+  .brand-tagline {
+    display: none !important;
+  }
+
+  /* 3. 오른쪽 상단 도구 액션 버튼들 */
+  .header-actions {
+    top: 10px !important;
+    right: 10px !important;
+    gap: 5px !important;
+    z-index: 1002 !important;
+  }
+  .header-actions::before {
+    display: none !important;
+  }
+  .header-actions .reset-btn {
+    width: 34px !important;
+    height: 34px !important;
+    padding: 0 !important;
+    background: rgba(34, 34, 38, 0.92) !important;
+    border: 1px solid rgba(255, 255, 255, 0.12) !important;
+    border-radius: 10px !important;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3) !important;
+  }
+
+  /* 4. POI 패널 및 드롭다운 */
+  .glass-panel.poi-panel {
+    position: fixed !important;
+    top: 10px !important;
+    right: 175px !important;
+    z-index: 1002 !important;
+  }
+  .poi-panel .poi-panel-header {
+    width: 34px !important;
+    height: 34px !important;
+    border-radius: 10px !important;
+    background: rgba(34, 34, 38, 0.92) !important;
+    border: 1px solid rgba(255, 255, 255, 0.12) !important;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3) !important;
+  }
+  .poi-dropdown {
+    position: fixed !important;
+    top: 52px !important;
+    left: 10px !important;
+    right: 10px !important;
+    width: auto !important;
+    max-width: calc(100vw - 20px) !important;
+    z-index: 1200 !important;
+    background: rgba(24, 24, 27, 0.98) !important;
+    backdrop-filter: blur(20px) !important;
+    -webkit-backdrop-filter: blur(20px) !important;
+    border-radius: 20px !important;
+    box-shadow: 0 12px 36px rgba(0, 0, 0, 0.8) !important;
+    max-height: 72vh !important;
+    overflow-y: auto !important;
+    border: 1px solid rgba(255, 255, 255, 0.15) !important;
+  }
+
+  /* 5. 메인 워크스페이스 & 좌측 오버레이(바텀 시트 전환) */
+  .main-workspace {
+    padding: 0 !important;
+  }
+  .map-viewport {
+    border-radius: 0 !important;
+  }
+
+  .floating-overlay-left {
+    position: absolute !important;
+    top: auto !important;
+    bottom: 10px !important;
+    left: 8px !important;
+    right: 8px !important;
+    width: auto !important;
+    max-width: none !important;
+    max-height: 48vh !important;
+    padding: 8px 10px 10px !important;
+    gap: 8px !important;
+    background: rgba(20, 24, 35, 0.95) !important;
+    backdrop-filter: blur(20px) !important;
+    -webkit-backdrop-filter: blur(20px) !important;
+    border: 1px solid rgba(255, 255, 255, 0.12) !important;
+    border-radius: 20px !important;
+    box-shadow: 0 -4px 30px rgba(0, 0, 0, 0.65) !important;
+    z-index: 900 !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    transition: max-height 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  /* 길안내 모드 활성화 시 모바일 검색창 자동 숨김 */
+  .floating-overlay-left.guide-active {
+    display: none !important;
+  }
+
+  /* 모바일 접기/펼치기 핸들 바 */
+  .mobile-collapse-handle {
+    display: flex !important;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    padding: 2px 0 8px;
+    cursor: pointer;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    margin-bottom: 8px;
+    user-select: none;
+  }
+  .mobile-handle-pill {
+    width: 38px;
+    height: 4px;
+    border-radius: 4px;
+    background: rgba(255, 255, 255, 0.28);
+  }
+  .mobile-handle-content {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    padding: 0 4px;
+    font-size: 0.78rem;
+    font-weight: 700;
+    color: var(--accent-cyan);
+  }
+  .mobile-handle-title {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 82%;
+  }
+
+  /* 접힌 상태 (지도 넓게 보기) */
+  .route-search-card.mobile-collapsed {
+    padding-bottom: 2px;
+  }
+  .route-search-card.mobile-collapsed > :not(.mobile-collapse-handle) {
+    display: none !important;
+  }
+  .floating-overlay-left:has(.mobile-collapsed) {
+    max-height: 52px !important;
+    overflow: hidden !important;
+    padding-bottom: 6px !important;
+  }
+  .floating-overlay-left:has(.mobile-collapsed) > .auto-banner,
+  .floating-overlay-left:has(.mobile-collapsed) > .dashboard-card,
+  .floating-overlay-left:has(.mobile-collapsed) > .sun-card {
+    display: none !important;
+  }
+
+  /* 6. 모바일 검색창 내부 요소 크기 최적화 */
+  .floating-overlay-left .glass-panel {
+    background: transparent !important;
+    border: none !important;
+    padding: 0 !important;
+    box-shadow: none !important;
+  }
+  .route-inputs-container {
+    padding: 8px 10px !important;
+    border-radius: 14px !important;
+  }
+  .dest-input-wrap {
+    padding: 6px 10px !important;
+  }
+  .travel-toggle {
+    margin-bottom: 8px !important;
+  }
+  .travel-toggle button {
+    padding: 7px 0 !important;
+  }
+  .recommend-route-card {
+    padding: 10px 12px !important;
+    border-radius: 12px !important;
+  }
+  .recommend-route-card .route-card-metrics strong {
+    font-size: 1.05rem !important;
+  }
+  .walk-speed-quick-selector button {
+    font-size: 0.68rem !important;
+    padding: 3px 6px !important;
+  }
+  .search-dropdown-menu {
+    position: absolute !important;
+    left: 0 !important;
+    right: 0 !important;
+    width: 100% !important;
+    max-height: 210px !important;
+    z-index: 1000 !important;
+    border-radius: 14px !important;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.75) !important;
+  }
+  .search-dropdown-item {
+    padding: 9px 10px !important;
+  }
+
+  /* 7. 길안내(RouteGuide) 모바일 화면 하단 밀착 도킹 */
+  .floating-overlay-right {
+    position: fixed !important;
+    top: auto !important;
+    bottom: 8px !important;
+    left: 8px !important;
+    right: 8px !important;
+    width: auto !important;
+    max-width: none !important;
+    max-height: 54vh !important;
+    z-index: 1050 !important;
+    overflow-y: auto !important;
+    pointer-events: none;
+  }
+  .floating-overlay-right > * {
+    pointer-events: auto;
+  }
+  .route-guide {
+    width: 100% !important;
+    border-radius: 20px !important;
+    padding: 12px 14px !important;
+    background: rgba(18, 24, 38, 0.97) !important;
+    backdrop-filter: blur(20px) !important;
+    -webkit-backdrop-filter: blur(20px) !important;
+    box-shadow: 0 -4px 30px rgba(0, 0, 0, 0.75) !important;
+    border: 1px solid rgba(255, 255, 255, 0.14) !important;
+  }
+  .route-guide-eta-card {
+    padding: 10px 12px !important;
+    border-radius: 12px !important;
+  }
+  .route-guide-eta-time {
+    font-size: 1.15rem !important;
+  }
+
+  /* 8. 지도 컨트롤 (확대/축소 버튼 및 지도 알약) */
+  .leaflet-top.leaflet-right {
+    top: 52px !important;
+    right: 8px !important;
+  }
+  .map-cctv-counter-pill,
+  .map-streetlight-counter-pill,
+  .map-tree-counter-pill {
+    margin-top: 50px !important;
+    font-size: 0.72rem !important;
+    padding: 4px 8px !important;
+  }
+
+  /* 9. 지도 마커 팝업 반응형 너비 */
+  .leaflet-popup-content-wrapper {
+    max-width: calc(100vw - 28px) !important;
+    border-radius: 14px !important;
+  }
+  .leaflet-popup-content {
+    margin: 10px 12px !important;
+    font-size: 0.82rem !important;
+  }
+  .custom-building-popup,
+  .transit-station-popup {
+    max-width: 100% !important;
+    min-width: 0 !important;
+  }
+
+  /* 10. 모달 (설정, 사용 안내) 반응형 */
+  .onboarding-backdrop {
+    padding: 12px !important;
+  }
+  .onboarding-card,
+  .settings-card {
+    max-width: calc(100vw - 24px) !important;
+    max-height: 88vh !important;
+    padding: 18px 14px 16px !important;
+    border-radius: 20px !important;
+  }
+  .onboarding-title {
+    font-size: 1.15rem !important;
+  }
+  .onboarding-option {
+    padding: 10px 12px !important;
+    min-height: 52px !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .header-actions {
+    gap: 3px !important;
+  }
+  .header-actions .reset-btn {
+    width: 32px !important;
+    height: 32px !important;
+  }
+  .glass-panel.poi-panel {
+    right: 162px !important;
+  }
+  .poi-panel .poi-panel-header {
+    width: 32px !important;
+    height: 32px !important;
+  }
+  .poi-dropdown .poi-chip-grid {
+    grid-template-columns: 1fr 1fr !important;
+    gap: 6px !important;
+  }
+  .poi-dropdown .poi-chip {
+    padding: 0 8px !important;
+    font-size: 0.76rem !important;
+  }
+  .route-card-metrics strong {
+    font-size: 1rem !important;
+  }
+}

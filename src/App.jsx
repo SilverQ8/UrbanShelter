@@ -921,7 +921,8 @@ export default function App() {
         )}
 
         {/* Floating Left Overlay: Route Search & Control Panel */}
-        <div className="floating-overlay-left">
+        <div className={`floating-overlay-left ${showGuide ? "guide-active" : ""}`}>
+
           {/* 날씨 기반 자동 경로 안내 */}
           <AutoBanner
             weather={weather}

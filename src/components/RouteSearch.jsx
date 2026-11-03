@@ -1,6 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
 import {
   Search,
+  ChevronUp,
+  ChevronDown,
   MapPin,
   Crosshair,
   Compass,
@@ -59,6 +61,7 @@ export default function RouteSearch({
   const [activeDropdown, setActiveDropdown] = useState(null); // 'start' | 'dest' | null
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [isSearching, setIsSearching] = useState(false);
+  const [isMobileCollapsed, setIsMobileCollapsed] = useState(false);
 
   const containerRef = useRef(null);
   const startInputRef = useRef(null);
@@ -299,7 +302,25 @@ export default function RouteSearch({
   };
 
   return (
-    <div ref={containerRef} className="glass-panel route-search-card">
+    <div ref={containerRef} className={`glass-panel route-search-card ${isMobileCollapsed ? 'mobile-collapsed' : ''}`}>
+      {/* Mobile Collapse/Expand Handle Bar */}
+      <div
+        className="mobile-collapse-handle"
+        onClick={() => setIsMobileCollapsed(!isMobileCollapsed)}
+        role="button"
+        tabIndex={0}
+        aria-label={isMobileCollapsed ? "경로 검색창 펼치기" : "지도 넓게 보기 (접기)"}
+      >
+        <div className="mobile-handle-pill" />
+        <div className="mobile-handle-content">
+          <span className="mobile-handle-title">
+            {isMobileCollapsed
+              ? (startPoint?.name ? `${startPoint.name} → ${targetPoint?.name || '도착지'}` : '길찾기 · 경로 비교')
+              : '지도 넓게 보기'}
+          </span>
+          {isMobileCollapsed ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+        </div>
+      </div>
       {/* Search Header */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
