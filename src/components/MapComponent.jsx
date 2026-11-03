@@ -14,6 +14,8 @@ import rawFallbackStreetlights from '../data/streetlightRealData.json';
 
 const LOCAL_CCTVS = normalizeFacilityDataset(rawFallbackCctvs);
 const LOCAL_STREETLIGHTS = normalizeFacilityDataset(rawFallbackStreetlights);
+const CLIENT_CCTV_CACHE = new Map(LOCAL_CCTVS.map(c => [c.id, c]));
+const CLIENT_STREETLIGHT_CACHE = new Map(LOCAL_STREETLIGHTS.map(s => [s.id, s]));
 
 export default function MapComponent({
   userGps,
@@ -814,11 +816,16 @@ export default function MapComponent({
       const bounds = currentBounds.pad(0.08);
       const center = map.getCenter();
 
-      // 1. 0ms 즉시 렌더링: 로컬 검증 데이터셋(LOCAL_CCTVS)에서 현재 화면 내 마커를 즉시 표시
-      const localMatches = LOCAL_CCTVS.filter(c => bounds.contains([c.lat, c.lng]));
-      drawCctvItems(localMatches, zoom, center, currentBounds);
+      // 1. 0ms 즉시 렌더링: 누적 캐시(CLIENT_CCTV_CACHE)에서 현재 화면 내 마커를 즉시 표시
+      const localMatches = [];
+      for (const c of CLIENT_CCTV_CACHE.values()) {
+        if (bounds.contains([c.lat, c.lng])) localMatches.push(c);
+      }
+      if (localMatches.length > 0) {
+        drawCctvItems(localMatches, zoom, center, currentBounds);
+      }
 
-      // 2. 디바운스 후 서버리스 API 백그라운드 조회 (기존 마커를 지우지 않고 응답 도착 시에만 병합 갱신)
+      // 2. 디바운스 후 서버리스 API 백그라운드 조회 (전국 모든 지역 지원 + 클라이언트 캐시 축적)
       if (debounceTimer) clearTimeout(debounceTimer);
       debounceTimer = setTimeout(async () => {
         if (abortController) abortController.abort();
@@ -845,7 +852,10 @@ export default function MapComponent({
           const items = normalizeFacilityDataset(rawCctvs);
           const mergedMap = new Map();
           for (const lc of localMatches) mergedMap.set(lc.id, lc);
-          for (const rc of items) mergedMap.set(rc.id, rc);
+          for (const rc of items) {
+            mergedMap.set(rc.id, rc);
+            CLIENT_CCTV_CACHE.set(rc.id, rc);
+          }
 
           drawCctvItems(Array.from(mergedMap.values()), map.getZoom(), map.getCenter(), map.getBounds());
         } catch (err) {
@@ -958,11 +968,16 @@ export default function MapComponent({
       const bounds = currentBounds.pad(0.08);
       const center = map.getCenter();
 
-      // 1. 0ms 즉시 렌더링: 로컬 검증 데이터셋(LOCAL_STREETLIGHTS)에서 현재 화면 내 가로등을 즉시 표시
-      const localMatches = LOCAL_STREETLIGHTS.filter(s => bounds.contains([s.lat, s.lng]));
-      drawStreetlightItems(localMatches, zoom, center, currentBounds);
+      // 1. 0ms 즉시 렌더링: 누적 캐시(CLIENT_STREETLIGHT_CACHE)에서 현재 화면 내 가로등을 즉시 표시
+      const localMatches = [];
+      for (const s of CLIENT_STREETLIGHT_CACHE.values()) {
+        if (bounds.contains([s.lat, s.lng])) localMatches.push(s);
+      }
+      if (localMatches.length > 0) {
+        drawStreetlightItems(localMatches, zoom, center, currentBounds);
+      }
 
-      // 2. 디바운스 후 서버리스 API 백그라운드 조회 (응답 도착 시에만 병합 갱신)
+      // 2. 디바운스 후 서버리스 API 백그라운드 조회 (전국 모든 지역 도로망 지원 + 클라이언트 캐시 축적)
       if (debounceTimer) clearTimeout(debounceTimer);
       debounceTimer = setTimeout(async () => {
         if (abortController) abortController.abort();
@@ -989,7 +1004,10 @@ export default function MapComponent({
           const items = normalizeFacilityDataset(rawLights);
           const mergedMap = new Map();
           for (const ls of localMatches) mergedMap.set(ls.id, ls);
-          for (const rs of items) mergedMap.set(rs.id, rs);
+          for (const rs of items) {
+            mergedMap.set(rs.id, rs);
+            CLIENT_STREETLIGHT_CACHE.set(rs.id, rs);
+          }
 
           drawStreetlightItems(Array.from(mergedMap.values()), map.getZoom(), map.getCenter(), map.getBounds());
         } catch (err) {

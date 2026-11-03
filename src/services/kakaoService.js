@@ -5,7 +5,7 @@
 
 import { HAEUNDAE_PLACES } from '../data/haeundaePlaces';
 
-const KAKAO_KEY = import.meta.env.VITE_KAKAO_MAP_API_KEY || '';
+const KAKAO_KEY = import.meta.env.VITE_KAKAO_MAP_API_KEY || 'c8d493c6110cd5e37a14a82a89e3690e';
 
 let kakaoSdkPromise = null;
 
@@ -115,49 +115,89 @@ export async function searchKakaoBuildings({ lat, lng, bounds }) {
 
   const searchTask = (async () => {
     const localBuildings = getLocalFallbackBuildings(lat, lng);
-    const isLoaded = await initKakaoSdk();
-    if (!isLoaded || !window.kakao || !window.kakao.maps || !window.kakao.maps.services) {
-      return localBuildings;
-    }
-
-    const ps = new window.kakao.maps.services.Places();
-    const searchPromises = [];
     const resultsMap = new Map();
 
-    // 로컬 주요 랜드마크를 기본 포함하여 응답 즉시성 보장
     for (const lb of localBuildings) {
       resultsMap.set(lb.id, lb);
     }
 
-    const searchLocation = new window.kakao.maps.LatLng(lat, lng);
-    const options = {
-      location: searchLocation,
-      radius: 1000,
-      size: 15
-    };
+    // 1. 백엔드 뷰포트 건물 조회 API 병렬 시작 (도메인 제한 없이 전국 100% 동작 보장)
+    const backendViewportPromise = fetch(`/api/building/hub?mode=viewport&lat=${lat}&lng=${lng}`, {
+      signal: AbortSignal.timeout(2200)
+    })
+      .then(r => (r.ok ? r.json() : null))
+      .then(data => {
+        if (data?.success && Array.isArray(data.buildings)) {
+          for (const b of data.buildings) {
+            if (!resultsMap.has(b.id)) {
+              resultsMap.set(b.id, b);
+            }
+          }
+        }
+      })
+      .catch(() => {});
 
-    const runWithTimeout = (fn) =>
-      new Promise((resolve) => {
-        const t = setTimeout(resolve, 1200);
-        fn(() => {
-          clearTimeout(t);
-          resolve();
+    // 2. 브라우저 Kakao SDK가 활성화된 경우 클라이언트 검색 병행
+    const isLoaded = await initKakaoSdk();
+    if (isLoaded && window.kakao && window.kakao.maps && window.kakao.maps.services) {
+      const ps = new window.kakao.maps.services.Places();
+      const searchPromises = [backendViewportPromise];
+      const searchLocation = new window.kakao.maps.LatLng(lat, lng);
+      const options = {
+        location: searchLocation,
+        radius: 1000,
+        size: 15
+      };
+
+      const runWithTimeout = (fn) =>
+        new Promise((resolve) => {
+          const t = setTimeout(resolve, 1200);
+          fn(() => {
+            clearTimeout(t);
+            resolve();
+          });
         });
-      });
 
-    // 핵심 키워드 3개 + 공공기관 카테고리 1개로 압축하여 API 지연 최소화 (기존 9개 요청 -> 4개)
-    const buildingKeywords = ['빌딩', '오피스텔', '백화점'];
-    for (const kw of buildingKeywords) {
+      const buildingKeywords = ['빌딩', '오피스텔', '백화점'];
+      for (const kw of buildingKeywords) {
+        searchPromises.push(
+          runWithTimeout((done) => {
+            ps.keywordSearch(kw, (data, status) => {
+              if (status === window.kakao.maps.services.Status.OK && Array.isArray(data)) {
+                for (const item of data) {
+                  const id = `kakao_${item.id}`;
+                  if (!resultsMap.has(id)) {
+                    resultsMap.set(id, {
+                      id,
+                      name: item.place_name,
+                      category: item.category_name || '주요 건물',
+                      address: item.road_address_name || item.address_name,
+                      phone: item.phone,
+                      url: item.place_url,
+                      lat: parseFloat(item.y),
+                      lng: parseFloat(item.x),
+                      source: 'kakao'
+                    });
+                  }
+                }
+              }
+              done();
+            }, options);
+          })
+        );
+      }
+
       searchPromises.push(
         runWithTimeout((done) => {
-          ps.keywordSearch(kw, (data, status) => {
+          ps.categorySearch('PO3', (data, status) => {
             if (status === window.kakao.maps.services.Status.OK && Array.isArray(data)) {
               for (const item of data) {
-                if (!resultsMap.has(item.id)) {
-                  resultsMap.set(item.id, {
-                    id: `kakao_${item.id}`,
+                const id = `kakao_${item.id}`;
+                if (!resultsMap.has(id)) {
+                  resultsMap.set(id, {
+                    id,
                     name: item.place_name,
-                    category: item.category_name || '주요 건물',
+                    category: item.category_name || '공공/편의시설',
                     address: item.road_address_name || item.address_name,
                     phone: item.phone,
                     url: item.place_url,
@@ -172,34 +212,11 @@ export async function searchKakaoBuildings({ lat, lng, bounds }) {
           }, options);
         })
       );
+
+      await Promise.allSettled(searchPromises);
+    } else {
+      await backendViewportPromise;
     }
-
-    searchPromises.push(
-      runWithTimeout((done) => {
-        ps.categorySearch('PO3', (data, status) => {
-          if (status === window.kakao.maps.services.Status.OK && Array.isArray(data)) {
-            for (const item of data) {
-              if (!resultsMap.has(item.id)) {
-                resultsMap.set(item.id, {
-                  id: `kakao_${item.id}`,
-                  name: item.place_name,
-                  category: item.category_name || '공공/편의시설',
-                  address: item.road_address_name || item.address_name,
-                  phone: item.phone,
-                  url: item.place_url,
-                  lat: parseFloat(item.y),
-                  lng: parseFloat(item.x),
-                  source: 'kakao'
-                });
-              }
-            }
-          }
-          done();
-        }, options);
-      })
-    );
-
-    await Promise.allSettled(searchPromises);
 
     if (resultsMap.size > 0) {
       const merged = Array.from(resultsMap.values());

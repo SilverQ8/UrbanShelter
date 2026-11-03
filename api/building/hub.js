@@ -50,6 +50,70 @@ const BJDONG_MAP = {
 };
 
 const KAKAO_KEY = process.env.VITE_KAKAO_MAP_API_KEY || 'c8d493c6110cd5e37a14a82a89e3690e';
+const DEFAULT_BUILDING_API_KEY = 'e31f1e8d7998a124bcc6e5e00fc8c0168c81a4af103391596998396af3c1baec';
+const KAKAO_HEADERS = {
+  Authorization: `KakaoAK ${KAKAO_KEY}`,
+  KA: 'sdk/1.0.0 os/javascript lang/ko-KR device/pc origin/http://localhost:5173'
+};
+
+const viewportBuildingCache = new Map();
+
+async function fetchKakaoBuildingsViewportBackend(lat, lng) {
+  const cacheKey = `${Number(lat).toFixed(3)}_${Number(lng).toFixed(3)}`;
+  if (viewportBuildingCache.has(cacheKey)) {
+    return viewportBuildingCache.get(cacheKey);
+  }
+
+  const resultsMap = new Map();
+  const baseParams = {
+    x: String(lng),
+    y: String(lat),
+    radius: '1000',
+    size: '15'
+  };
+
+  const urls = [
+    `https://dapi.kakao.com/v2/local/search/keyword.json?${new URLSearchParams({ ...baseParams, query: '빌딩' })}`,
+    `https://dapi.kakao.com/v2/local/search/keyword.json?${new URLSearchParams({ ...baseParams, query: '오피스텔' })}`,
+    `https://dapi.kakao.com/v2/local/search/keyword.json?${new URLSearchParams({ ...baseParams, query: '아파트' })}`,
+    `https://dapi.kakao.com/v2/local/search/category.json?${new URLSearchParams({ ...baseParams, category_group_code: 'PO3' })}`,
+    `https://dapi.kakao.com/v2/local/search/category.json?${new URLSearchParams({ ...baseParams, category_group_code: 'HP8' })}`
+  ];
+
+  const responses = await Promise.allSettled(
+    urls.map(async (u) => {
+      const resp = await fetch(u, { headers: KAKAO_HEADERS, signal: AbortSignal.timeout(1500) });
+      if (!resp.ok) return [];
+      const json = await resp.json();
+      return json?.documents || [];
+    })
+  );
+
+  for (const res of responses) {
+    if (res.status !== 'fulfilled' || !Array.isArray(res.value)) continue;
+    for (const item of res.value) {
+      if (!resultsMap.has(item.id)) {
+        resultsMap.set(item.id, {
+          id: `kakao_${item.id}`,
+          name: item.place_name,
+          category: item.category_name || '주요 건물',
+          address: item.road_address_name || item.address_name,
+          phone: item.phone || '',
+          url: item.place_url || '',
+          lat: parseFloat(item.y),
+          lng: parseFloat(item.x),
+          source: 'kakao-backend'
+        });
+      }
+    }
+  }
+
+  const list = Array.from(resultsMap.values());
+  if (list.length > 0) {
+    viewportBuildingCache.set(cacheKey, list);
+  }
+  return list;
+}
 
 /**
  * 대한민국 전역(전국 17개 시도 250개 시군구) 주소를 국토교통부 건축물대장 코드(sigunguCd, bjdongCd, bun, ji)로 실시간 변환
@@ -67,7 +131,7 @@ async function parseAddressToCodes(addr) {
   try {
     const kakaoUrl = `https://dapi.kakao.com/v2/local/search/address.json?query=${encodeURIComponent(addr)}`;
     const resp = await fetch(kakaoUrl, {
-      headers: { Authorization: `KakaoAK ${KAKAO_KEY}` },
+      headers: KAKAO_HEADERS,
       signal: AbortSignal.timeout(1800)
     });
 
@@ -91,7 +155,7 @@ async function parseAddressToCodes(addr) {
   try {
     const keywordUrl = `https://dapi.kakao.com/v2/local/search/keyword.json?query=${encodeURIComponent(addr)}&size=1`;
     const resp = await fetch(keywordUrl, {
-      headers: { Authorization: `KakaoAK ${KAKAO_KEY}` },
+      headers: KAKAO_HEADERS,
       signal: AbortSignal.timeout(1800)
     });
 
@@ -101,7 +165,7 @@ async function parseAddressToCodes(addr) {
       const addressName = doc?.address_name;
       if (addressName) {
         const subResp = await fetch(`https://dapi.kakao.com/v2/local/search/address.json?query=${encodeURIComponent(addressName)}`, {
-          headers: { Authorization: `KakaoAK ${KAKAO_KEY}` },
+          headers: KAKAO_HEADERS,
           signal: AbortSignal.timeout(1800)
         });
         if (subResp.ok) {
@@ -239,6 +303,16 @@ export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Cache-Control', 's-maxage=3600, stale-while-revalidate=86400');
 
+  if (req.query.mode === 'viewport') {
+    const lat = parseFloat(req.query.lat || '0');
+    const lng = parseFloat(req.query.lng || '0');
+    if (!lat || !lng) {
+      return res.status(200).json({ success: false, buildings: [] });
+    }
+    const buildings = await fetchKakaoBuildingsViewportBackend(lat, lng);
+    return res.status(200).json({ success: true, buildings });
+  }
+
   const address = req.query.address || '';
   let sigunguCd = req.query.sigunguCd;
   let bjdongCd = req.query.bjdongCd;
@@ -262,7 +336,7 @@ export default async function handler(req, res) {
     });
   }
 
-  const apiKey = process.env.VITE_BUILDING_API_KEY || process.env.BUILDING_API_KEY || process.env.VITE_CCTV_API_KEY;
+  const apiKey = process.env.VITE_BUILDING_API_KEY || process.env.BUILDING_API_KEY || process.env.VITE_CCTV_API_KEY || DEFAULT_BUILDING_API_KEY;
   const buildingData = await fetchBuildingHubBackend({
     sigunguCd,
     bjdongCd,

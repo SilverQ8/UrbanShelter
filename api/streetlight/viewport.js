@@ -1,8 +1,33 @@
 import { getSupabase } from '../_lib/supabase.js';
 import { isInvalidOceanCoordinate, getDistM } from '../_lib/geo.js';
-import { getStreetlightCache } from '../_lib/data.js';
+import { getStreetlightCache, resolveNearestDistrict } from '../_lib/data.js';
 
-function interpolateRoadStreetlights(ways) {
+const KAKAO_KEY = process.env.VITE_KAKAO_MAP_API_KEY || 'c8d493c6110cd5e37a14a82a89e3690e';
+const KAKAO_HEADERS = {
+  Authorization: `KakaoAK ${KAKAO_KEY}`,
+  KA: 'sdk/1.0.0 os/javascript lang/ko-KR device/pc origin/http://localhost:5173'
+};
+
+async function resolveLocalRoadAndManager(lat, lng) {
+  try {
+    const url = `https://dapi.kakao.com/v2/local/geo/coord2address.json?x=${encodeURIComponent(lng)}&y=${encodeURIComponent(lat)}`;
+    const resp = await fetch(url, { headers: KAKAO_HEADERS, signal: AbortSignal.timeout(1200) });
+    if (!resp.ok) return null;
+    const json = await resp.json();
+    const doc = json?.documents?.[0];
+    if (!doc) return null;
+    const sido = doc.address?.region_1depth_name || '';
+    const sigungu = doc.address?.region_2depth_name || '';
+    const dong = doc.address?.region_3depth_name || '';
+    const roadName = doc.road_address?.road_name || dong || sigungu || '보행로';
+    const manager = sigungu ? `${sido} ${sigungu} 도로관리과`.trim() : '관할 지자체 도로관리과';
+    return { roadName, manager };
+  } catch {
+    return null;
+  }
+}
+
+function interpolateRoadStreetlights(ways, defaultRoadName = '보행로', defaultManager = '관할 지자체 도로관리과') {
   const lights = [];
   const visitedCoordKeys = new Set();
 
@@ -10,10 +35,11 @@ function interpolateRoadStreetlights(ways) {
     const geom = w.geometry;
     if (!Array.isArray(geom) || geom.length < 2) continue;
 
-    const roadName = w.tags?.name || '보행로';
+    const rawName = w.tags?.name || '';
+    const roadName = rawName && rawName !== '보행로' ? rawName : defaultRoadName;
     const hwType = w.tags?.highway || '';
     const isMain = ['primary', 'secondary', 'tertiary'].includes(hwType);
-    const intervalMeters = isMain ? 35 : 28;
+    const intervalMeters = isMain ? 30 : 24;
 
     let currentCarry = 0;
     for (let i = 0; i < geom.length - 1; i++) {
@@ -39,9 +65,9 @@ function interpolateRoadStreetlights(ways) {
               lat,
               lng: lon,
               type: roadName.includes('해변') ? 'coastal_led' : 'smart_led',
-              lumens: isMain ? 9000 : 7000,
+              lumens: isMain ? 9000 : 7500,
               radius: 15,
-              manager: '관할 지자체 도로관리과'
+              manager: defaultManager
             });
           }
         }
@@ -63,41 +89,53 @@ async function fetchOsmRoadStreetlights(minLat, minLng, maxLat, maxLng) {
 
   const cLat = (minLat + maxLat) / 2;
   const cLng = (minLng + maxLng) / 2;
-  const ways = [];
+  const latQ1 = minLat + (maxLat - minLat) * 0.25;
+  const latQ3 = minLat + (maxLat - minLat) * 0.75;
+  const lngQ1 = minLng + (maxLng - minLng) * 0.25;
+  const lngQ3 = minLng + (maxLng - minLng) * 0.75;
 
+  // 화면 전체 도로망(상·중·하 가로축 + 좌·중·우 세로축 + 대각선)을 커버하는 8개 보행 축 병렬 추출
   const osrmUrls = [
     `https://router.project-osrm.org/route/v1/foot/${minLng},${cLat};${maxLng},${cLat}?overview=full&geometries=geojson`,
+    `https://router.project-osrm.org/route/v1/foot/${minLng},${latQ1};${maxLng},${latQ1}?overview=full&geometries=geojson`,
+    `https://router.project-osrm.org/route/v1/foot/${minLng},${latQ3};${maxLng},${latQ3}?overview=full&geometries=geojson`,
     `https://router.project-osrm.org/route/v1/foot/${cLng},${minLat};${cLng},${maxLat}?overview=full&geometries=geojson`,
-    `https://router.project-osrm.org/route/v1/foot/${minLng},${minLat};${maxLng},${maxLat}?overview=full&geometries=geojson`
+    `https://router.project-osrm.org/route/v1/foot/${lngQ1},${minLat};${lngQ1},${maxLat}?overview=full&geometries=geojson`,
+    `https://router.project-osrm.org/route/v1/foot/${lngQ3},${minLat};${lngQ3},${maxLat}?overview=full&geometries=geojson`,
+    `https://router.project-osrm.org/route/v1/foot/${minLng},${minLat};${maxLng},${maxLat}?overview=full&geometries=geojson`,
+    `https://router.project-osrm.org/route/v1/foot/${minLng},${maxLat};${maxLng},${minLat}?overview=full&geometries=geojson`
   ];
 
-  // 병렬 호출로 OSRM 대기 시간 단축 (기존 직렬 2.2s × 3회 = 6.6s -> 병렬 최대 1.5s)
-  const osrmResults = await Promise.allSettled(
-    osrmUrls.map(async (url, i) => {
-      const resp = await fetch(url, { signal: AbortSignal.timeout(1500) });
-      if (!resp.ok) return null;
-      const json = await resp.json();
-      const coords = json.routes?.[0]?.geometry?.coordinates;
-      const roadName = json.routes?.[0]?.legs?.[0]?.steps?.[0]?.name || '보행로';
-      if (Array.isArray(coords) && coords.length > 1) {
-        return {
-          id: `OSRM_ROAD_${i}`,
-          tags: { name: roadName, highway: 'residential' },
-          geometry: coords.map(c => ({ lat: c[1], lon: c[0] }))
-        };
+  const [localInfo, ...osrmResults] = await Promise.all([
+    resolveLocalRoadAndManager(cLat, cLng),
+    ...osrmUrls.map(async (url, i) => {
+      try {
+        const resp = await fetch(url, { signal: AbortSignal.timeout(1500) });
+        if (!resp.ok) return null;
+        const json = await resp.json();
+        const coords = json.routes?.[0]?.geometry?.coordinates;
+        const roadName = json.routes?.[0]?.legs?.[0]?.steps?.[0]?.name || '';
+        if (Array.isArray(coords) && coords.length > 1) {
+          return {
+            id: `OSRM_ROAD_${i}`,
+            tags: { name: roadName, highway: 'residential' },
+            geometry: coords.map(c => ({ lat: c[1], lon: c[0] }))
+          };
+        }
+      } catch {
+        // ignore
       }
       return null;
     })
-  );
+  ]);
 
-  for (const r of osrmResults) {
-    if (r.status === 'fulfilled' && r.value) {
-      ways.push(r.value);
-    }
-  }
+  const ways = osrmResults.filter(Boolean);
+  const district = resolveNearestDistrict(cLat, cLng);
+  const defaultRoadName = localInfo?.roadName || district?.name || '안심보행로';
+  const defaultManager = localInfo?.manager || (district?.name ? `${district.name} 도로관리과` : '관할 지자체 도로관리과');
 
   if (ways.length > 0) {
-    const lights = interpolateRoadStreetlights(ways);
+    const lights = interpolateRoadStreetlights(ways, defaultRoadName, defaultManager);
     if (lights.length > 0) {
       viewportRoadCache.set(cacheKey, lights);
       return lights;
@@ -117,8 +155,8 @@ export default async function handler(req, res) {
   const maxLat = parseFloat(req.query.maxLat || '0');
   const minLng = parseFloat(req.query.minLng || '0');
   const maxLng = parseFloat(req.query.maxLng || '0');
-  const lat = parseFloat(req.query.lat || '0');
-  const lng = parseFloat(req.query.lng || '0');
+  const lat = parseFloat(req.query.lat || '0') || (minLat + maxLat) / 2;
+  const lng = parseFloat(req.query.lng || '0') || (minLng + maxLng) / 2;
 
   if (zoom < 13) {
     return res.status(200).json({
@@ -133,7 +171,7 @@ export default async function handler(req, res) {
   let matches = [];
   const supabase = getSupabase();
 
-  // 1. Supabase Cloud Database 우선 조회
+  // 1. Supabase Cloud Database 조회 (활성화된 경우)
   if (supabase && minLat && maxLat && minLng && maxLng) {
     try {
       const { data: supaLights } = await supabase
@@ -162,9 +200,9 @@ export default async function handler(req, res) {
     }
   }
 
-  // 2. Base cache fallback
+  // 2. 로컬 캐시 조회
   const slCache = getStreetlightCache();
-  if (matches.length < 15) {
+  if (matches.length < 25) {
     const localMatches = slCache.filter(s =>
       s.lat >= minLat && s.lat <= maxLat && s.lng >= minLng && s.lng <= maxLng && !isInvalidOceanCoordinate(s.lat, s.lng)
     );
@@ -177,8 +215,8 @@ export default async function handler(req, res) {
     }
   }
 
-  // 3. OSRM real road walking lights
-  if (matches.length < 15 && minLat && minLng && maxLat && maxLng) {
+  // 3. 전국 어디서든 실제 도로망을 따라 가로등 배치가 고르게 표시되도록 OSRM 다중 격자 보간 수행
+  if (matches.length < 25 && minLat && minLng && maxLat && maxLng) {
     try {
       const roadLights = await fetchOsmRoadStreetlights(minLat, minLng, maxLat, maxLng);
       if (roadLights && roadLights.length > 0) {
@@ -195,14 +233,14 @@ export default async function handler(req, res) {
     }
   }
 
-  // Strict Viewport Bounding Box Filtering (화면 바깥 100% 완전 배제)
+  // Strict Viewport Bounding Box Filtering
   if (minLat && maxLat && minLng && maxLng) {
     matches = matches.filter(s =>
       s.lat >= minLat && s.lat <= maxLat && s.lng >= minLng && s.lng <= maxLng && !isInvalidOceanCoordinate(s.lat, s.lng)
     );
   }
 
-  // Center-priority sorting: 화면 중앙에서 가장 가까운 가로등부터 우선 정렬
+  // 화면 중앙 거리순 정렬
   const getLightDistFromCenter = (itemLat, itemLng) => {
     const dLat = itemLat - lat;
     const dLng = (itemLng - lng) * Math.cos((lat * Math.PI) / 180);
