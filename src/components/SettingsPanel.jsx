@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { X, Check, Sun, Building, Trees, Video, Clock, Lightbulb, Info } from 'lucide-react';
-import { NEED_OPTIONS } from '../utils/profile';
+import { NEED_OPTIONS, SPEED_LEVELS } from '../utils/profile';
 import { MODE_LABELS } from '../utils/autoRouting';
 import TravelModeToggle from './TravelModeToggle';
 
@@ -28,6 +28,8 @@ function formatHour(val) {
 export default function SettingsPanel({
   needs,
   onChangeNeeds,
+  walkSpeed = 75,
+  onChangeWalkSpeed,
   modeOverride,
   setModeOverride,
   autoDecision,
@@ -104,6 +106,29 @@ export default function SettingsPanel({
             })}
           </div>
         </section>
+
+        {/* 보행 속도 설정 */}
+        {travelMode === 'foot' && onChangeWalkSpeed && (
+          <section className="settings-section">
+            <h3>보행 속도 (예상 소요 시간)</h3>
+            <div className="settings-segment" role="group" aria-label="보행 속도">
+              {SPEED_LEVELS.map((lvl) => (
+                <button
+                  key={lvl.id}
+                  type="button"
+                  className={walkSpeed === lvl.speed ? 'active' : ''}
+                  aria-pressed={walkSpeed === lvl.speed}
+                  onClick={() => onChangeWalkSpeed(lvl.speed)}
+                >
+                  {lvl.label} ({lvl.kmh}km/h)
+                </button>
+              ))}
+            </div>
+            <p className="settings-help">
+              {SPEED_LEVELS.find((lvl) => lvl.speed === walkSpeed)?.desc || `${(walkSpeed * 0.06).toFixed(1)}km/h`} 기준으로 도보 예상 시간을 계산해요.
+            </p>
+          </section>
+        )}
 
         {/* 2. 경로 방식 + 가중치 */}
         <section className="settings-section">

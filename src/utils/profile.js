@@ -7,7 +7,7 @@ export const NEED_OPTIONS = [
   {
     id: 'slow',
     label: '천천히 걸어요',
-    desc: '소요 시간을 느린 걸음(약 3km/h) 기준으로 계산해요',
+    desc: '소요 시간을 느린 걸음(약 3.0km/h) 기준으로 계산해요',
     available: true
   },
   {
@@ -30,8 +30,15 @@ export const NEED_OPTIONS = [
   }
 ];
 
+export const SPEED_LEVELS = [
+  { id: 'slow', label: '천천히', speed: 50, kmh: 3.0, desc: '3.0km/h (어르신·어린이·여유)' },
+  { id: 'normal', label: '보통', speed: 75, kmh: 4.5, desc: '4.5km/h (일반 성인 표준)' },
+  { id: 'fast', label: '빠르게', speed: 95, kmh: 5.7, desc: '5.7km/h (바쁜 출퇴근·파워워킹)' }
+];
+
 export const DEFAULT_WALK_SPEED = 75; // m/분 (약 4.5km/h)
 export const SLOW_WALK_SPEED = 50; // m/분 (약 3.0km/h)
+export const FAST_WALK_SPEED = 95; // m/분 (약 5.7km/h)
 
 export function loadProfile() {
   try {
@@ -39,7 +46,10 @@ export function loadProfile() {
     if (!raw) return null;
     const parsed = JSON.parse(raw);
     if (!parsed || !Array.isArray(parsed.needs)) return null;
-    return { needs: parsed.needs };
+    return {
+      needs: parsed.needs,
+      walkSpeed: parsed.walkSpeed || (parsed.needs.includes('slow') ? SLOW_WALK_SPEED : DEFAULT_WALK_SPEED)
+    };
   } catch {
     return null;
   }
@@ -53,7 +63,8 @@ export function saveProfile(profile) {
   }
 }
 
-export function getWalkSpeed(needs) {
+export function getWalkSpeed(needs, customSpeed = null) {
+  if (customSpeed && customSpeed > 0) return customSpeed;
   return needs.includes('slow') ? SLOW_WALK_SPEED : DEFAULT_WALK_SPEED;
 }
 

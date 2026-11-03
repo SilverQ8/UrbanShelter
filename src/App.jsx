@@ -20,7 +20,7 @@ import Onboarding from './components/Onboarding';
 import RouteGuide from './components/RouteGuide';
 import Map3D from './components/Map3D';
 import { LocateFixed } from 'lucide-react';
-import { loadProfile, saveProfile, getWalkSpeed } from './utils/profile';
+import { loadProfile, saveProfile, getWalkSpeed, SLOW_WALK_SPEED, DEFAULT_WALK_SPEED } from './utils/profile';
 import { decideAutoMode } from './utils/autoRouting';
 import { fetchCurrentWeather } from './services/weatherService';
 import { fetchOsmShadeData } from './services/osmService';
@@ -49,7 +49,10 @@ export default function App() {
   const [profile, setProfile] = useState(() => loadProfile());
   const [showOnboarding, setShowOnboarding] = useState(() => loadProfile() === null);
   const needs = profile ? profile.needs : [];
-  const walkSpeed = getWalkSpeed(needs);
+  const [walkSpeed, setWalkSpeed] = useState(() => {
+    const p = loadProfile();
+    return p?.walkSpeed || getWalkSpeed(p?.needs || []);
+  });
 
   const [showSettings, setShowSettings] = useState(false);
 
@@ -699,7 +702,9 @@ export default function App() {
   };
 
   const applyProfile = (selected) => {
-    const next = { needs: selected };
+    const nextSpeed = selected.includes('slow') ? SLOW_WALK_SPEED : DEFAULT_WALK_SPEED;
+    setWalkSpeed(nextSpeed);
+    const next = { needs: selected, walkSpeed: nextSpeed };
     setProfile(next);
     saveProfile(next);
     setModeOverride('auto');
@@ -711,7 +716,31 @@ export default function App() {
 
   // 설정창에서 바꾼 "이동 도움"은 즉시 적용·저장한다.
   const changeNeeds = (next) => {
-    const nextProfile = { needs: next };
+    let nextSpeed = walkSpeed;
+    const hadSlow = needs.includes('slow');
+    const hasSlow = next.includes('slow');
+    if (!hadSlow && hasSlow) {
+      nextSpeed = SLOW_WALK_SPEED;
+    } else if (hadSlow && !hasSlow && walkSpeed === SLOW_WALK_SPEED) {
+      nextSpeed = DEFAULT_WALK_SPEED;
+    }
+    setWalkSpeed(nextSpeed);
+    const nextProfile = { ...(profile || {}), needs: next, walkSpeed: nextSpeed };
+    setProfile(nextProfile);
+    saveProfile(nextProfile);
+  };
+
+  // 보행 속도 변경 (설정창 및 경로 검색 바에서 즉시 조절)
+  const changeWalkSpeed = (nextSpeed) => {
+    setWalkSpeed(nextSpeed);
+    const updatedNeeds = [...needs];
+    if (nextSpeed <= 55) {
+      if (!updatedNeeds.includes('slow')) updatedNeeds.push('slow');
+    } else {
+      const idx = updatedNeeds.indexOf('slow');
+      if (idx !== -1) updatedNeeds.splice(idx, 1);
+    }
+    const nextProfile = { ...(profile || {}), needs: updatedNeeds, walkSpeed: nextSpeed };
     setProfile(nextProfile);
     saveProfile(nextProfile);
   };
@@ -731,6 +760,8 @@ export default function App() {
         <SettingsPanel
           needs={needs}
           onChangeNeeds={changeNeeds}
+          walkSpeed={walkSpeed}
+          onChangeWalkSpeed={changeWalkSpeed}
           modeOverride={modeOverride}
           setModeOverride={setModeOverride}
           autoDecision={autoDecision}
@@ -861,6 +892,8 @@ export default function App() {
             nightRoute={nightRoute}
             travelMode={travelMode}
             setTravelMode={setTravelMode}
+            walkSpeed={walkSpeed}
+            onChangeWalkSpeed={changeWalkSpeed}
             sunPos={sunPos}
             onShowGuide={() => setShowGuide(true)}
             guideOpen={showGuide}

@@ -18,6 +18,7 @@ import { NODES } from '../data/urbanNetwork';
 import { findNearestNode } from '../engine/routingEngine';
 import { searchAddressLive } from '../services/addressService';
 import { formatDistance, formatDuration } from '../utils/format';
+import { SPEED_LEVELS } from '../utils/profile';
 import TravelModeToggle from './TravelModeToggle';
 
 export default function RouteSearch({
@@ -39,6 +40,8 @@ export default function RouteSearch({
   nightRoute,
   travelMode = 'foot',
   setTravelMode,
+  walkSpeed = 75,
+  onChangeWalkSpeed,
   sunPos,
   onShowGuide,
   guideOpen = false
@@ -587,8 +590,59 @@ export default function RouteSearch({
 
       {/* 3대 추천 루트 카드 */}
       <div style={{ marginTop: '12px' }}>
-        <div style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '8px' }}>
-          경로 비교 (눌러서 선택)
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          marginBottom: '8px',
+          flexWrap: 'wrap',
+          gap: '6px'
+        }}>
+          <div style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-muted)' }}>
+            경로 비교 (눌러서 선택)
+          </div>
+          {travelMode === 'foot' && onChangeWalkSpeed && (
+            <div
+              className="walk-speed-quick-selector"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '2px',
+                background: 'rgba(255, 255, 255, 0.05)',
+                padding: '2px',
+                borderRadius: '6px',
+                border: '1px solid rgba(255, 255, 255, 0.08)'
+              }}
+            >
+              <span style={{ fontSize: '0.65rem', color: 'var(--text-dim)', padding: '0 4px', fontWeight: 500 }}>
+                걸음속도
+              </span>
+              {SPEED_LEVELS.map((lvl) => {
+                const isActive = walkSpeed === lvl.speed;
+                return (
+                  <button
+                    key={lvl.id}
+                    type="button"
+                    onClick={() => onChangeWalkSpeed(lvl.speed)}
+                    title={lvl.desc}
+                    style={{
+                      padding: '2px 6px',
+                      fontSize: '0.66rem',
+                      fontWeight: isActive ? 700 : 500,
+                      borderRadius: '4px',
+                      border: 'none',
+                      cursor: 'pointer',
+                      background: isActive ? 'var(--accent-cyan)' : 'transparent',
+                      color: isActive ? '#0f172a' : 'var(--text-muted)',
+                      transition: 'all 0.15s ease'
+                    }}
+                  >
+                    {lvl.label} {lvl.kmh}k
+                  </button>
+                );
+              })}
+            </div>
+          )}
         </div>
 
         {!standardRoute && (
