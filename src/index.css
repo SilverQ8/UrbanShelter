@@ -2119,6 +2119,7 @@ input:checked + .switch-slider:before {
   gap: 8px;
   width: 100%;
   min-height: 48px;
+  flex-shrink: 0;
   margin-top: 12px;
   font-family: inherit;
   font-size: 1.05rem;
@@ -3224,8 +3225,8 @@ html, body {
     right: 8px !important;
     width: auto !important;
     max-width: none !important;
-    max-height: 50vh !important;
-    padding: 8px 10px 10px !important;
+    max-height: 58vh !important;
+    padding: 8px 12px 24px !important;
     gap: 8px !important;
     background: rgba(20, 24, 35, 0.96) !important;
     backdrop-filter: blur(20px) !important;
@@ -3334,6 +3335,33 @@ html, body {
     padding: 0 !important;
     box-shadow: none !important;
   }
+
+  /* 모바일 바텀시트: 검색과 탐색에 온전히 집중하도록 보조 카드 숨김 */
+  .floating-overlay-left > .auto-banner,
+  .floating-overlay-left > .dashboard-card,
+  .floating-overlay-left > .sun-card {
+    display: none !important;
+  }
+
+  /* 탐색 버튼: 잘림 방지 및 모바일 한 손 터치 최적화 */
+  .route-explore-btn {
+    position: sticky !important;
+    bottom: 0 !important;
+    z-index: 30 !important;
+    width: 100% !important;
+    min-height: 50px !important;
+    height: 50px !important;
+    margin-top: 14px !important;
+    margin-bottom: 4px !important;
+    flex-shrink: 0 !important;
+    background: #10b981 !important;
+    color: #04120d !important;
+    font-size: 1.05rem !important;
+    font-weight: 800 !important;
+    border-radius: 9999px !important;
+    box-shadow: 0 4px 20px rgba(16, 185, 129, 0.5), 0 -8px 24px rgba(20, 24, 35, 0.95) !important;
+  }
+
   .route-inputs-container {
     padding: 8px 10px !important;
     border-radius: 14px !important;
