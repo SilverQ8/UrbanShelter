@@ -57,9 +57,15 @@ export default function RouteGuide({
   const [voiceOn, setVoiceOn] = useState(isTtsEnabled());
 
   const hasSteps = Array.isArray(steps) && steps.length > 0;
+  // 남은 거리 및 실시간 남은 소요 시간 계산 (보행 단계 진행에 따라 실시간 갱신)
+  const remainingDistance = navigating && hasSteps
+    ? steps.slice(navIndex).reduce((sum, s) => sum + (s.distance || 0), 0)
+    : (totalDistance || 0);
+  const remainingMinutes = Math.max(1, Math.round(remainingDistance / (walkSpeed || 75)));
+
   // 걸음 수 추정: 느린 걸음(50m/분)은 보폭 0.5m, 보통 걸음은 0.7m 정도로 본다
   const stride = walkSpeed <= 50 ? 0.5 : 0.7;
-  const stepCount = Math.round((totalDistance || 0) / stride);
+  const stepCount = Math.round(remainingDistance / stride);
 
   const currentStep = navigating && hasSteps ? steps[navIndex] : null;
   const nextStep = navigating && hasSteps ? steps[navIndex + 1] : null;
@@ -112,7 +118,9 @@ export default function RouteGuide({
             길 안내
           </span>
           <span className="route-guide-summary">
-            {formatDistance(totalDistance)} · 약 {formatDuration(totalMinutes)}
+            {navigating
+              ? `남은 ${formatDistance(remainingDistance)} · 약 ${formatDuration(remainingMinutes)}`
+              : `${formatDistance(totalDistance)} · 약 ${formatDuration(totalMinutes)}`}
           </span>
           {open ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
         </button>
@@ -136,7 +144,11 @@ export default function RouteGuide({
 
       {open && (
         <>
-          {!isCar && <div className="route-guide-steps-count">👣 약 {stepCount.toLocaleString()}걸음</div>}
+          {!isCar && (
+            <div className="route-guide-steps-count">
+              👣 {navigating ? `남은 걸음: 약 ${stepCount.toLocaleString()}걸음 (약 ${formatDuration(remainingMinutes)} 남음)` : `약 ${stepCount.toLocaleString()}걸음`}
+            </div>
+          )}
 
           {/* 탐색 시작 / 보행자 시점 안내 */}
           {hasSteps && !navigating && !isCar && (
