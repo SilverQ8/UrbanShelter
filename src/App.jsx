@@ -177,6 +177,12 @@ export default function App() {
         ? 'light'
         : 'dark'
       : mapThemeSetting;
+  // 라이트모드 / 다크모드 색반전을 위해 루트 및 body에 테마 속성 반영
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', mapTheme);
+    document.body.setAttribute('data-theme', mapTheme);
+  }, [mapTheme]);
+
   const [viewMode, setViewMode] = useState('2d'); // '2d' | '3d'
   const [navigating, setNavigating] = useState(false);
   const [showGuide, setShowGuide] = useState(false); // 길찾기 카드의 '탐색' 버튼을 눌러야 열린다
@@ -804,7 +810,7 @@ export default function App() {
   };
 
   return (
-    <div className="app-container">
+    <div className={`app-container theme-${mapTheme}`} data-theme={mapTheme}>
       {showOnboarding && (
         <Onboarding
           initialNeeds={needs}

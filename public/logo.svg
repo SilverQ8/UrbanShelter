@@ -1,7 +1,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" role="img" aria-label="오솔길">
-  <rect width="200" height="200" rx="48" fill="#214b3b"/>
+  <rect width="200" height="200" rx="48" fill="#244b3a"/>
   <circle cx="100" cy="64" r="13" fill="#e89c3a"/>
-  <polygon points="93,98 107,98 138,200 62,200" fill="#f4eedd"/>
+  <polygon points="93,98 107,98 138,200 62,200" fill="#f3edde"/>
   <polygon points="48,66 28,105 68,105" fill="#5b8f64"/>
   <polygon points="48,88 24,135 72,135" fill="#8fb582"/>
   <rect x="45" y="135" width="6" height="16" fill="#6b4a35"/>

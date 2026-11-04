@@ -76,8 +76,8 @@ export default function Header({
         <button
           className="reset-btn"
           onClick={() => setMapThemeSetting({ auto: 'light', light: 'dark', dark: 'auto' }[mapThemeSetting])}
-          title={`지도 테마: ${{ auto: '자동(시간에 따라)', light: '밝게', dark: '어둡게' }[mapThemeSetting]} (누르면 변경)`}
-          aria-label={`지도 테마: ${{ auto: '자동(시간에 따라)', light: '밝게', dark: '어둡게' }[mapThemeSetting]}`}
+          title={`화면 및 지도 테마: ${{ auto: '자동(시간에 따라)', light: '라이트 모드', dark: '다크 모드' }[mapThemeSetting]} (누르면 변경)`}
+          aria-label={`화면 및 지도 테마: ${{ auto: '자동(시간에 따라)', light: '라이트 모드', dark: '다크 모드' }[mapThemeSetting]}`}
         >
           {mapThemeSetting === 'auto' ? <SunMoon size={18} color="#a78bfa" /> : mapThemeSetting === 'light' ? <Sun size={18} color="#f59e0b" /> : <Moon size={18} color="#38bdf8" />}
         </button>
