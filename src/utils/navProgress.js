@@ -10,6 +10,35 @@ export function distanceM(a, b) {
   return Math.hypot(dLat, dLng);
 }
 
+export function bearingDeg(a, b) {
+  const dy = b[0] - a[0];
+  const dx = (b[1] - a[1]) * Math.cos((a[0] * Math.PI) / 180);
+  return ((Math.atan2(dx, dy) * 180) / Math.PI + 360) % 360;
+}
+
+// 경로 위 한 지점에서 진행 방향(도): 가장 가까운 꼭짓점에서 약 lookAheadM 앞을 바라본다.
+export function headingAt(point, latlngs, lookAheadM = 25) {
+  if (!point || !latlngs || latlngs.length < 2) return 0;
+  let nearest = 0;
+  let best = Infinity;
+  for (let i = 0; i < latlngs.length; i++) {
+    const d = distanceM(point, latlngs[i]);
+    if (d < best) {
+      best = d;
+      nearest = i;
+    }
+  }
+  if (nearest >= latlngs.length - 1) {
+    return bearingDeg(latlngs[latlngs.length - 2], latlngs[latlngs.length - 1]);
+  }
+  let target = latlngs[nearest + 1];
+  for (let i = nearest + 1; i < latlngs.length; i++) {
+    target = latlngs[i];
+    if (distanceM(point, latlngs[i]) >= lookAheadM) break;
+  }
+  return bearingDeg(point, target);
+}
+
 // 안내 지점(회전 위치)은 경로의 꼭짓점 위에 있으므로 가장 가까운 꼭짓점 번호를 쓴다
 function nearestVertexIndex(point, latlngs) {
   let index = 0;

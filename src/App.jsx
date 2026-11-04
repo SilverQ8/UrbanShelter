@@ -21,14 +21,15 @@ import {
 import { HAEUNDAE_BUILDINGS, GUNAM_RO_TREES } from './data/buildings3DData';
 import Onboarding from './components/Onboarding';
 import RouteGuide from './components/RouteGuide';
+import NavTopBanner from './components/NavTopBanner';
 import Map3D from './components/Map3D';
 import { LocateFixed } from 'lucide-react';
 import { loadProfile, saveProfile, getWalkSpeed, SLOW_WALK_SPEED, DEFAULT_WALK_SPEED } from './utils/profile';
 import { decideAutoMode } from './utils/autoRouting';
 import { fetchCurrentWeather } from './services/weatherService';
 import { fetchOsmShadeData } from './services/osmService';
-import { computeProgress } from './utils/navProgress';
-import { speakGuide } from './utils/ttsService';
+import { computeProgress, headingAt } from './utils/navProgress';
+import { speakGuide, isTtsEnabled, toggleTts } from './utils/ttsService';
 import PoiPanel from './components/PoiPanel';
 import { fetchPoisForBounds } from './services/poiService';
 import { POI_CATEGORIES } from './data/poiCategories';
@@ -752,6 +753,22 @@ export default function App() {
     return () => clearTimeout(timer);
   }, [navigating, liveStatus, livePos, targetPoint, handleReroute]);
 
+
+  // 실시간 길안내 사용자 위치 및 진행 방향(Heading)
+  const currentNavPoint = useMemo(() => {
+    if (!navigating) return null;
+    if (following && livePos) return [livePos.lat, livePos.lng];
+    if (baseRoute?.steps?.[navIndex]?.point) return baseRoute.steps[navIndex].point;
+    if (userGps?.lat && userGps?.lng) return [userGps.lat, userGps.lng];
+    if (startPoint?.lat && startPoint?.lng) return [startPoint.lat, startPoint.lng];
+    return null;
+  }, [navigating, following, livePos, baseRoute, navIndex, userGps, startPoint]);
+
+  const currentNavHeading = useMemo(() => {
+    if (!navigating || !currentNavPoint || !baseRoute?.latlngs) return 0;
+    return headingAt(currentNavPoint, baseRoute.latlngs);
+  }, [navigating, currentNavPoint, baseRoute]);
+
   const closeGuide = () => {
     if (navigating) {
       setNavigating(false);
@@ -874,6 +891,22 @@ export default function App() {
 
       {/* Main Workspace */}
       <main className="main-workspace">
+        {/* 상단 실시간 내비게이션 길안내 배너 */}
+        {navigating && showGuide && baseRoute?.steps?.[navIndex] && (
+          <NavTopBanner
+            step={baseRoute.steps[navIndex]}
+            nextStep={baseRoute.steps[navIndex + 1]}
+            startPoint={startPoint}
+            targetPoint={targetPoint}
+            onStopNav={stopNavigation}
+            voiceOn={isTtsEnabled()}
+            onToggleVoice={() => {
+              const next = toggleTts();
+              if (next) speakGuide('음성 안내를 켭니다.');
+            }}
+          />
+        )}
+
         {/* Full-bleed Map: 2D(Leaflet) 또는 3D(MapLibre 입체 건물) */}
         {viewMode === '3d' ? (
           <Map3D
@@ -886,13 +919,7 @@ export default function App() {
             mode={mode}
             focusPoint={focusPoint}
             navigating={navigating}
-            navPoint={
-              navigating
-                ? following
-                  ? [livePos.lat, livePos.lng]
-                  : baseRoute?.steps?.[navIndex]?.point || null
-                : null
-            }
+            navPoint={currentNavPoint}
             baseLatlngs={baseRoute?.latlngs || null}
             shadows={shadows}
             trees={trees}
@@ -934,6 +961,9 @@ export default function App() {
           locateTarget={locateTarget}
           poiSelected={poiSelected}
           pois={poiData.pois}
+          navigating={navigating}
+          navPoint={currentNavPoint}
+          navHeading={currentNavHeading}
         />
         )}
 

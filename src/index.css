@@ -4426,3 +4426,592 @@ body {
 [data-theme='light'] .route-guide-step.active .route-guide-dist {
   color: #f3edde !important;
 }
+
+
+/* ==========================================================================
+   내비게이션 실시간 상단 배너 및 하단 슬라이드 바텀시트
+   ========================================================================== */
+
+/* 1. 상단 방향 안내 배너 (카카오/네이버 지도 스타일) */
+.nav-top-banner {
+  position: absolute;
+  top: 18px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 440px;
+  max-width: calc(100vw - 32px);
+  z-index: 1002;
+  background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%);
+  color: #ffffff;
+  border-radius: 20px;
+  box-shadow: 0 10px 25px -4px rgba(2, 132, 199, 0.45), 0 6px 12px -2px rgba(0, 0, 0, 0.3);
+  border: 1.5px solid rgba(255, 255, 255, 0.28);
+  padding: 12px 16px;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  animation: navSlideDown 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes navSlideDown {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -18px);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+}
+
+.nav-top-banner-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.nav-top-btn {
+  background: rgba(255, 255, 255, 0.16);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 10px;
+  color: #ffffff;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  flex-shrink: 0;
+}
+
+.nav-top-btn:hover {
+  background: rgba(255, 255, 255, 0.3);
+  transform: scale(1.05);
+}
+
+.nav-top-route-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #e0f2fe;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  flex: 1;
+}
+
+.nav-dot-start {
+  color: #34d399;
+  font-size: 0.8rem;
+}
+
+.nav-dot-target {
+  color: #f87171;
+  font-size: 0.8rem;
+}
+
+.nav-arrow {
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 0.76rem;
+}
+
+.nav-point-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nav-top-banner-body {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.nav-turn-badge {
+  background: rgba(255, 255, 255, 0.22);
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  border-radius: 14px;
+  padding: 8px 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  min-width: 68px;
+}
+
+.nav-turn-distance {
+  font-size: 0.8rem;
+  font-weight: 800;
+  color: #ffffff;
+  margin-top: 3px;
+  white-space: nowrap;
+}
+
+.nav-turn-info {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  overflow: hidden;
+}
+
+.nav-turn-instruction {
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: #ffffff;
+  line-height: 1.3;
+  word-break: keep-all;
+}
+
+.nav-turn-road {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #bae6fd;
+}
+
+.nav-top-banner-footer {
+  margin-top: 8px;
+  padding-top: 6px;
+  border-top: 1px solid rgba(255, 255, 255, 0.15);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.78rem;
+  color: #e0f2fe;
+}
+
+.nav-next-badge {
+  background: rgba(255, 255, 255, 0.2);
+  padding: 1px 6px;
+  border-radius: 6px;
+  font-size: 0.7rem;
+  font-weight: 700;
+}
+
+.nav-next-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 2. 사용자 내비게이션 방향 마커 (지도 중심 표시) */
+.nav-user-heading-marker {
+  background: transparent !important;
+  border: none !important;
+}
+
+.nav-marker-wrapper {
+  position: relative;
+  width: 44px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.nav-marker-radar {
+  position: absolute;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: rgba(2, 132, 199, 0.32);
+  animation: navRadarPulse 2s infinite ease-out;
+}
+
+@keyframes navRadarPulse {
+  0% {
+    transform: scale(0.65);
+    opacity: 0.9;
+  }
+  70% {
+    transform: scale(1.4);
+    opacity: 0.15;
+  }
+  100% {
+    transform: scale(1.55);
+    opacity: 0;
+  }
+}
+
+.nav-marker-core {
+  position: relative;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: #0284c7;
+  border: 2.8px solid #ffffff;
+  box-shadow: 0 4px 14px rgba(2, 132, 199, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2;
+}
+
+.nav-marker-arrow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.25s ease-out;
+}
+
+/* 3. 하단 슬라이드 바텀시트 핸들 바 & 접기/펼치기 */
+.route-guide-drag-handle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 0 6px;
+  cursor: pointer;
+  user-select: none;
+  width: 100%;
+}
+
+.route-guide-handle-pill {
+  width: 42px;
+  height: 4.5px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.35);
+  transition: background 0.2s, transform 0.2s;
+}
+
+.route-guide-drag-handle:hover .route-guide-handle-pill {
+  background: rgba(255, 255, 255, 0.7);
+  transform: scaleY(1.2);
+}
+
+/* 하단으로 접힌 상태 (축소 모드) */
+.route-guide.is-collapsed {
+  padding: 8px 14px !important;
+  max-height: none !important;
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1) !important;
+}
+
+.route-guide-collapsed-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  cursor: pointer;
+  padding: 2px 0;
+}
+
+.collapsed-time-info {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: var(--text-main);
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  flex: 1;
+}
+
+.collapsed-duration {
+  font-weight: 800;
+  color: var(--accent-cyan);
+  font-size: 0.95rem;
+}
+
+.collapsed-divider {
+  color: var(--text-muted);
+  font-size: 0.8rem;
+}
+
+.collapsed-distance {
+  color: var(--text-main);
+}
+
+.collapsed-eta {
+  color: var(--accent-emerald);
+  font-weight: 700;
+}
+
+.collapsed-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.collapsed-expand-btn {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 10px;
+  border-radius: 12px;
+  background: rgba(56, 189, 248, 0.15);
+  border: 1px solid rgba(56, 189, 248, 0.35);
+  color: #38bdf8;
+  font-size: 0.8rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.collapsed-expand-btn:hover {
+  background: rgba(56, 189, 248, 0.25);
+  color: #ffffff;
+}
+
+/* 라이트 모드 스타일 최적화 */
+[data-theme='light'] .nav-top-banner {
+  background: linear-gradient(135deg, #18382a 0%, #244b3a 100%) !important;
+  border-color: rgba(36, 75, 58, 0.35) !important;
+  box-shadow: 0 10px 25px -4px rgba(24, 56, 42, 0.35) !important;
+  color: #f3edde !important;
+}
+
+[data-theme='light'] .nav-top-route-title {
+  color: #f3edde !important;
+}
+
+[data-theme='light'] .nav-turn-road {
+  color: #d1fae5 !important;
+}
+
+[data-theme='light'] .route-guide-handle-pill {
+  background: rgba(36, 75, 58, 0.3) !important;
+}
+
+[data-theme='light'] .route-guide-drag-handle:hover .route-guide-handle-pill {
+  background: rgba(36, 75, 58, 0.6) !important;
+}
+
+[data-theme='light'] .collapsed-expand-btn {
+  background: #244b3a !important;
+  color: #f3edde !important;
+  border-color: #18382a !important;
+}
+
+/* 모바일 전용 반응형 튜닝 */
+@media (max-width: 992px) {
+  .nav-top-banner {
+    position: fixed !important;
+    top: 10px !important;
+    left: 10px !important;
+    right: 10px !important;
+    width: auto !important;
+    max-width: none !important;
+    transform: none !important;
+    z-index: 1100 !important;
+    padding: 10px 14px !important;
+    border-radius: 18px !important;
+  }
+
+  .nav-turn-instruction {
+    font-size: 0.96rem !important;
+  }
+
+  .nav-turn-badge {
+    padding: 6px 10px !important;
+    min-width: 60px !important;
+  }
+
+  /* 하단 바텀시트 접힘 상태 시 화면 하단 밀착 */
+  .floating-overlay-right:has(.route-guide.is-collapsed) {
+    max-height: 80px !important;
+    bottom: 8px !important;
+  }
+}
+
+
+/* ==========================================================================
+   컴팩트 길안내 바텀 컨트롤러 (화면 가림 최소화 & 슬림화)
+   ========================================================================== */
+
+.route-guide.is-collapsed {
+  max-height: 52px !important;
+  padding: 4px 12px 6px !important;
+  overflow: hidden !important;
+  background: var(--bg-panel) !important;
+  border-radius: 16px !important;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.35) !important;
+}
+
+.route-guide.is-expanded {
+  max-height: 360px !important;
+  border-radius: 20px !important;
+}
+
+.compact-nav-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+
+.compact-eta-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--bg-glass-border);
+  border-radius: 12px;
+  padding: 6px 10px;
+  font-size: 0.8rem;
+}
+
+.compact-eta-time {
+  color: var(--text-main);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.compact-eta-time strong {
+  font-size: 0.95rem;
+  color: var(--accent-cyan);
+}
+
+.compact-eta-rem {
+  color: var(--accent-emerald);
+  font-weight: 700;
+  font-size: 0.78rem;
+}
+
+.compact-speed-group {
+  display: flex;
+  gap: 3px;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.compact-speed-btn {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--bg-glass-border);
+  color: var(--text-muted);
+  border-radius: 7px;
+  padding: 2px 6px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.compact-speed-btn.active {
+  background: var(--accent-emerald);
+  color: #ffffff;
+  border-color: var(--accent-emerald);
+}
+
+.compact-nav-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  background: rgba(0, 0, 0, 0.18);
+  border-radius: 12px;
+  padding: 4px 8px;
+}
+
+.compact-nav-btn {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--bg-glass-border);
+  color: var(--text-main);
+  border-radius: 8px;
+  padding: 4px 9px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.compact-nav-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.compact-step-counter {
+  font-size: 0.78rem;
+  font-weight: 800;
+  color: var(--text-main);
+}
+
+.compact-nav-stop-btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: rgba(239, 68, 68, 0.15);
+  border: 1px solid rgba(239, 68, 68, 0.35);
+  color: #f87171;
+  border-radius: 8px;
+  padding: 4px 8px;
+  font-size: 0.73rem;
+  font-weight: 700;
+  cursor: pointer;
+  margin-left: auto;
+}
+
+.compact-nav-stop-btn:hover {
+  background: rgba(239, 68, 68, 0.28);
+}
+
+.compact-step-list {
+  max-height: 150px !important;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.compact-step-list .route-guide-step {
+  min-height: 42px !important;
+  padding: 6px 8px !important;
+  font-size: 0.82rem !important;
+}
+
+/* 모바일 화면에서 답답함 제거: 최대 높이를 36vh로 제한하고 접힘 상태 완벽 밀착 */
+@media (max-width: 992px) {
+  .floating-overlay-right {
+    max-height: 38vh !important;
+    bottom: 8px !important;
+  }
+
+  .route-guide.is-expanded {
+    max-height: 38vh !important;
+  }
+
+  .route-guide.is-collapsed {
+    max-height: 52px !important;
+    padding: 3px 10px 5px !important;
+  }
+}
+
+[data-theme='light'] .compact-eta-row {
+  background: #ede3cc !important;
+  border-color: rgba(36, 75, 58, 0.18) !important;
+}
+
+[data-theme='light'] .compact-eta-time strong {
+  color: #10b981 !important;
+}
+
+[data-theme='light'] .compact-speed-btn {
+  background: #e2d4bc !important;
+  color: #274c3b !important;
+  border-color: rgba(36, 75, 58, 0.2) !important;
+}
+
+[data-theme='light'] .compact-speed-btn.active {
+  background: #244b3a !important;
+  color: #f3edde !important;
+}
+
+[data-theme='light'] .compact-nav-controls {
+  background: #e2d4bc !important;
+  border: 1px solid rgba(36, 75, 58, 0.18) !important;
+}
+
+[data-theme='light'] .compact-nav-btn {
+  background: #ede3cc !important;
+  color: #143023 !important;
+}

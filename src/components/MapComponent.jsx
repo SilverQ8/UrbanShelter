@@ -46,7 +46,10 @@ export default function MapComponent({
   travelMode = 'foot',
   locateTarget = null,
   poiSelected = {},
-  pois = []
+  pois = [],
+  navigating = false,
+  navPoint = null,
+  navHeading = 0
 }) {
   const mapContainerRef = useRef(null);
   const mapInstanceRef = useRef(null);
@@ -1364,11 +1367,51 @@ export default function MapComponent({
     }
   }, [mode, recommendedRoute, standardRoute, transitRoute, mapTheme, travelMode]);
 
+
+  // 3-0. 길안내(내비게이션) 활성화 시 사용자 위치 중심 자동 추적 안내
+  useEffect(() => {
+    const map = mapInstanceRef.current;
+    if (!map || !navigating || !navPoint) return;
+    map.setView([navPoint[0], navPoint[1]], Math.max(map.getZoom(), 17), {
+      animate: true,
+      duration: 0.6
+    });
+  }, [navigating, navPoint]);
+
   // 3. Interactive Markers (User GPS, Start A, Target B)
   useEffect(() => {
     const markLayer = markersLayerRef.current;
     if (!markLayer) return;
     markLayer.clearLayers();
+
+
+    // 길안내 중일 때 사용자 중심 안내 마커 (방향 화살표 + 레이더 펄스)
+    if (navigating && navPoint) {
+      const navHeadingDeg = Math.round(navHeading || 0);
+      const navIcon = L.divIcon({
+        className: 'nav-user-heading-marker',
+        html: `
+          <div class="nav-marker-wrapper">
+            <div class="nav-marker-radar"></div>
+            <div class="nav-marker-core">
+              <div class="nav-marker-arrow" style="transform: rotate(${navHeadingDeg}deg);">
+                <svg viewBox="0 0 24 24" width="22" height="22" fill="#ffffff">
+                  <path d="M12 2L4.5 20.29l.71.71L12 18l6.79 3 .71-.71z"/>
+                </svg>
+              </div>
+            </div>
+          </div>
+        `,
+        iconSize: [44, 44],
+        iconAnchor: [22, 22]
+      });
+      const navMarker = L.marker([navPoint[0], navPoint[1]], {
+        icon: navIcon,
+        zIndexOffset: 1200
+      });
+      navMarker.bindTooltip('<strong>🧭 내비게이션 안내 중</strong>', { className: 'route-tooltip-custom' });
+      markLayer.addLayer(navMarker);
+    }
 
     // User GPS Dot
     if (userGps && userGps.lat && userGps.lng) {
@@ -1455,7 +1498,7 @@ export default function MapComponent({
       );
       markLayer.addLayer(targetMarker);
     }
-  }, [userGps, startPoint, targetPoint, startNodeId, targetNodeId, setStartPoint, setTargetPoint, setStartNodeId, setTargetNodeId]);
+  }, [userGps, startPoint, targetPoint, startNodeId, targetNodeId, setStartPoint, setTargetPoint, setStartNodeId, setTargetNodeId, navigating, navPoint, navHeading]);
 
   return (
     <div style={{ position: 'relative', width: '100%', height: '100%' }}>

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   ArrowUp,
   ArrowUpLeft,
@@ -12,7 +12,6 @@ import {
   ChevronDown,
   ChevronUp,
   X,
-  Footprints,
   ChevronLeft,
   ChevronRight,
   Square,
@@ -56,13 +55,21 @@ export default function RouteGuide({
   nearDestination = false,
   onReroute
 }) {
-  const [open, setOpen] = useState(true);
+  // 길안내(내비게이션) 중에는 기본적으로 하단으로 접혀(collapsed) 지도 화면을 시원하게 보여준다
+  const [isCollapsed, setIsCollapsed] = useState(Boolean(navigating));
   const [activeIdx, setActiveIdx] = useState(null);
   const [voiceOn, setVoiceOn] = useState(isTtsEnabled());
   const [currentTime, setCurrentTime] = useState(() => new Date());
 
+  // 길안내 시작 시 자동으로 하단으로 접힘
+  useEffect(() => {
+    if (navigating) {
+      setIsCollapsed(true);
+    }
+  }, [navigating]);
+
   // 실시간 예상 도착 시각(ETA)을 위해 매 초마다 현재 시각을 갱신
-  React.useEffect(() => {
+  useEffect(() => {
     const timer = setInterval(() => {
       setCurrentTime(new Date());
     }, 1000);
@@ -70,13 +77,13 @@ export default function RouteGuide({
   }, []);
 
   const hasSteps = Array.isArray(steps) && steps.length > 0;
-  // 남은 거리 및 실시간 남은 소요 시간 계산 (보행 단계 진행에 따라 실시간 갱신)
+  // 남은 거리 및 실시간 남은 소요 시간 계산
   const remainingDistance = navigating && hasSteps
     ? steps.slice(navIndex).reduce((sum, s) => sum + (s.distance || 0), 0)
     : (totalDistance || 0);
   const remainingMinutes = Math.max(1, Math.round(remainingDistance / (walkSpeed || 75)));
 
-  // 예상 도착 시각 (현재 시각 + 남은 분)
+  // 예상 도착 시각
   const etaDate = new Date(currentTime.getTime() + remainingMinutes * 60 * 1000);
   const formatEta = (d) => {
     let h = d.getHours();
@@ -89,12 +96,7 @@ export default function RouteGuide({
   };
   const etaText = formatEta(etaDate);
 
-  // 걸음 수 추정: 느린 걸음(50m/분)은 보폭 0.5m, 보통 걸음은 0.7m 정도로 본다
-  const stride = walkSpeed <= 50 ? 0.5 : 0.7;
-  const stepCount = Math.round(remainingDistance / stride);
-
   const currentStep = navigating && hasSteps ? steps[navIndex] : null;
-  const nextStep = navigating && hasSteps ? steps[navIndex + 1] : null;
 
   // 음성 안내 토글
   const handleToggleVoice = (e) => {
@@ -105,7 +107,7 @@ export default function RouteGuide({
   };
 
   // 단계 변경 시 자동 음성 안내
-  React.useEffect(() => {
+  useEffect(() => {
     if (navigating && currentStep) {
       let speechText = navIndex === 0 ? '길안내를 시작합니다. ' : '';
       if (currentStep.distance > 0) speechText += `${formatDistance(currentStep.distance)} 앞, `;
@@ -116,7 +118,7 @@ export default function RouteGuide({
   }, [navIndex, navigating]);
 
   // 목적지 부근 도착 시 안내
-  React.useEffect(() => {
+  useEffect(() => {
     if (navigating && nearDestination) {
       speakGuide('목적지 부근에 도착했습니다. 안내를 종료합니다.');
     }
@@ -132,55 +134,187 @@ export default function RouteGuide({
   };
 
   return (
-    <aside className="glass-panel route-guide" aria-label="길 안내">
-      <div className="route-guide-headrow">
-        <button
-          type="button"
-          className="route-guide-header"
-          onClick={() => setOpen((v) => !v)}
-          aria-expanded={open}
-        >
-          <span className="route-guide-title">
-            <ListOrdered size={16} />
-            길안내
-          </span>
-          <span className="route-guide-summary">
-            {navigating
-              ? `${etaText} 도착 · ${formatDistance(remainingDistance)}`
-              : `${etaText} 도착 · 약 ${formatDuration(totalMinutes)}`}
-          </span>
-          {open ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-        </button>
-
-        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-          <button
-            type="button"
-            className="route-guide-close"
-            onClick={handleToggleVoice}
-            aria-label={voiceOn ? '음성 안내 끄기' : '음성 안내 켜기'}
-            title={voiceOn ? '음성 안내 켜짐 (클릭 시 끄기)' : '음성 안내 꺼짐 (클릭 시 켜기)'}
-            style={{ color: voiceOn ? '#34d399' : '#94a3b8' }}
-          >
-            {voiceOn ? <Volume2 size={17} /> : <VolumeX size={17} />}
-          </button>
-          <button type="button" className="route-guide-close" onClick={onClose} aria-label="길 안내 닫기" title="닫기">
-            <X size={18} />
-          </button>
-        </div>
+    <aside className={`glass-panel route-guide ${isCollapsed ? 'is-collapsed' : 'is-expanded'}`} aria-label="길안내">
+      {/* 바텀시트 슬라이드 핸들 바 */}
+      <div
+        className="route-guide-drag-handle"
+        onClick={() => setIsCollapsed((v) => !v)}
+        role="button"
+        tabIndex={0}
+        title={isCollapsed ? '상세 길안내 펼치기' : '하단으로 내리기'}
+        aria-label={isCollapsed ? '상세 길안내 펼치기' : '하단으로 내리기'}
+      >
+        <div className="route-guide-handle-pill" />
       </div>
 
-      {open && (
+      {isCollapsed ? (
+        /* 1. 하단으로 내렸을 때 (축소 상태): 지도를 가리지 않는 초슬림 요약 바 */
+        <div
+          className="route-guide-collapsed-bar"
+          onClick={() => setIsCollapsed(false)}
+          role="button"
+          tabIndex={0}
+          title="클릭하여 상세 길안내 펼치기"
+        >
+          <div className="collapsed-time-info">
+            <span className="collapsed-duration">
+              약 {formatDuration(totalMinutes || remainingMinutes)}
+            </span>
+            <span className="collapsed-divider">·</span>
+            <span className="collapsed-distance">
+              {formatDistance(remainingDistance)}
+            </span>
+            <span className="collapsed-divider">·</span>
+            <span className="collapsed-eta">
+              {etaText} 도착
+            </span>
+          </div>
+
+          <div className="collapsed-actions">
+            <button
+              type="button"
+              className="collapsed-expand-btn"
+              onClick={(e) => {
+                e.stopPropagation();
+                setIsCollapsed(false);
+              }}
+              title="상세 목록 펼치기"
+            >
+              <ListOrdered size={14} />
+              <span>상세보기</span>
+              <ChevronUp size={14} />
+            </button>
+            <button
+              type="button"
+              className="route-guide-close"
+              onClick={(e) => {
+                e.stopPropagation();
+                onClose?.();
+              }}
+              aria-label="닫기"
+              title="닫기"
+            >
+              <X size={15} />
+            </button>
+          </div>
+        </div>
+      ) : (
+        /* 2. 펼쳐진 상태: 화면을 가리지 않도록 콤팩트하게 압축된 상세 정보 */
         <>
-          {!isCar && (
-            <div className="route-guide-steps-count" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span>👣 약 {stepCount.toLocaleString()}걸음</span>
-              <span style={{ color: 'var(--accent-cyan)', fontWeight: 700 }}>
-                🕒 {etaText} 도착 예정
+          <div className="route-guide-headrow">
+            <button
+              type="button"
+              className="route-guide-header"
+              onClick={() => setIsCollapsed(true)}
+              aria-expanded={!isCollapsed}
+              title="하단으로 접기"
+            >
+              <span className="route-guide-title">
+                <ListOrdered size={16} />
+                길안내
               </span>
+              <span className="route-guide-summary">
+                {etaText} 도착 · {formatDistance(remainingDistance)}
+              </span>
+            </button>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+              <button
+                type="button"
+                className="route-guide-close route-guide-collapse-trigger"
+                onClick={() => setIsCollapsed(true)}
+                aria-label="하단으로 내리기"
+                title="하단으로 내리기"
+              >
+                <ChevronDown size={18} />
+              </button>
+              <button
+                type="button"
+                className="route-guide-close"
+                onClick={handleToggleVoice}
+                aria-label={voiceOn ? '음성 안내 끄기' : '음성 안내 켜기'}
+                title={voiceOn ? '음성 안내 켜짐' : '음성 안내 꺼짐'}
+                style={{ color: voiceOn ? '#34d399' : '#94a3b8' }}
+              >
+                {voiceOn ? <Volume2 size={17} /> : <VolumeX size={17} />}
+              </button>
+              <button type="button" className="route-guide-close" onClick={onClose} aria-label="길안내 닫기" title="닫기">
+                <X size={18} />
+              </button>
+            </div>
+          </div>
+
+          {/* 길안내 중일 때 실시간 ETA 및 조작 바 */}
+          {navigating && currentStep && (
+            <div className="compact-nav-wrapper">
+              <div className="compact-eta-row">
+                <div className="compact-eta-time">
+                  <strong>{etaText}</strong> 도착
+                  <span className="compact-eta-rem"> (약 {formatDuration(remainingMinutes)} · {formatDistance(remainingDistance)})</span>
+                </div>
+
+                {!isCar && onChangeWalkSpeed && (
+                  <div className="compact-speed-group">
+                    {SPEED_LEVELS.map((lvl) => {
+                      const isActive = walkSpeed === lvl.speed;
+                      return (
+                        <button
+                          key={lvl.id}
+                          type="button"
+                          className={`compact-speed-btn ${isActive ? 'active' : ''}`}
+                          onClick={() => onChangeWalkSpeed(lvl.speed)}
+                          title={lvl.desc}
+                        >
+                          {lvl.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {nearDestination && (
+                <div className="route-guide-arrival" role="status">
+                  📍 목적지 이 주변이에요
+                </div>
+              )}
+
+              {/* 이전 / 다음 / 단계 수 / 안내 종료 한 줄 바 */}
+              <div className="compact-nav-controls">
+                <button
+                  type="button"
+                  className="compact-nav-btn"
+                  onClick={() => onSelectNavStep?.(Math.max(0, navIndex - 1))}
+                  disabled={navIndex === 0 || liveStatus === 'following'}
+                  aria-label="이전 안내"
+                >
+                  <ChevronLeft size={16} /> 이전
+                </button>
+                <span className="compact-step-counter">
+                  {navIndex + 1} / {steps.length} 단계
+                </span>
+                <button
+                  type="button"
+                  className="compact-nav-btn"
+                  onClick={() => onSelectNavStep?.(Math.min(steps.length - 1, navIndex + 1))}
+                  disabled={navIndex >= steps.length - 1 || liveStatus === 'following'}
+                  aria-label="다음 안내"
+                >
+                  다음 <ChevronRight size={16} />
+                </button>
+                <button
+                  type="button"
+                  className="compact-nav-stop-btn"
+                  onClick={onStopNav}
+                  title="길안내 종료"
+                >
+                  <Square size={12} /> 안내종료
+                </button>
+              </div>
             </div>
           )}
 
-          {/* 길안내 시작 버튼 */}
+          {/* 길안내 시작 버튼 (안내 중이 아닐 때만 노출) */}
           {hasSteps && !navigating && (
             <div className="route-guide-startbar">
               <button
@@ -191,133 +325,15 @@ export default function RouteGuide({
                   speakGuide(mode === 'transit' ? '대중교통 길안내를 시작합니다.' : isCar ? '차량 길안내를 시작합니다.' : '도보 길안내를 시작합니다.');
                 }}
               >
-                <Navigation size={18} />
+                <Navigation size={16} />
                 길안내 시작
               </button>
             </div>
           )}
 
-          {navigating && currentStep && (
-            <div className="route-guide-nav">
-              {/* 실시간 예상 도착시간 (ETA) 대시보드 카드 */}
-              <div className="route-guide-eta-box">
-                <div className="route-guide-eta-header">
-                  <div className="route-guide-eta-live-pill">
-                    <span className="live-dot-pulse" />
-                    <span>실시간 도착 안내</span>
-                  </div>
-                  <span className="route-guide-eta-dist">
-                    남은 {formatDistance(remainingDistance)}{!isCar && ` · 약 ${stepCount.toLocaleString()}걸음`}
-                  </span>
-                </div>
-
-                <div className="route-guide-eta-main">
-                  <div className="route-guide-eta-time">
-                    <span className="eta-clock-val">{etaText}</span>
-                    <span className="eta-badge-arrive">도착</span>
-                  </div>
-                  <div className="route-guide-eta-rem">
-                    <Clock size={15} color="#38bdf8" />
-                    <span>약 <strong>{formatDuration(remainingMinutes)}</strong> 남음</span>
-                  </div>
-                </div>
-
-                {/* 도보일 때 실시간 보행 속도 즉시 조절 바 */}
-                {!isCar && onChangeWalkSpeed && (
-                  <div className="route-guide-speed-bar">
-                    <span className="speed-bar-label">걸음 속도:</span>
-                    <div className="speed-btn-group">
-                      {SPEED_LEVELS.map((lvl) => {
-                        const isActive = walkSpeed === lvl.speed;
-                        return (
-                          <button
-                            key={lvl.id}
-                            type="button"
-                            className={`nav-speed-btn ${isActive ? 'active' : ''}`}
-                            onClick={() => onChangeWalkSpeed(lvl.speed)}
-                            title={lvl.desc}
-                          >
-                            {lvl.label} ({lvl.kmh}k)
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
-              </div>
-              {nearDestination && (
-                <div className="route-guide-arrival" role="status">
-                  📍 목적지 이 주변이에요
-                </div>
-              )}
-              <div className={`route-guide-live live-${liveStatus}`} role="status">
-                {liveStatus === 'following' && '📡 내 위치를 따라가는 중'}
-                {liveStatus === 'searching' && '📡 내 위치 확인 중…'}
-                {liveStatus === 'off-route' && (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', alignItems: 'center' }}>
-                    <span>⚠️ 경로를 벗어났습니다</span>
-                    {onReroute && (
-                      <button
-                        type="button"
-                        onClick={onReroute}
-                        style={{
-                          background: 'linear-gradient(135deg, #0284c7 0%, #38bdf8 100%)',
-                          color: '#ffffff',
-                          border: 'none',
-                          borderRadius: '6px',
-                          padding: '6px 12px',
-                          fontSize: '0.78rem',
-                          fontWeight: 700,
-                          cursor: 'pointer',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          gap: '6px',
-                          boxShadow: '0 2px 8px rgba(2, 132, 199, 0.4)'
-                        }}
-                      >
-                        <RotateCw size={13} /> 현재 위치에서 경로 재탐색
-                      </button>
-                    )}
-                  </div>
-                )}
-                {liveStatus === 'manual' && '위치를 쓸 수 없어요 · 아래 버튼으로 직접 넘겨 주세요'}
-              </div>
-              <div className="route-guide-nav-now">
-                <span className="route-guide-nav-count">{navIndex + 1} / {steps.length}</span>
-                <strong>{currentStep.text}</strong>
-                {currentStep.name && <span>{currentStep.name}</span>}
-                {currentStep.distance > 0 && (
-                  <span className="route-guide-nav-dist">{formatDistance(currentStep.distance)} 걷기</span>
-                )}
-                {nextStep && <span className="route-guide-nav-next">다음: {nextStep.text}</span>}
-              </div>
-              <div className="route-guide-nav-buttons">
-                <button
-                  type="button"
-                  onClick={() => onSelectNavStep?.(Math.max(0, navIndex - 1))}
-                  disabled={navIndex === 0 || liveStatus === 'following'}
-                  aria-label="이전 안내"
-                >
-                  <ChevronLeft size={22} /> 이전
-                </button>
-                <button
-                  type="button"
-                  onClick={() => onSelectNavStep?.(Math.min(steps.length - 1, navIndex + 1))}
-                  disabled={navIndex >= steps.length - 1 || liveStatus === 'following'}
-                  aria-label="다음 안내"
-                >
-                  다음 <ChevronRight size={22} />
-                </button>
-              </div>
-              <button type="button" className="route-guide-stop" onClick={onStopNav}>
-                <Square size={14} /> 안내 종료
-              </button>
-            </div>
-          )}
-
+          {/* 스크롤 가능한 단계 목록 */}
           {hasSteps ? (
-            <ol className="route-guide-list">
+            <ol className="route-guide-list compact-step-list">
               {steps.map((step, idx) => {
                 const Icon = ICONS[step.icon] || ArrowUp;
                 const isEdge = step.icon === 'depart' || step.icon === 'arrive';
@@ -329,7 +345,7 @@ export default function RouteGuide({
                       onClick={() => handleSelect(idx, step)}
                     >
                       <span className="route-guide-icon">
-                        <Icon size={22} strokeWidth={2.4} />
+                        <Icon size={18} strokeWidth={2.4} />
                       </span>
                       <span className="route-guide-text">
                         <strong>{step.text}</strong>
@@ -345,11 +361,8 @@ export default function RouteGuide({
             </ol>
           ) : (
             <div className="route-guide-empty">
-              상세 길 안내를 불러오지 못했어요. 네트워크 연결을 확인하고 출발·도착지를 다시 선택해 주세요.
+              상세 길안내를 불러오지 못했어요.
             </div>
-          )}
-          {mode === 'shade' && hasSteps && (
-            <div className="route-guide-note">안내는 보행로 기준이며, 그늘 경로는 같은 길 위에서 보정됩니다.</div>
           )}
         </>
       )}
