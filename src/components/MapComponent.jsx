@@ -124,7 +124,6 @@ export default function MapComponent({
 
     // Controls
     L.control.zoom({ position: 'bottomright' }).addTo(map);
-    L.control.attribution({ position: 'bottomright' }).addTo(map);
 
     // Initialize Layer Groups in proper z-order
     // 건물 윤곽·가로수는 CCTV·가로등·경로보다 아래에 깐다
@@ -1540,10 +1539,12 @@ export default function MapComponent({
           </div>
         </div>
       )}
-
-
-
-
+      {/* 맵 우측 최하단 구석 고정 출처 표기 (Leaflet/OSM) */}
+      <div className="map-osm-attribution">
+        <a href="https://leafletjs.com" target="_blank" rel="noopener noreferrer">Leaflet</a>
+        <span> | © </span>
+        <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap</a>
+      </div>
     </div>
   );
 }
