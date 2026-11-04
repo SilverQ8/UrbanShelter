@@ -120,7 +120,7 @@ export default function MapComponent({
     }
 
     // Controls
-    L.control.zoom({ position: 'topright' }).addTo(map);
+    L.control.zoom({ position: 'bottomright' }).addTo(map);
     L.control.attribution({ position: 'bottomright' }).addTo(map);
 
     // Initialize Layer Groups in proper z-order

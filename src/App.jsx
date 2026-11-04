@@ -590,7 +590,7 @@ export default function App() {
   const startNavigation = () => {
     setNavIndex(0);
     setNavigating(true);
-    setViewMode('3d');
+
   };
 
   // 주변 장소(병원·편의점 등): 경로 주변을 불러오고, 고른 종류만 지도에 표시한다
@@ -755,7 +755,7 @@ export default function App() {
   const closeGuide = () => {
     if (navigating) {
       setNavigating(false);
-      setViewMode('2d');
+
     }
     setShowGuide(false);
   };
@@ -979,7 +979,10 @@ export default function App() {
             walkSpeed={walkSpeed}
             onChangeWalkSpeed={changeWalkSpeed}
             sunPos={sunPos}
-            onShowGuide={() => setShowGuide(true)}
+            onShowGuide={() => {
+              setShowGuide(true);
+              startNavigation();
+            }}
             guideOpen={showGuide}
           />
 

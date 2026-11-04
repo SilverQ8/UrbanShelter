@@ -910,7 +910,7 @@ export default function RouteSearch({
           aria-pressed={guideOpen}
         >
           <Navigation size={18} />
-          탐색
+          길안내
         </button>
       </div>
     </div>

@@ -19,7 +19,8 @@ import {
   Volume2,
   VolumeX,
   RotateCw,
-  Clock
+  Clock,
+  Navigation
 } from 'lucide-react';
 import { formatDistance, formatDuration } from '../utils/format';
 import { speakGuide, isTtsEnabled, toggleTts } from '../utils/ttsService';
@@ -106,9 +107,10 @@ export default function RouteGuide({
   // 단계 변경 시 자동 음성 안내
   React.useEffect(() => {
     if (navigating && currentStep) {
-      let speechText = currentStep.text;
+      let speechText = navIndex === 0 ? '길안내를 시작합니다. ' : '';
+      if (currentStep.distance > 0) speechText += `${formatDistance(currentStep.distance)} 앞, `;
+      speechText += currentStep.text;
       if (currentStep.name) speechText += `, ${currentStep.name} 방면`;
-      if (currentStep.distance > 0) speechText = `${formatDistance(currentStep.distance)} 앞, ${speechText}`;
       speakGuide(speechText);
     }
   }, [navIndex, navigating]);
@@ -140,7 +142,7 @@ export default function RouteGuide({
         >
           <span className="route-guide-title">
             <ListOrdered size={16} />
-            길 안내
+            길안내
           </span>
           <span className="route-guide-summary">
             {navigating
@@ -178,19 +180,19 @@ export default function RouteGuide({
             </div>
           )}
 
-          {/* 탐색 시작 / 보행자 시점 안내 */}
-          {hasSteps && !navigating && !isCar && (
+          {/* 길안내 시작 버튼 */}
+          {hasSteps && !navigating && (
             <div className="route-guide-startbar">
               <button
                 type="button"
                 className="route-guide-start"
                 onClick={() => {
                   onStartNav();
-                  speakGuide(mode === 'transit' ? '대중교통 길 안내를 시작합니다.' : '보행 길 안내를 시작합니다.');
+                  speakGuide(mode === 'transit' ? '대중교통 길안내를 시작합니다.' : isCar ? '차량 길안내를 시작합니다.' : '도보 길안내를 시작합니다.');
                 }}
               >
-                <Footprints size={20} />
-                {mode === 'transit' ? '대중교통 길 안내 시작' : '보행자 시점으로 걷기'}
+                <Navigation size={18} />
+                길안내 시작
               </button>
             </div>
           )}
@@ -205,7 +207,7 @@ export default function RouteGuide({
                     <span>실시간 도착 안내</span>
                   </div>
                   <span className="route-guide-eta-dist">
-                    남은 {formatDistance(remainingDistance)} · 약 {stepCount.toLocaleString()}걸음
+                    남은 {formatDistance(remainingDistance)}{!isCar && ` · 약 ${stepCount.toLocaleString()}걸음`}
                   </span>
                 </div>
 
@@ -309,7 +311,7 @@ export default function RouteGuide({
                 </button>
               </div>
               <button type="button" className="route-guide-stop" onClick={onStopNav}>
-                <Square size={14} /> 탐색 종료
+                <Square size={14} /> 안내 종료
               </button>
             </div>
           )}
