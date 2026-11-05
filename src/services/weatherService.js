@@ -17,7 +17,7 @@ export async function fetchCurrentWeather(lat, lng, signal) {
   const params = new URLSearchParams({
     latitude: lat.toFixed(4),
     longitude: lng.toFixed(4),
-    current: 'temperature_2m,apparent_temperature,precipitation,weather_code,is_day,uv_index',
+    current: 'temperature_2m,apparent_temperature,precipitation,rain,showers,snowfall,weather_code,is_day,uv_index',
     timezone: 'auto'
   });
   try {
@@ -26,8 +26,8 @@ export async function fetchCurrentWeather(lat, lng, signal) {
     const c = (await resp.json()).current;
     if (!c) return null;
     const code = c.weather_code;
-    const isSnowing = SNOW_CODES.has(code);
-    const isRaining = !isSnowing && (c.precipitation > 0 || RAIN_CODES.has(code));
+    const isSnowing = SNOW_CODES.has(code) || (c.snowfall && c.snowfall > 0);
+    const isRaining = !isSnowing && (c.precipitation > 0 || (c.rain && c.rain > 0) || (c.showers && c.showers > 0) || RAIN_CODES.has(code));
     return {
       temperature: c.temperature_2m,
       apparent: c.apparent_temperature,

@@ -140,9 +140,9 @@ export default function Map3D({
   // 실시간 기상 데이터 연동 (눈 우선 판별 후 비/강수량 판별)
   const activeWeatherType = useMemo(() => {
     if (weather?.isSnowing) return 'snow';
-    if (weather?.isRaining || (weather?.precipitation && weather.precipitation > 0)) return 'rain';
+    if (weather?.isRaining || (weather?.precipitation && weather.precipitation > 0) || mode === 'rain') return 'rain';
     return null;
-  }, [weather]);
+  }, [weather, mode]);
 
   const weatherIntensity = useMemo(() => {
     if (!weather?.precipitation || weather.precipitation <= 0) return 1.0;

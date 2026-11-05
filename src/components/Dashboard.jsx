@@ -42,7 +42,7 @@ export default function Dashboard({
       <div className="dashboard-header">
         <div className="route-badge-row">
           {travelMode === 'transit' ? (
-            <span className="route-type-badge" style={{ background: 'rgba(56, 189, 248, 0.18)', color: '#38bdf8', border: '1px solid rgba(56, 189, 248, 0.35)' }}>
+            <span className="route-type-badge badge-transit">
               <Navigation size={13} />
               <span>대중교통 최적 경로 (TMAP 실시간 지하철·버스 노선 연동)</span>
             </span>
@@ -55,7 +55,7 @@ export default function Dashboard({
                 </span>
               )}
               {mode === 'shade' && (
-                <span className="route-type-badge badge-rain" style={{ background: 'rgba(16, 185, 129, 0.18)', color: '#10b981', border: '1px solid rgba(16, 185, 129, 0.35)' }}>
+                <span className="route-type-badge badge-shade">
                   <SunMedium size={13} />
                   <span>폭염 안심 그늘 경로 (실시간 태양 위치 및 건물 그늘 분석)</span>
                 </span>
@@ -70,7 +70,7 @@ export default function Dashboard({
           )}
         </div>
 
-        <div style={{ fontSize: '0.75rem', color: 'var(--text-dim)' }}>
+        <div className="dashboard-subtext">
           {travelMode === 'transit'
             ? '실시간 대중교통 배차 및 정류장 기준 · 첫/마지막 도보 구간은 보행자 맞춤 안내'
             : isCar
@@ -128,7 +128,7 @@ export default function Dashboard({
         {/* 3. 그늘 보행 비율 & 직사광선 회피 */}
         <div className={`metric-box ${isNight ? '' : (recommendedRoute.shadeRatio >= 60 ? 'green' : 'amber')}`}>
           <div className="metric-title">
-            <SunMedium size={12} color={isNight ? 'var(--text-muted)' : '#10b981'} />
+            <SunMedium size={12} className={isNight ? 'metric-icon-muted' : 'metric-icon-sun'} />
             <span>그늘 보행 비율</span>
           </div>
           <div className="metric-value-wrap">
@@ -139,7 +139,7 @@ export default function Dashboard({
               </>
             ) : (
               <>
-                <span className="metric-value" style={{ color: '#10b981' }}>{recommendedRoute.shadeRatio ?? 0}</span>
+                <span className="metric-value metric-value-green">{recommendedRoute.shadeRatio ?? 0}</span>
                 <span className="metric-unit">%</span>
               </>
             )}
@@ -195,7 +195,7 @@ export default function Dashboard({
             ) : mode === 'night' ? (
               <ShieldCheck size={16} color="#38bdf8" />
             ) : (
-              <CheckCircle2 size={16} color="var(--accent-cyan)" />
+              <CheckCircle2 size={16} className="hazard-icon-check" />
             )}
             <span>
               {mode === 'shade'

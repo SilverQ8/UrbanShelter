@@ -969,6 +969,15 @@ export default function App() {
 
         {/* Floating Left Overlay: Route Search & Control Panel */}
         <div className={`floating-overlay-left ${showGuide ? "guide-active" : ""} ${isMobileSearchOpen ? "mobile-open" : "mobile-closed"}`}>
+          {/* 데스크톱 사이드바 브랜드 로고 (스크롤 시 함께 자연스럽게 이동하여 인풋과 겹치지 않음) */}
+          <div className="sidebar-brand-header">
+            <div className="brand-section">
+              <img className="brand-logo-img" src="/logo.svg" alt="오솔길" />
+              <div className="brand-title-wrap">
+                <h1 className="brand-title">오솔길</h1>
+              </div>
+            </div>
+          </div>
 
           {/* 날씨 기반 자동 경로 안내 */}
           <AutoBanner

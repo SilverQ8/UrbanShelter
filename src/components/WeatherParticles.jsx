@@ -24,8 +24,8 @@ export default function WeatherParticles({ type = null, intensity = 1.0 }) {
 
     const resize = () => {
       if (!canvas || !canvas.parentElement) return;
-      cssWidth = canvas.parentElement.clientWidth;
-      cssHeight = canvas.parentElement.clientHeight;
+      cssWidth = canvas.parentElement?.clientWidth || window.innerWidth;
+      cssHeight = canvas.parentElement?.clientHeight || window.innerHeight;
       dpr = window.devicePixelRatio || 1;
       canvas.width = Math.round(cssWidth * dpr);
       canvas.height = Math.round(cssHeight * dpr);
@@ -257,7 +257,7 @@ export default function WeatherParticles({ type = null, intensity = 1.0 }) {
         width: '100%',
         height: '100%',
         pointerEvents: 'none',
-        zIndex: 5
+        zIndex: 10
       }}
     />
   );

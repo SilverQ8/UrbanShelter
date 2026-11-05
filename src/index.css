@@ -722,6 +722,39 @@ input:checked+.switch-slider:before {
   border: 1px solid rgba(16, 185, 129, 0.4);
 }
 
+.badge-shade {
+  background: rgba(16, 185, 129, 0.2);
+  color: #34d399;
+  border: 1px solid rgba(16, 185, 129, 0.4);
+}
+
+.badge-transit {
+  background: rgba(56, 189, 248, 0.2);
+  color: #38bdf8;
+  border: 1px solid rgba(56, 189, 248, 0.4);
+}
+
+.dashboard-subtext {
+  font-size: 0.75rem;
+  color: var(--text-dim);
+}
+
+.metric-value-green {
+  color: #10b981;
+}
+
+.metric-icon-sun {
+  color: #10b981;
+}
+
+.metric-icon-muted {
+  color: var(--text-muted);
+}
+
+.hazard-icon-check {
+  color: var(--accent-cyan);
+}
+
 /* Metrics Comparison Grid */
 .metrics-comparison-grid {
   display: grid;
@@ -3299,8 +3332,13 @@ input:checked+.switch-slider:before {
 }
 
 @media (min-width: 993px) {
+  /* 데스크톱: 상단 고정 로고를 숨기고, 사이드바 내부 로고가 스크롤과 함께 움직이도록 전환 */
+  .app-header .brand-section {
+    display: none !important;
+  }
+
   .floating-overlay-left {
-    padding-top: 66px;
+    padding-top: 0 !important;
   }
 
   /* 지도 오른쪽 위 버튼과 겹치지 않게 확대/축소와 정보 카드를 아래로 */
@@ -5096,11 +5134,16 @@ body {
    ========================================================================== */
 
 [data-theme='light'] .brand-section {
-  background: #f3edde !important;
-  border: 1.5px solid rgba(36, 75, 58, 0.25) !important;
-  border-radius: 14px !important;
-  box-shadow: 0 4px 16px rgba(36, 75, 58, 0.15) !important;
-  padding: 4px 12px 4px 5px !important;
+  background: transparent !important;
+  border: none !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+}
+
+[data-theme='light'] .brand-logo {
+  border: 1px solid rgba(36, 75, 58, 0.15) !important;
+  box-shadow: 0 2px 8px rgba(36, 75, 58, 0.12) !important;
 }
 
 [data-theme='light'] .brand-title {
@@ -5159,5 +5202,159 @@ body {
   [data-theme='light'] .poi-panel .poi-panel-header:hover {
     background: rgba(36, 75, 58, 0.12) !important;
     border-radius: 10px !important;
+  }
+}
+
+
+/* ==========================================================================
+   라이트 모드 경로 비교 대시보드 (Dashboard) 색상 조화 및 고대비 가독성 최적화
+   ========================================================================== */
+
+[data-theme='light'] .dashboard-header {
+  border-bottom-color: rgba(36, 75, 58, 0.16) !important;
+}
+
+[data-theme='light'] .dashboard-subtext {
+  color: #4a6b5d !important;
+  font-weight: 550 !important;
+}
+
+[data-theme='light'] .badge-standard {
+  background: rgba(36, 75, 58, 0.08) !important;
+  color: #1b3d2f !important;
+  border: 1.5px solid rgba(36, 75, 58, 0.24) !important;
+}
+
+[data-theme='light'] .badge-shade,
+[data-theme='light'] .badge-rain {
+  background: rgba(141, 181, 128, 0.22) !important;
+  color: #143023 !important;
+  border: 1.5px solid rgba(36, 75, 58, 0.28) !important;
+}
+
+[data-theme='light'] .badge-night {
+  background: rgba(14, 116, 144, 0.12) !important;
+  color: #0e7490 !important;
+  border: 1.5px solid rgba(14, 116, 144, 0.28) !important;
+}
+
+[data-theme='light'] .badge-transit {
+  background: rgba(2, 132, 199, 0.12) !important;
+  color: #0369a1 !important;
+  border: 1.5px solid rgba(2, 132, 199, 0.28) !important;
+}
+
+/* 4개 지표 카드 (밀크 아이보리 + 짙은 포레스트 그린) */
+[data-theme='light'] .metric-box {
+  background: #faf7ef !important;
+  border: 1.5px solid rgba(36, 75, 58, 0.18) !important;
+  box-shadow: 0 2px 8px rgba(36, 75, 58, 0.08) !important;
+}
+
+[data-theme='light'] .metric-box::before {
+  background: #4a7a63 !important;
+}
+
+[data-theme='light'] .metric-box.green::before {
+  background: #16a34a !important;
+}
+
+[data-theme='light'] .metric-box.amber::before {
+  background: #d97706 !important;
+}
+
+[data-theme='light'] .metric-title {
+  color: #4a6b5d !important;
+  font-weight: 700 !important;
+}
+
+[data-theme='light'] .metric-value {
+  color: #143023 !important;
+  font-weight: 850 !important;
+}
+
+[data-theme='light'] .metric-value-green {
+  color: #166534 !important;
+}
+
+[data-theme='light'] .metric-icon-sun {
+  color: #166534 !important;
+}
+
+[data-theme='light'] .metric-unit {
+  color: #4a6b5d !important;
+  font-weight: 700 !important;
+}
+
+[data-theme='light'] .comparison-neutral {
+  color: #5a7265 !important;
+  font-weight: 600 !important;
+}
+
+[data-theme='light'] .comparison-better {
+  color: #166534 !important;
+  font-weight: 700 !important;
+}
+
+[data-theme='light'] .comparison-warn {
+  color: #b91c1c !important;
+  font-weight: 700 !important;
+}
+
+/* 하단 상황별 안내 배너 (가장 짧은 길 등) */
+[data-theme='light'] .hazard-banner.info {
+  background: rgba(141, 181, 128, 0.22) !important;
+  border: 1.5px solid rgba(36, 75, 58, 0.26) !important;
+  color: #143023 !important;
+  font-weight: 750 !important;
+}
+
+[data-theme='light'] .hazard-banner.info svg,
+[data-theme='light'] .hazard-icon-check {
+  color: #244b3a !important;
+  stroke: #244b3a !important;
+}
+
+[data-theme='light'] .hazard-banner.warning {
+  background: rgba(245, 158, 11, 0.16) !important;
+  border: 1.5px solid rgba(217, 119, 6, 0.35) !important;
+  color: #92400e !important;
+  font-weight: 750 !important;
+}
+
+[data-theme='light'] .hazard-banner.danger {
+  background: rgba(239, 68, 68, 0.16) !important;
+  border: 1.5px solid rgba(220, 38, 38, 0.35) !important;
+  color: #991b1b !important;
+  font-weight: 750 !important;
+}
+
+
+/* ==========================================================================
+   사이드바 내부 브랜드 로고 (스크롤 시 함께 이동하여 인풋과 겹치는 버그 방지)
+   ========================================================================== */
+
+.sidebar-brand-header {
+  display: flex;
+  align-items: center;
+  padding: 13px 16px 4px 5px;
+  flex-shrink: 0;
+  pointer-events: auto;
+}
+
+.sidebar-brand-header .brand-section {
+  position: static !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 12px !important;
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+}
+
+@media (max-width: 992px) {
+  .sidebar-brand-header {
+    display: none !important;
   }
 }
