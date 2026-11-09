@@ -15,13 +15,25 @@ import {
   X,
   CornerDownLeft,
   SunMedium,
-  Bus
+  Bus,
+  Home,
+  GraduationCap,
+  Star,
+  Plus
 } from 'lucide-react';
 import { NODES } from '../data/urbanNetwork';
 import { findNearestNode } from '../engine/routingEngine';
 import { searchAddressLive } from '../services/addressService';
 import { formatDistance, formatDuration } from '../utils/format';
 import { SPEED_LEVELS, getAllSpeedLevels } from '../utils/profile';
+import {
+  loadFavorites,
+  setPresetFavorite,
+  removePresetFavorite,
+  addCustomFavorite,
+  removeCustomFavorite
+} from '../utils/favorites';
+import FavoriteRegisterModal from './FavoriteRegisterModal';
 import TravelModeToggle from './TravelModeToggle';
 
 export default function RouteSearch({
@@ -101,50 +113,93 @@ export default function RouteSearch({
     return () => document.removeEventListener('mousedown', handleOutsideClick);
   }, []);
 
+  const [favorites, setFavorites] = useState(() => loadFavorites());
+  const [favModalData, setFavModalData] = useState(null);
+  const [toastMsg, setToastMsg] = useState(null);
+
+  const showToast = (msg) => {
+    setToastMsg(msg);
+    setTimeout(() => setToastMsg(null), 2500);
+  };
+
+  const handleSelectFavorite = (place, targetField) => {
+    if (targetField === 'start') {
+      handleSelectStart(place);
+    } else {
+      handleSelectDest(place);
+    }
+    setActiveDropdown(null);
+  };
+
+  const handleDeleteFavorite = (type, customId = null) => {
+    if (type === 'custom' && customId) {
+      removeCustomFavorite(customId);
+    } else {
+      removePresetFavorite(type);
+    }
+    setFavorites(loadFavorites());
+    showToast('즐겨찾기에서 삭제되었습니다.');
+  };
+
+  const handleOpenFavRegister = (presetType = 'home', initialPlace = null) => {
+    setFavModalData({ presetType, initialPlace });
+  };
+
   // Real-time Start search input handler (processed 100% via backend)
+  // 거리 기반 검색 정렬을 위한 기준 위치 산출
+  const getSearchRefLocation = (type) => {
+    if (userGps?.lat && userGps?.lng) {
+      return { lat: userGps.lat, lng: userGps.lng };
+    }
+    if (type === 'dest' && startPoint?.lat && startPoint?.lng) {
+      return { lat: startPoint.lat, lng: startPoint.lng };
+    }
+    if (startPoint?.lat && startPoint?.lng) {
+      return { lat: startPoint.lat, lng: startPoint.lng };
+    }
+    return { lat: 35.1631, lng: 129.1636 };
+  };
+
+  // Real-time Start search input handler (processed 100% via backend with distance ranking)
   const handleStartChange = (e) => {
     const val = e.target.value;
     setStartQuery(val);
     clearTimeout(debounceTimerRef.current);
     setSelectedIndex(0);
+    setActiveDropdown('start');
 
     if (val.trim().length > 0) {
-      setActiveDropdown('start');
       setIsSearching(true);
-
-      // Instant search with debounce to backend
+      const refLoc = getSearchRefLocation('start');
       debounceTimerRef.current = setTimeout(async () => {
-        const results = await searchAddressLive(val);
+        const results = await searchAddressLive(val, refLoc);
         setStartResults(results);
         setIsSearching(false);
       }, 180);
     } else {
       setStartResults([]);
-      setActiveDropdown(null);
       setIsSearching(false);
     }
   };
 
-  // Real-time Destination search input handler (processed 100% via backend)
+  // Real-time Destination search input handler (processed 100% via backend with distance ranking)
   const handleDestChange = (e) => {
     const val = e.target.value;
     setDestQuery(val);
     clearTimeout(debounceTimerRef.current);
     setSelectedIndex(0);
+    setActiveDropdown('dest');
 
     if (val.trim().length > 0) {
-      setActiveDropdown('dest');
       setIsSearching(true);
-
-      // Instant search with debounce to backend
+      const refLoc = getSearchRefLocation('dest');
       debounceTimerRef.current = setTimeout(async () => {
-        const results = await searchAddressLive(val);
+        const results = await searchAddressLive(val, refLoc);
         setDestResults(results);
         setIsSearching(false);
       }, 180);
     } else {
       setDestResults([]);
-      setActiveDropdown(null);
       setIsSearching(false);
     }
   };
@@ -251,18 +306,18 @@ export default function RouteSearch({
     }
   };
 
-  // Clear queries
+  // Clear queries (clearing re-opens favorites dropdown)
   const handleClearStart = () => {
     setStartQuery('');
     setStartResults([]);
-    setActiveDropdown(null);
+    setActiveDropdown('start');
     if (startInputRef.current) startInputRef.current.focus();
   };
 
   const handleClearDest = () => {
     setDestQuery('');
     setDestResults([]);
-    setActiveDropdown(null);
+    setActiveDropdown('dest');
     if (destInputRef.current) destInputRef.current.focus();
   };
 
@@ -300,6 +355,192 @@ export default function RouteSearch({
     } else {
       onRequestGps();
     }
+  };
+
+  // 자주 가는 장소 (즐겨찾기) 드롭다운 뷰
+  const renderFavoritesDropdown = (targetField) => {
+    return (
+      <div className="fav-dropdown-inner">
+        <div className="dropdown-native-header">
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <Star size={13} color="#f59e0b" fill="#f59e0b" />
+            <span style={{ fontSize: '0.74rem', fontWeight: 700, color: 'var(--text-main)' }}>
+              자주 가는 장소 (즐겨찾기)
+            </span>
+          </div>
+          <button
+            type="button"
+            className="dropdown-close-btn"
+            onClick={() => setActiveDropdown(null)}
+            title="닫기"
+          >
+            <X size={12} />
+          </button>
+        </div>
+
+        <div className="fav-presets-list">
+          {/* 집 */}
+          <div
+            className={`fav-preset-row ${favorites.home ? 'registered' : 'empty'}`}
+            onClick={() => {
+              if (favorites.home) handleSelectFavorite(favorites.home, targetField);
+              else handleOpenFavRegister('home');
+            }}
+          >
+            <div className="fav-preset-icon-box home">
+              <Home size={15} color="#38bdf8" />
+            </div>
+            <div className="fav-preset-content">
+              <div className="fav-preset-title-row">
+                <span className="fav-preset-tag home">집</span>
+                <span className="fav-preset-name">
+                  {favorites.home ? favorites.home.name : '집 등록하기'}
+                </span>
+              </div>
+              {favorites.home ? (
+                <span className="fav-preset-addr">{favorites.home.roadAddress}</span>
+              ) : (
+                <span className="fav-preset-sub-hint">자주 가는 집 등록</span>
+              )}
+            </div>
+            {favorites.home ? (
+              <button
+                type="button"
+                className="fav-delete-btn"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleDeleteFavorite('home');
+                }}
+                title="집 등록 삭제"
+              >
+                <X size={13} />
+              </button>
+            ) : (
+              <span className="fav-add-badge"><Plus size={11} /> 등록</span>
+            )}
+          </div>
+
+          {/* 직장 */}
+          <div
+            className={`fav-preset-row ${favorites.work ? 'registered' : 'empty'}`}
+            onClick={() => {
+              if (favorites.work) handleSelectFavorite(favorites.work, targetField);
+              else handleOpenFavRegister('work');
+            }}
+          >
+            <div className="fav-preset-icon-box work">
+              <Building2 size={15} color="#f59e0b" />
+            </div>
+            <div className="fav-preset-content">
+              <div className="fav-preset-title-row">
+                <span className="fav-preset-tag work">직장</span>
+                <span className="fav-preset-name">
+                  {favorites.work ? favorites.work.name : '직장 등록하기'}
+                </span>
+              </div>
+              {favorites.work ? (
+                <span className="fav-preset-addr">{favorites.work.roadAddress}</span>
+              ) : (
+                <span className="fav-preset-sub-hint">자주 가는 직장 등록</span>
+              )}
+            </div>
+            {favorites.work ? (
+              <button
+                type="button"
+                className="fav-delete-btn"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleDeleteFavorite('work');
+                }}
+                title="직장 등록 삭제"
+              >
+                <X size={13} />
+              </button>
+            ) : (
+              <span className="fav-add-badge"><Plus size={11} /> 등록</span>
+            )}
+          </div>
+
+          {/* 학교 */}
+          <div
+            className={`fav-preset-row ${favorites.school ? 'registered' : 'empty'}`}
+            onClick={() => {
+              if (favorites.school) handleSelectFavorite(favorites.school, targetField);
+              else handleOpenFavRegister('school');
+            }}
+          >
+            <div className="fav-preset-icon-box school">
+              <GraduationCap size={15} color="#10b981" />
+            </div>
+            <div className="fav-preset-content">
+              <div className="fav-preset-title-row">
+                <span className="fav-preset-tag school">학교</span>
+                <span className="fav-preset-name">
+                  {favorites.school ? favorites.school.name : '학교 등록하기'}
+                </span>
+              </div>
+              {favorites.school ? (
+                <span className="fav-preset-addr">{favorites.school.roadAddress}</span>
+              ) : (
+                <span className="fav-preset-sub-hint">자주 가는 학교 등록</span>
+              )}
+            </div>
+            {favorites.school ? (
+              <button
+                type="button"
+                className="fav-delete-btn"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleDeleteFavorite('school');
+                }}
+                title="학교 등록 삭제"
+              >
+                <X size={13} />
+              </button>
+            ) : (
+              <span className="fav-add-badge"><Plus size={11} /> 등록</span>
+            )}
+          </div>
+
+          {/* 일반 즐겨찾기 목록 */}
+          {favorites.custom && favorites.custom.length > 0 && (
+            <div className="fav-custom-section">
+              <span className="fav-custom-section-title">⭐ 일반 즐겨찾기</span>
+              {favorites.custom.map((cust) => (
+                <div
+                  key={cust.id}
+                  className="fav-preset-row registered"
+                  onClick={() => handleSelectFavorite(cust, targetField)}
+                >
+                  <div className="fav-preset-icon-box custom">
+                    <Star size={14} color="#a78bfa" />
+                  </div>
+                  <div className="fav-preset-content">
+                    <span className="fav-preset-name">{cust.name}</span>
+                    <span className="fav-preset-addr">{cust.roadAddress}</span>
+                  </div>
+                  <button
+                    type="button"
+                    className="fav-delete-btn"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDeleteFavorite('custom', cust.id);
+                    }}
+                    title="즐겨찾기 삭제"
+                  >
+                    <X size={13} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="fav-dropdown-footer-hint">
+          💡 장소를 검색하고 <strong>⭐(즐겨찾기)</strong>를 누르면 언제든 집, 직장, 학교로 저장할 수 있어요.
+        </div>
+      </div>
+    );
   };
 
   return (
@@ -352,6 +593,63 @@ export default function RouteSearch({
 
       <TravelModeToggle travelMode={travelMode} setTravelMode={setTravelMode} />
 
+      {/* Quick Favorites Shortcut Chips */}
+      <div className="fav-quick-chips-bar">
+        <span className="fav-quick-label">즐겨찾기:</span>
+        <button
+          type="button"
+          className={`fav-quick-chip ${favorites.home ? 'registered' : ''}`}
+          onClick={() => {
+            if (favorites.home) handleSelectFavorite(favorites.home, activeDropdown || 'dest');
+            else handleOpenFavRegister('home');
+          }}
+          title={favorites.home ? `집: ${favorites.home.name} (클릭하여 설정)` : '집 등록하기'}
+        >
+          <Home size={12} color="#38bdf8" />
+          <span>{favorites.home ? '집' : '+ 집'}</span>
+        </button>
+
+        <button
+          type="button"
+          className={`fav-quick-chip ${favorites.work ? 'registered' : ''}`}
+          onClick={() => {
+            if (favorites.work) handleSelectFavorite(favorites.work, activeDropdown || 'dest');
+            else handleOpenFavRegister('work');
+          }}
+          title={favorites.work ? `직장: ${favorites.work.name} (클릭하여 설정)` : '직장 등록하기'}
+        >
+          <Building2 size={12} color="#f59e0b" />
+          <span>{favorites.work ? '직장' : '+ 직장'}</span>
+        </button>
+
+        <button
+          type="button"
+          className={`fav-quick-chip ${favorites.school ? 'registered' : ''}`}
+          onClick={() => {
+            if (favorites.school) handleSelectFavorite(favorites.school, activeDropdown || 'dest');
+            else handleOpenFavRegister('school');
+          }}
+          title={favorites.school ? `학교: ${favorites.school.name} (클릭하여 설정)` : '학교 등록하기'}
+        >
+          <GraduationCap size={12} color="#10b981" />
+          <span>{favorites.school ? '학교' : '+ 학교'}</span>
+        </button>
+
+        {favorites.custom && favorites.custom.length > 0 && (
+          <button
+            type="button"
+            className="fav-quick-chip registered"
+            onClick={() => {
+              handleSelectFavorite(favorites.custom[0], activeDropdown || 'dest');
+            }}
+            title={`⭐ ${favorites.custom[0].name} (클릭하여 설정)`}
+          >
+            <Star size={11} color="#a78bfa" />
+            <span>{favorites.custom[0].name.slice(0, 5)}</span>
+          </button>
+        )}
+      </div>
+
       {/* Origin & Destination Search Rows with Swap Button */}
       <div className="route-inputs-container">
         {/* 1. 출발지 도로명주소 검색 */}
@@ -387,9 +685,8 @@ export default function RouteSearch({
                 value={startQuery}
                 onChange={handleStartChange}
                 onKeyDown={handleStartKeyDown}
-                onFocus={() => {
-                  if (startQuery.trim().length > 0) setActiveDropdown('start');
-                }}
+                onFocus={() => setActiveDropdown('start')}
+                onClick={() => setActiveDropdown('start')}
                 className="dest-search-input"
               />
               <div className="input-right-actions">
@@ -411,76 +708,94 @@ export default function RouteSearch({
             {/* Start Live Auto-search Dropdown Panel (100% Native High Visibility) */}
             {activeDropdown === 'start' && (
               <div className="search-dropdown-menu">
-                {/* Clean Dropdown Header */}
-                <div className="dropdown-native-header">
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <Search size={12} color="var(--accent-cyan)" />
-                    <span style={{ fontSize: '0.74rem', fontWeight: 700, color: 'var(--text-main)' }}>
-                      검색 결과 ({startResults.length}건)
-                    </span>
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <span className="dropdown-hint-text">↑↓ 이동 · Enter 선택</span>
-                    <button
-                      className="dropdown-close-btn"
-                      onClick={() => setActiveDropdown(null)}
-                      title="닫기"
-                    >
-                      <X size={12} />
-                    </button>
-                  </div>
-                </div>
-
-                {/* High-visibility Results List (100% Pure React Native UI) */}
-                <div className="dropdown-scroll-body">
-                  {startResults.length > 0 ? (
-                    startResults.map((place, idx) => (
-                      <div
-                        key={idx}
-                        className={`search-dropdown-item ${selectedIndex === idx ? 'highlighted' : ''}`}
-                        onClick={() => handleSelectStart(place)}
-                        onMouseEnter={() => setSelectedIndex(idx)}
-                      >
-                        <MapPin size={15} color="#34d399" style={{ flexShrink: 0, marginTop: '3px' }} />
-                        <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minWidth: 0, gap: '2px' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0 }}>
-                              <span className="badge-road">도로명</span>
-                              <span className="place-item-name">{place.name}</span>
-                            </div>
-                            {place.category && (
-                              <span className="place-item-cat">{place.category}</span>
-                            )}
-                          </div>
-                          <div className="place-item-addr-row">
-                            <span className="place-item-addr">{place.roadAddress}</span>
-                            {selectedIndex === idx && (
-                              <span className="select-enter-hint">
-                                <CornerDownLeft size={10} /> 선택
-                              </span>
-                            )}
-                          </div>
-                        </div>
+                {!startQuery.trim() ? (
+                  renderFavoritesDropdown('start')
+                ) : (
+                  <>
+                    {/* Clean Dropdown Header */}
+                    <div className="dropdown-native-header">
+                      <div className="dropdown-header-title">
+                        <Search size={13} color="var(--accent-cyan)" />
+                        <span>검색 결과 ({startResults.length}건)</span>
                       </div>
-                    ))
-                  ) : (
-                    <div className="dropdown-empty-state">
-                      {isSearching ? (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                          <Loader2 size={15} className="spin-anim" color="var(--accent-cyan)" />
-                          <span>검색 중...</span>
-                        </div>
+                      <div className="dropdown-header-actions">
+                        <span className="dropdown-hint-text">↑↓ 선택</span>
+                        <button
+                          type="button"
+                          className="dropdown-close-btn"
+                          onClick={() => setActiveDropdown(null)}
+                          title="닫기"
+                        >
+                          <X size={13} />
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* High-visibility Results List */}
+                    <div className="dropdown-scroll-body">
+                      {startResults.length > 0 ? (
+                        startResults.map((place, idx) => (
+                          <div
+                            key={idx}
+                            className={`search-dropdown-item ${selectedIndex === idx ? 'highlighted' : ''}`}
+                            onClick={() => handleSelectStart(place)}
+                            onMouseEnter={() => setSelectedIndex(idx)}
+                          >
+                            <MapPin size={15} color="var(--accent-emerald)" className="place-item-pin" />
+                            <div className="place-item-content">
+                              <div className="place-item-main-row">
+                                <span className="place-item-name" title={place.name}>{place.name}</span>
+                                <div className="place-item-actions">
+                                  {place.distanceText && (
+                                    <span className="place-item-dist" title="현재 위치로부터의 거리">{place.distanceText}</span>
+                                  )}
+                                  <button
+                                    type="button"
+                                    className="place-fav-star-btn"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleOpenFavRegister('home', place);
+                                    }}
+                                    title="즐겨찾기(집·직장·학교)에 저장"
+                                  >
+                                    <Star size={12} color="#f59e0b" />
+                                  </button>
+                                </div>
+                              </div>
+                              <div className="place-item-sub-row">
+                                {place.category && (
+                                  <span className="place-item-cat">{place.category}</span>
+                                )}
+                                <span className="place-item-addr" title={place.roadAddress}>{place.roadAddress}</span>
+                                {selectedIndex === idx && (
+                                  <span className="select-enter-hint">
+                                    <CornerDownLeft size={10} /> 선택
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        ))
                       ) : (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', alignItems: 'center' }}>
-                          <span style={{ color: 'var(--text-muted)', fontWeight: 600 }}>일치하는 검색 결과가 없습니다.</span>
-                          <span style={{ fontSize: '0.68rem', color: 'var(--text-dim)' }}>
-                            건물명(예: 해운대자이, 센텀신세계)이나 도로명(구남로 20)을 입력해 보세요.
-                          </span>
+                        <div className="dropdown-empty-state">
+                          {isSearching ? (
+                            <div className="dropdown-loading-wrap">
+                              <Loader2 size={15} className="spin-anim" />
+                              <span>장소 검색 중...</span>
+                            </div>
+                          ) : (
+                            <div className="dropdown-empty-wrap">
+                              <p className="empty-title">일치하는 검색 결과가 없습니다.</p>
+                              <p className="empty-desc">
+                                건물명(예: 해운대자이, 센텀신세계)이나 도로명(구남로 20)을 입력해 보세요.
+                              </p>
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>
-                  )}
-                </div>
+                  </>
+                )}
               </div>
             )}
           </div>
@@ -514,9 +829,8 @@ export default function RouteSearch({
                 value={destQuery}
                 onChange={handleDestChange}
                 onKeyDown={handleDestKeyDown}
-                onFocus={() => {
-                  if (destQuery.trim().length > 0) setActiveDropdown('dest');
-                }}
+                onFocus={() => setActiveDropdown('dest')}
+                onClick={() => setActiveDropdown('dest')}
                 className="dest-search-input"
               />
               <div className="input-right-actions">
@@ -538,76 +852,94 @@ export default function RouteSearch({
             {/* Destination Live Auto-search Dropdown Panel (100% Native High Visibility) */}
             {activeDropdown === 'dest' && (
               <div className="search-dropdown-menu">
-                {/* Clean Dropdown Header */}
-                <div className="dropdown-native-header">
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <Search size={12} color="var(--accent-rose)" />
-                    <span style={{ fontSize: '0.74rem', fontWeight: 700, color: 'var(--text-main)' }}>
-                      검색 결과 ({destResults.length}건)
-                    </span>
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <span className="dropdown-hint-text">↑↓ 이동 · Enter 선택</span>
-                    <button
-                      className="dropdown-close-btn"
-                      onClick={() => setActiveDropdown(null)}
-                      title="닫기"
-                    >
-                      <X size={12} />
-                    </button>
-                  </div>
-                </div>
-
-                {/* High-visibility Results List (100% Pure React Native UI) */}
-                <div className="dropdown-scroll-body">
-                  {destResults.length > 0 ? (
-                    destResults.map((place, idx) => (
-                      <div
-                        key={idx}
-                        className={`search-dropdown-item ${selectedIndex === idx ? 'highlighted' : ''}`}
-                        onClick={() => handleSelectDest(place)}
-                        onMouseEnter={() => setSelectedIndex(idx)}
-                      >
-                        <MapPin size={15} color="var(--accent-rose)" style={{ flexShrink: 0, marginTop: '3px' }} />
-                        <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minWidth: 0, gap: '2px' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0 }}>
-                              <span className="badge-road badge-dest">도로명</span>
-                              <span className="place-item-name">{place.name}</span>
-                            </div>
-                            {place.category && (
-                              <span className="place-item-cat">{place.category}</span>
-                            )}
-                          </div>
-                          <div className="place-item-addr-row">
-                            <span className="place-item-addr">{place.roadAddress}</span>
-                            {selectedIndex === idx && (
-                              <span className="select-enter-hint">
-                                <CornerDownLeft size={10} /> 선택
-                              </span>
-                            )}
-                          </div>
-                        </div>
+                {!destQuery.trim() ? (
+                  renderFavoritesDropdown('dest')
+                ) : (
+                  <>
+                    {/* Clean Dropdown Header */}
+                    <div className="dropdown-native-header">
+                      <div className="dropdown-header-title">
+                        <Search size={13} color="var(--accent-rose)" />
+                        <span>검색 결과 ({destResults.length}건)</span>
                       </div>
-                    ))
-                  ) : (
-                    <div className="dropdown-empty-state">
-                      {isSearching ? (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                          <Loader2 size={15} className="spin-anim" color="var(--accent-cyan)" />
-                          <span>검색 중...</span>
-                        </div>
+                      <div className="dropdown-header-actions">
+                        <span className="dropdown-hint-text">↑↓ 선택</span>
+                        <button
+                          type="button"
+                          className="dropdown-close-btn"
+                          onClick={() => setActiveDropdown(null)}
+                          title="닫기"
+                        >
+                          <X size={13} />
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* High-visibility Results List */}
+                    <div className="dropdown-scroll-body">
+                      {destResults.length > 0 ? (
+                        destResults.map((place, idx) => (
+                          <div
+                            key={idx}
+                            className={`search-dropdown-item ${selectedIndex === idx ? 'highlighted' : ''}`}
+                            onClick={() => handleSelectDest(place)}
+                            onMouseEnter={() => setSelectedIndex(idx)}
+                          >
+                            <MapPin size={15} color="var(--accent-rose)" className="place-item-pin" />
+                            <div className="place-item-content">
+                              <div className="place-item-main-row">
+                                <span className="place-item-name" title={place.name}>{place.name}</span>
+                                <div className="place-item-actions">
+                                  {place.distanceText && (
+                                    <span className="place-item-dist" title="출발지/현재 위치로부터의 거리">{place.distanceText}</span>
+                                  )}
+                                  <button
+                                    type="button"
+                                    className="place-fav-star-btn"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleOpenFavRegister('work', place);
+                                    }}
+                                    title="즐겨찾기(집·직장·학교)에 저장"
+                                  >
+                                    <Star size={12} color="#f59e0b" />
+                                  </button>
+                                </div>
+                              </div>
+                              <div className="place-item-sub-row">
+                                {place.category && (
+                                  <span className="place-item-cat">{place.category}</span>
+                                )}
+                                <span className="place-item-addr" title={place.roadAddress}>{place.roadAddress}</span>
+                                {selectedIndex === idx && (
+                                  <span className="select-enter-hint">
+                                    <CornerDownLeft size={10} /> 선택
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        ))
                       ) : (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', alignItems: 'center' }}>
-                          <span style={{ color: 'var(--text-muted)', fontWeight: 600 }}>일치하는 검색 결과가 없습니다.</span>
-                          <span style={{ fontSize: '0.68rem', color: 'var(--text-dim)' }}>
-                            건물명(예: 해운대자이, 센텀신세계)이나 도로명(구남로 36)을 입력해 보세요.
-                          </span>
+                        <div className="dropdown-empty-state">
+                          {isSearching ? (
+                            <div className="dropdown-loading-wrap">
+                              <Loader2 size={15} className="spin-anim" />
+                              <span>장소 검색 중...</span>
+                            </div>
+                          ) : (
+                            <div className="dropdown-empty-wrap">
+                              <p className="empty-title">일치하는 검색 결과가 없습니다.</p>
+                              <p className="empty-desc">
+                                건물명(예: 해운대자이, 센텀신세계)이나 도로명(구남로 20)을 입력해 보세요.
+                              </p>
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>
-                  )}
-                </div>
+                  </>
+                )}
               </div>
             )}
           </div>
@@ -913,6 +1245,28 @@ export default function RouteSearch({
           길안내
         </button>
       </div>
+
+      {/* Favorite Register Modal */}
+      {favModalData && (
+        <FavoriteRegisterModal
+          presetType={favModalData.presetType}
+          initialPlace={favModalData.initialPlace}
+          userLocation={getSearchRefLocation('start')}
+          onSaved={(type, place) => {
+            setFavorites(loadFavorites());
+            showToast(`'${place.name}'이(가) 등록되었습니다!`);
+          }}
+          onClose={() => setFavModalData(null)}
+        />
+      )}
+
+      {/* Mini Toast */}
+      {toastMsg && (
+        <div className="fav-mini-toast">
+          <CheckCircle2 size={14} color="#10b981" />
+          <span>{toastMsg}</span>
+        </div>
+      )}
     </div>
   );
 }

@@ -89,7 +89,7 @@ function fetchAddressBackend(query) {
             });
           }
 
-          resolve(results.slice(0, 10));
+          resolve(results.slice(0, 25));
         } catch (err) {
           console.error('Error parsing backend address search:', err);
           resolve([]);
@@ -513,6 +513,9 @@ function addressSearchPlugin(cctvApiKey, buildingApiKey, streetlightApiKey, stre
       server.middlewares.use('/api/address/search', async (req, res) => {
         const reqUrl = new URL(req.url, 'http://localhost');
         const q = reqUrl.searchParams.get('q');
+        const rawLat = parseFloat(reqUrl.searchParams.get('lat'));
+        const rawLng = parseFloat(reqUrl.searchParams.get('lng'));
+        const hasUserLoc = !isNaN(rawLat) && !isNaN(rawLng);
         
         if (!q || !q.trim()) {
           res.setHeader('Content-Type', 'application/json; charset=utf-8');
@@ -520,10 +523,51 @@ function addressSearchPlugin(cctvApiKey, buildingApiKey, streetlightApiKey, stre
           return;
         }
 
-        const items = await fetchAddressBackend(q.trim());
+        const queryTrimmed = q.trim();
+        let items = await fetchAddressBackend(queryTrimmed);
+
+        if (hasUserLoc && items.length > 0) {
+          function calcDistKm(lat1, lon1, lat2, lon2) {
+            if (!lat1 || !lon1 || !lat2 || !lon2) return 999999;
+            const R = 6371;
+            const dLat = ((lat2 - lat1) * Math.PI) / 180;
+            const dLon = ((lon2 - lon1) * Math.PI) / 180;
+            const a =
+              Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+              Math.cos((lat1 * Math.PI) / 180) * Math.cos((lat2 * Math.PI) / 180) *
+              Math.sin(dLon / 2) * Math.sin(dLon / 2);
+            return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+          }
+
+          items = items.map((item) => {
+            if (item.lat && item.lng) {
+              const distKm = calcDistKm(rawLat, rawLng, item.lat, item.lng);
+              return {
+                ...item,
+                distanceKm: parseFloat(distKm.toFixed(2)),
+                distanceText: distKm < 1 ? `${Math.round(distKm * 1000)}m` : `${distKm.toFixed(1)}km`
+              };
+            }
+            return item;
+          });
+
+          const qLower = queryTrimmed.toLowerCase();
+          items.sort((a, b) => {
+            const aName = (a.name || '').toLowerCase();
+            const bName = (b.name || '').toLowerCase();
+            let aScore = aName === qLower ? 100 : aName.startsWith(qLower) ? 50 : 0;
+            let bScore = bName === qLower ? 100 : bName.startsWith(qLower) ? 50 : 0;
+            const aDist = a.distanceKm !== undefined ? a.distanceKm : 999999;
+            const bDist = b.distanceKm !== undefined ? b.distanceKm : 999999;
+
+            if (aScore === bScore) return aDist - bDist;
+            return (bScore - bDist * 0.15) - (aScore - aDist * 0.15);
+          });
+        }
+
         res.setHeader('Content-Type', 'application/json; charset=utf-8');
         res.setHeader('Access-Control-Allow-Origin', '*');
-        res.end(JSON.stringify(items));
+        res.end(JSON.stringify(items.slice(0, 15)));
       });
 
       // Reverse geocoding endpoint for pinpoint building & road addresses

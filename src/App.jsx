@@ -195,6 +195,20 @@ export default function App() {
   const [userGps, setUserGps] = useState(null);
   const [gpsStatus, setGpsStatus] = useState('idle'); // 'idle' | 'loading' | 'active' | 'denied'
 
+  // 장소 검색 시 현재 위치 기준 정렬을 위해 최초 접속 시 백그라운드에서 위치 사전 확인
+  useEffect(() => {
+    if (navigator.geolocation && !userGps) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          setUserGps({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+          setGpsStatus('active');
+        },
+        () => {},
+        { enableHighAccuracy: false, timeout: 6000, maximumAge: 300000 }
+      );
+    }
+  }, []);
+
   // Visualization layer toggles (weatherEffect 온/오프 포함 및 로컬스토리지 유지)
   const [layers, setLayers] = useState(() => {
     try {
