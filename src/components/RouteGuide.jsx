@@ -23,7 +23,7 @@ import {
 } from 'lucide-react';
 import { formatDistance, formatDuration } from '../utils/format';
 import { speakGuide, isTtsEnabled, toggleTts } from '../utils/ttsService';
-import { SPEED_LEVELS } from '../utils/profile';
+import { SPEED_LEVELS, getAllSpeedLevels } from '../utils/profile';
 
 const ICONS = {
   depart: MapPin,
@@ -255,7 +255,7 @@ export default function RouteGuide({
 
                 {!isCar && onChangeWalkSpeed && (
                   <div className="compact-speed-group">
-                    {SPEED_LEVELS.map((lvl) => {
+                    {getAllSpeedLevels().map((lvl) => {
                       const isActive = walkSpeed === lvl.speed;
                       return (
                         <button

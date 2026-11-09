@@ -21,7 +21,7 @@ import { NODES } from '../data/urbanNetwork';
 import { findNearestNode } from '../engine/routingEngine';
 import { searchAddressLive } from '../services/addressService';
 import { formatDistance, formatDuration } from '../utils/format';
-import { SPEED_LEVELS } from '../utils/profile';
+import { SPEED_LEVELS, getAllSpeedLevels } from '../utils/profile';
 import TravelModeToggle from './TravelModeToggle';
 
 export default function RouteSearch({
@@ -643,7 +643,7 @@ export default function RouteSearch({
               <span style={{ fontSize: '0.65rem', color: 'var(--text-dim)', padding: '0 4px', fontWeight: 500 }}>
                 걸음속도
               </span>
-              {SPEED_LEVELS.map((lvl) => {
+              {getAllSpeedLevels().map((lvl) => {
                 const isActive = walkSpeed === lvl.speed;
                 return (
                   <button

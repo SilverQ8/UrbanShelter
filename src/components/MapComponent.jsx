@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useMemo } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { SunMedium, Shield } from 'lucide-react';
@@ -10,6 +10,7 @@ import { normalizeFacilityDataset } from '../utils/geoConverter';
 import { searchKakaoBuildings, fetchKakaoBuildingDetail, getInstantLocalBuildings } from '../services/kakaoService';
 import { getTransitArrivalInfo } from '../services/transitService';
 import { POI_CATEGORIES } from '../data/poiCategories';
+import WeatherParticles from './WeatherParticles';
 import rawFallbackCctvs from '../data/cctvRealData.json';
 import rawFallbackStreetlights from '../data/streetlightRealData.json';
 
@@ -49,7 +50,8 @@ export default function MapComponent({
   pois = [],
   navigating = false,
   navPoint = null,
-  navHeading = 0
+  navHeading = 0,
+  weather = null
 }) {
   const mapContainerRef = useRef(null);
   const mapInstanceRef = useRef(null);
@@ -58,6 +60,20 @@ export default function MapComponent({
   const latestThemeRef = useRef(mapTheme);
   const latestPoiRef = useRef(poiSelected);
   latestThemeRef.current = mapTheme;
+
+  // 실시간 기상 데이터 연동 (눈/비/강수량 및 '비 피하기' 모드 연동, layers.weatherEffect가 true일 때만 활성화)
+  const activeWeatherType = useMemo(() => {
+    if (layers?.weatherEffect === false) return null;
+    if (weather?.isSnowing) return 'snow';
+    if (weather?.isRaining || (weather?.precipitation && weather.precipitation > 0) || mode === 'rain') return 'rain';
+    return null;
+  }, [weather, mode, layers?.weatherEffect]);
+
+  const weatherIntensity = useMemo(() => {
+    if (!weather?.precipitation || weather.precipitation <= 0) return 0.8;
+    return Math.min(1.5, Math.max(0.4, weather.precipitation / 3.5));
+  }, [weather?.precipitation]);
+
   latestPoiRef.current = poiSelected;
   const latestSunPosRef = useRef(sunPos);
   latestSunPosRef.current = sunPos;
@@ -1539,6 +1555,8 @@ export default function MapComponent({
           </div>
         </div>
       )}
+      {/* 2D 지도 전용 가벼운 비/눈 날씨 파티클 (on/off 설정 연동) */}
+      <WeatherParticles type={activeWeatherType} intensity={weatherIntensity} is2D={true} />
       {/* 맵 우측 최하단 구석 고정 출처 표기 (Leaflet/OSM) */}
       <div className="map-osm-attribution">
         <a href="https://leafletjs.com" target="_blank" rel="noopener noreferrer">Leaflet</a>

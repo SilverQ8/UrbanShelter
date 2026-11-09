@@ -24,7 +24,8 @@ import RouteGuide from './components/RouteGuide';
 import NavTopBanner from './components/NavTopBanner';
 import Map3D from './components/Map3D';
 import { LocateFixed } from 'lucide-react';
-import { loadProfile, saveProfile, getWalkSpeed, SLOW_WALK_SPEED, DEFAULT_WALK_SPEED } from './utils/profile';
+import SpeedCalibrationModal from './components/SpeedCalibrationModal';
+import { loadProfile, saveProfile, getWalkSpeed, setCustomSpeed, SLOW_WALK_SPEED, DEFAULT_WALK_SPEED } from './utils/profile';
 import { decideAutoMode } from './utils/autoRouting';
 import { fetchCurrentWeather } from './services/weatherService';
 import { fetchOsmShadeData } from './services/osmService';
@@ -60,6 +61,7 @@ export default function App() {
   });
 
   const [showSettings, setShowSettings] = useState(false);
+  const [showSpeedCalibration, setShowSpeedCalibration] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
 
   // 이동 수단: 기본은 보도(도보) 기준이고, 이용자가 직접 차량 기준으로 바꿀 수 있다
@@ -193,13 +195,39 @@ export default function App() {
   const [userGps, setUserGps] = useState(null);
   const [gpsStatus, setGpsStatus] = useState('idle'); // 'idle' | 'loading' | 'active' | 'denied'
 
-  // Visualization layer toggles
-  const [layers, setLayers] = useState({
-    buildingInfo: true,
-    trees: true,
-    cctv: true,
-    streetlight: true
+  // Visualization layer toggles (weatherEffect 온/오프 포함 및 로컬스토리지 유지)
+  const [layers, setLayers] = useState(() => {
+    try {
+      const saved = window.localStorage.getItem('urbanshelter.layers');
+      if (saved) {
+        return {
+          buildingInfo: true,
+          trees: true,
+          cctv: true,
+          streetlight: true,
+          weatherEffect: true,
+          ...JSON.parse(saved)
+        };
+      }
+    } catch {}
+    return {
+      buildingInfo: true,
+      trees: true,
+      cctv: true,
+      streetlight: true,
+      weatherEffect: true
+    };
   });
+
+  const handleSetLayers = (updater) => {
+    setLayers((prev) => {
+      const next = typeof updater === 'function' ? updater(prev) : updater;
+      try {
+        window.localStorage.setItem('urbanshelter.layers', JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+  };
 
 
   // 1. Fetch Base Pedestrian Road Network Geometry (Only re-fetched when endpoints change!)
@@ -812,7 +840,7 @@ export default function App() {
   };
 
   // 보행 속도 변경 (설정창 및 경로 검색 바에서 즉시 조절)
-  const changeWalkSpeed = (nextSpeed) => {
+  const changeWalkSpeed = (nextSpeed, isCustom = false) => {
     setWalkSpeed(nextSpeed);
     const updatedNeeds = [...needs];
     if (nextSpeed <= 55) {
@@ -821,7 +849,12 @@ export default function App() {
       const idx = updatedNeeds.indexOf('slow');
       if (idx !== -1) updatedNeeds.splice(idx, 1);
     }
-    const nextProfile = { ...(profile || {}), needs: updatedNeeds, walkSpeed: nextSpeed };
+    const nextProfile = {
+      ...(profile || {}),
+      needs: updatedNeeds,
+      walkSpeed: nextSpeed,
+      ...(isCustom ? { customWalkSpeed: nextSpeed } : {})
+    };
     setProfile(nextProfile);
     saveProfile(nextProfile);
   };
@@ -843,6 +876,7 @@ export default function App() {
           onChangeNeeds={changeNeeds}
           walkSpeed={walkSpeed}
           onChangeWalkSpeed={changeWalkSpeed}
+          onOpenCalibration={() => setShowSpeedCalibration(true)}
           modeOverride={modeOverride}
           setModeOverride={setModeOverride}
           autoDecision={autoDecision}
@@ -855,12 +889,24 @@ export default function App() {
         onResetLive={() => setIsLiveTime(true)}
           setIsLiveTime={setIsLiveTime}
           layers={layers}
-          setLayers={setLayers}
+          setLayers={handleSetLayers}
           travelMode={travelMode}
           setTravelMode={setTravelMode}
           mapThemeSetting={mapThemeSetting}
           setMapThemeSetting={setMapThemeSetting}
           onClose={() => setShowSettings(false)}
+        />
+      )}
+
+      {showSpeedCalibration && (
+        <SpeedCalibrationModal
+          currentSpeed={walkSpeed}
+          onApply={(speedMPerMin, speedKmh) => {
+            changeWalkSpeed(speedMPerMin, true);
+            setCustomSpeed(speedMPerMin);
+            showLocateMsg(`내 맞춤 보행 속도(${speedKmh}km/h)가 적용되었습니다!`);
+          }}
+          onClose={() => setShowSpeedCalibration(false)}
         />
       )}
 
@@ -928,9 +974,11 @@ export default function App() {
             locateTarget={locateTarget}
             mapTheme={mapTheme}
             poiSelected={poiSelected}
+            layers={layers}
           />
         ) : (
         <MapComponent
+          weather={weather}
           userGps={userGps}
           onRequestGps={requestGpsLocation}
           startPoint={startPoint}

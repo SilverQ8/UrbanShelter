@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { X, Check, Sun, Building, Trees, Video, Clock, Lightbulb, Info } from 'lucide-react';
-import { NEED_OPTIONS, SPEED_LEVELS } from '../utils/profile';
+import { X, Check, Sun, Building, Trees, Video, Clock, Lightbulb, Info, CloudRain, Footprints } from 'lucide-react';
+import { NEED_OPTIONS, SPEED_LEVELS, getAllSpeedLevels, getCustomSpeed } from '../utils/profile';
 import { MODE_LABELS } from '../utils/autoRouting';
 import TravelModeToggle from './TravelModeToggle';
 
@@ -8,7 +8,8 @@ const LAYER_ITEMS = [
   { key: 'buildingInfo', label: '건물 정보 (카카오 연동)', icon: Info, color: '#0ea5e9' },
   { key: 'trees', label: '가로수 그늘', icon: Trees, color: '#10b981' },
   { key: 'cctv', label: '방범 CCTV', icon: Video, color: '#38bdf8' },
-  { key: 'streetlight', label: '가로등 / 보안등 (15m)', icon: Lightbulb, color: '#f59e0b' }
+  { key: 'streetlight', label: '가로등 / 보안등 (15m)', icon: Lightbulb, color: '#f59e0b' },
+  { key: 'weatherEffect', label: '실시간 날씨 효과 (비·눈 연출)', icon: CloudRain, color: '#38bdf8' }
 ];
 
 
@@ -30,6 +31,7 @@ export default function SettingsPanel({
   onChangeNeeds,
   walkSpeed = 75,
   onChangeWalkSpeed,
+  onOpenCalibration,
   modeOverride,
   setModeOverride,
   autoDecision,
@@ -110,9 +112,16 @@ export default function SettingsPanel({
         {/* 보행 속도 설정 */}
         {travelMode === 'foot' && onChangeWalkSpeed && (
           <section className="settings-section">
-            <h3>보행 속도 (예상 소요 시간)</h3>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+              <h3 style={{ margin: 0 }}>보행 속도 (예상 소요 시간)</h3>
+              {getCustomSpeed() && (
+                <span style={{ fontSize: '0.72rem', color: '#10b981', fontWeight: 600 }}>
+                  ✓ 맞춤 속도 등록됨
+                </span>
+              )}
+            </div>
             <div className="settings-segment" role="group" aria-label="보행 속도">
-              {SPEED_LEVELS.map((lvl) => (
+              {getAllSpeedLevels().map((lvl) => (
                 <button
                   key={lvl.id}
                   type="button"
@@ -125,8 +134,28 @@ export default function SettingsPanel({
               ))}
             </div>
             <p className="settings-help">
-              {SPEED_LEVELS.find((lvl) => lvl.speed === walkSpeed)?.desc || `${(walkSpeed * 0.06).toFixed(1)}km/h`} 기준으로 도보 예상 시간을 계산해요.
+              {getAllSpeedLevels().find((lvl) => lvl.speed === walkSpeed)?.desc || `${(walkSpeed * 0.06).toFixed(1)}km/h`} 기준으로 도보 예상 시간을 계산해요.
             </p>
+
+            {/* 내 걸음속도 측정 (200m) 버튼 */}
+            {onOpenCalibration && (
+              <div className="settings-cal-entry">
+                <div className="settings-cal-entry-text">
+                  <span className="settings-cal-entry-title">내 걸음속도 직접 측정 (200m)</span>
+                  <span className="settings-cal-entry-sub">
+                    횡단보도 신호 대기를 제외한 순수 보행 속도를 실측해요.
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  className="settings-chip settings-cal-btn"
+                  onClick={onOpenCalibration}
+                >
+                  <Footprints size={15} />
+                  {getCustomSpeed() ? '속도 재측정' : '200m 측정하기'}
+                </button>
+              </div>
+            )}
           </section>
         )}
 
@@ -279,6 +308,7 @@ export default function SettingsPanel({
               </div>
             ))}
           </div>
+          <p className="settings-help">날씨 효과를 켜면 비나 눈이 올 때 지도 위에 자연스러운 날씨 애니메이션이 연출돼요. (2D 지도는 길과 도로명의 시인성을 위해 은은하게 표현)</p>
         </section>
 
         <div className="onboarding-actions">

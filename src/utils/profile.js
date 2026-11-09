@@ -40,6 +40,33 @@ export const DEFAULT_WALK_SPEED = 75; // m/분 (약 4.5km/h)
 export const SLOW_WALK_SPEED = 50; // m/분 (약 3.0km/h)
 export const FAST_WALK_SPEED = 95; // m/분 (약 5.7km/h)
 
+export function getCustomSpeed() {
+  try {
+    const raw = window.localStorage.getItem(STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    return parsed?.customWalkSpeed || null;
+  } catch {
+    return null;
+  }
+}
+
+export function getAllSpeedLevels(customSpeed = null) {
+  const levels = [...SPEED_LEVELS];
+  const cs = customSpeed !== null ? customSpeed : getCustomSpeed();
+  if (cs && cs > 0) {
+    const kmh = (cs * 0.06).toFixed(1);
+    levels.push({
+      id: 'custom',
+      label: '내 속도',
+      speed: cs,
+      kmh: parseFloat(kmh),
+      desc: `${kmh}km/h (실측 맞춤 속도)`
+    });
+  }
+  return levels;
+}
+
 export function loadProfile() {
   try {
     const raw = window.localStorage.getItem(STORAGE_KEY);
@@ -48,6 +75,7 @@ export function loadProfile() {
     if (!parsed || !Array.isArray(parsed.needs)) return null;
     return {
       needs: parsed.needs,
+      customWalkSpeed: parsed.customWalkSpeed || null,
       walkSpeed: parsed.walkSpeed || (parsed.needs.includes('slow') ? SLOW_WALK_SPEED : DEFAULT_WALK_SPEED)
     };
   } catch {
@@ -60,6 +88,30 @@ export function saveProfile(profile) {
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(profile));
   } catch {
     // 저장소를 쓸 수 없는 환경이어도 현재 세션에서는 설정이 적용된다.
+  }
+}
+
+export function setCustomSpeed(speed) {
+  try {
+    const p = loadProfile() || { needs: [] };
+    p.customWalkSpeed = speed;
+    p.walkSpeed = speed;
+    saveProfile(p);
+  } catch {
+    // ignore
+  }
+}
+
+export function clearCustomSpeed() {
+  try {
+    const p = loadProfile() || { needs: [] };
+    delete p.customWalkSpeed;
+    if (p.walkSpeed !== SLOW_WALK_SPEED && p.walkSpeed !== FAST_WALK_SPEED) {
+      p.walkSpeed = p.needs.includes('slow') ? SLOW_WALK_SPEED : DEFAULT_WALK_SPEED;
+    }
+    saveProfile(p);
+  } catch {
+    // ignore
   }
 }
 

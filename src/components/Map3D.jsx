@@ -129,7 +129,8 @@ export default function Map3D({
   locateTarget = null,
   mapTheme = 'light',
   poiSelected = {},
-  weather = null
+  weather = null,
+  layers = {}
 }) {
   const containerRef = useRef(null);
   const mapRef = useRef(null);
@@ -139,10 +140,11 @@ export default function Map3D({
 
   // 실시간 기상 데이터 연동 (눈 우선 판별 후 비/강수량 판별)
   const activeWeatherType = useMemo(() => {
+    if (layers?.weatherEffect === false) return null;
     if (weather?.isSnowing) return 'snow';
     if (weather?.isRaining || (weather?.precipitation && weather.precipitation > 0) || mode === 'rain') return 'rain';
     return null;
-  }, [weather, mode]);
+  }, [weather, mode, layers?.weatherEffect]);
 
   const weatherIntensity = useMemo(() => {
     if (!weather?.precipitation || weather.precipitation <= 0) return 1.0;

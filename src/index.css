@@ -5358,3 +5358,584 @@ body {
     display: none !important;
   }
 }
+
+
+/* 라이트 모드 설정 레이어 토글 아이템 */
+[data-theme='light'] .toggle-item {
+  background: #ede3cc !important;
+  border: 1px solid rgba(36, 75, 58, 0.2) !important;
+}
+
+[data-theme='light'] .toggle-item:hover {
+  background: #e2d4bc !important;
+  border-color: rgba(36, 75, 58, 0.35) !important;
+}
+
+[data-theme='light'] .toggle-info {
+  color: #4a6b5d !important;
+}
+
+[data-theme='light'] .toggle-info.active {
+  color: #143023 !important;
+  font-weight: 650 !important;
+}
+
+/* ========================================================
+   보행 속도 측정 모달 & 설정 카드 (Speed Calibration)
+   ======================================================== */
+.settings-cal-entry {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 14px;
+  padding: 12px 14px;
+  background: rgba(16, 185, 129, 0.08);
+  border: 1px solid rgba(16, 185, 129, 0.22);
+  border-radius: var(--radius-md);
+}
+
+.settings-cal-entry-text {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.settings-cal-entry-title {
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: var(--text-main);
+}
+
+.settings-cal-entry-sub {
+  font-size: 0.74rem;
+  color: var(--text-muted);
+  line-height: 1.35;
+}
+
+.settings-cal-btn {
+  flex-shrink: 0;
+  background: rgba(16, 185, 129, 0.18) !important;
+  border-color: rgba(16, 185, 129, 0.45) !important;
+  color: #34d399 !important;
+  font-weight: 700 !important;
+  padding: 6px 12px !important;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.2s ease;
+}
+
+.settings-cal-btn:hover {
+  background: rgba(16, 185, 129, 0.3) !important;
+  transform: translateY(-1px);
+}
+
+/* 모달 레이아웃 */
+.speed-calibration-modal {
+  max-width: 470px !important;
+  padding: 24px 22px !important;
+  border-radius: 20px !important;
+}
+
+.speed-cal-icon-wrap {
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  background: rgba(16, 185, 129, 0.15);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+/* 측정 전 안내 카드 */
+.speed-cal-alert-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 15px;
+  background: rgba(245, 158, 11, 0.12);
+  border: 1px solid rgba(245, 158, 11, 0.35);
+  border-radius: 14px;
+  margin-bottom: 16px;
+}
+
+.speed-cal-alert-icon {
+  margin-top: 2px;
+  flex-shrink: 0;
+}
+
+.speed-cal-alert-body strong {
+  display: block;
+  font-size: 0.92rem;
+  color: #fbbf24;
+  margin-bottom: 5px;
+}
+
+.speed-cal-alert-body p {
+  margin: 0;
+  font-size: 0.8rem;
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+
+.speed-cal-alert-body p strong {
+  display: inline;
+  color: var(--text-main);
+  font-weight: 700;
+}
+
+.speed-cal-flow-info {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  padding: 12px 14px;
+  margin-bottom: 6px;
+}
+
+.speed-cal-flow-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.82rem;
+  color: var(--text-main);
+  line-height: 1.4;
+}
+
+.speed-cal-step-num {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: rgba(16, 185, 129, 0.2);
+  color: #10b981;
+  font-weight: 800;
+  font-size: 0.75rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.speed-cal-notice {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  padding: 10px 12px;
+  background: rgba(14, 165, 233, 0.09);
+  border: 1px solid rgba(14, 165, 233, 0.25);
+  border-radius: 10px;
+  font-size: 0.76rem;
+  line-height: 1.45;
+  color: var(--text-muted);
+  margin-bottom: 16px;
+}
+
+.speed-cal-notice strong {
+  color: var(--text-main);
+}
+
+.speed-cal-dashboard {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  background: rgba(0, 0, 0, 0.22);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 14px;
+  padding: 16px;
+  margin-bottom: 16px;
+}
+
+.speed-cal-progress-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.speed-cal-progress-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+
+.speed-cal-dist-label {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+.speed-cal-dist-value {
+  font-size: 0.95rem;
+  color: var(--text-dim);
+}
+
+.speed-cal-dist-value strong {
+  font-size: 1.25rem;
+  color: var(--text-main);
+  font-weight: 800;
+}
+
+.speed-cal-bar-track {
+  width: 100%;
+  height: 12px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 999px;
+  overflow: hidden;
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+
+.speed-cal-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #10b981 0%, #06b6d4 100%);
+  border-radius: 999px;
+  box-shadow: 0 0 12px rgba(16, 185, 129, 0.5);
+}
+
+.speed-cal-bar-foot {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.7rem;
+  color: var(--text-muted);
+}
+
+.speed-cal-pct {
+  font-weight: 700;
+  color: #10b981;
+}
+
+/* 상태 뱃지 */
+.speed-cal-status-row {
+  display: flex;
+  justify-content: center;
+}
+
+.speed-cal-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: -0.2px;
+}
+
+.speed-cal-badge.walking {
+  background: rgba(16, 185, 129, 0.18);
+  color: #34d399;
+  border: 1px solid rgba(16, 185, 129, 0.4);
+}
+
+.speed-cal-badge.paused {
+  background: rgba(245, 158, 11, 0.18);
+  color: #fbbf24;
+  border: 1px solid rgba(245, 158, 11, 0.4);
+  animation: pulse-border 1.5s infinite;
+}
+
+.speed-cal-badge.fast {
+  background: rgba(239, 68, 68, 0.18);
+  color: #f87171;
+  border: 1px solid rgba(239, 68, 68, 0.4);
+}
+
+.speed-cal-badge.searching {
+  background: rgba(14, 165, 233, 0.18);
+  color: #38bdf8;
+  border: 1px solid rgba(14, 165, 233, 0.4);
+}
+
+.speed-cal-badge.ready {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-muted);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.pulse-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.pulse-dot.green {
+  background: #10b981;
+  box-shadow: 0 0 8px #10b981;
+  animation: blink 1s infinite alternate;
+}
+
+@keyframes blink {
+  0% { opacity: 0.3; transform: scale(0.9); }
+  100% { opacity: 1; transform: scale(1.1); }
+}
+
+/* 지표 카드 그리드 */
+.speed-cal-metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.speed-cal-metric-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 10px 6px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 10px;
+  text-align: center;
+}
+
+.speed-cal-metric-title {
+  font-size: 0.68rem;
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+.speed-cal-metric-val {
+  font-size: 0.96rem;
+  font-weight: 700;
+  color: var(--text-main);
+}
+
+.speed-cal-metric-val small {
+  font-size: 0.7rem;
+  font-weight: normal;
+  color: var(--text-muted);
+}
+
+/* 액션 버튼들 */
+.speed-cal-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.speed-cal-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px 16px;
+  border-radius: var(--radius-md);
+  font-family: inherit;
+  font-size: 0.92rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border: none;
+}
+
+.speed-cal-btn.primary {
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  color: #ffffff;
+  box-shadow: 0 4px 14px rgba(16, 185, 129, 0.35);
+}
+
+.speed-cal-btn.primary:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 18px rgba(16, 185, 129, 0.45);
+}
+
+.speed-cal-btn.pause {
+  background: #f59e0b;
+  color: #1a1a1a;
+}
+
+.speed-cal-btn.secondary {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: var(--text-main);
+  font-size: 0.82rem;
+  padding: 9px 14px;
+}
+
+.speed-cal-btn.secondary:hover {
+  background: rgba(255, 255, 255, 0.14);
+}
+
+.speed-cal-btn.reset {
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: var(--text-muted);
+  padding: 8px;
+}
+
+.speed-cal-btn.reset:hover {
+  color: var(--text-main);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+/* 측정 완료 결과 뷰 */
+.speed-cal-result-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 8px 0;
+}
+
+.speed-cal-result-icon {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: rgba(16, 185, 129, 0.15);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 12px;
+  animation: pulse-ring 2s infinite;
+}
+
+@keyframes pulse-ring {
+  0% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.4); }
+  70% { box-shadow: 0 0 0 16px rgba(16, 185, 129, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+}
+
+.speed-cal-result-title {
+  font-size: 1.25rem;
+  font-weight: 800;
+  margin: 0 0 4px;
+  color: var(--text-main);
+}
+
+.speed-cal-result-sub {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  margin: 0 0 18px;
+}
+
+.speed-cal-result-box {
+  width: 100%;
+  background: rgba(16, 185, 129, 0.1);
+  border: 2px solid rgba(16, 185, 129, 0.35);
+  border-radius: 16px;
+  padding: 16px;
+  margin-bottom: 14px;
+}
+
+.speed-cal-result-main {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 4px;
+  margin-bottom: 4px;
+}
+
+.speed-cal-result-num {
+  font-size: 2.5rem;
+  font-weight: 900;
+  color: #10b981;
+  line-height: 1;
+}
+
+.speed-cal-result-unit {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--text-muted);
+}
+
+.speed-cal-result-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-size: 0.86rem;
+  color: var(--text-main);
+}
+
+.speed-cal-result-time {
+  font-size: 0.74rem;
+  color: var(--text-muted);
+}
+
+.speed-cal-compare-text {
+  font-size: 0.82rem;
+  line-height: 1.5;
+  color: var(--text-dim);
+  background: rgba(255, 255, 255, 0.04);
+  padding: 10px 14px;
+  border-radius: 10px;
+  margin: 0 0 18px;
+  width: 100%;
+}
+
+.speed-cal-compare-text strong {
+  color: #10b981;
+}
+
+.speed-cal-result-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+}
+
+/* 라이트 모드 대응 */
+[data-theme='light'] .settings-cal-entry {
+  background: rgba(36, 75, 58, 0.08);
+  border-color: rgba(36, 75, 58, 0.22);
+}
+
+[data-theme='light'] .settings-cal-btn {
+  background: rgba(36, 75, 58, 0.15) !important;
+  border-color: rgba(36, 75, 58, 0.35) !important;
+  color: #1b4533 !important;
+}
+
+[data-theme='light'] .speed-cal-notice {
+  background: rgba(14, 165, 233, 0.12);
+  border-color: rgba(14, 165, 233, 0.3);
+  color: #334155;
+}
+
+[data-theme='light'] .speed-cal-dashboard {
+  background: #f0e6d2;
+  border-color: rgba(36, 75, 58, 0.2);
+}
+
+[data-theme='light'] .speed-cal-metric-card {
+  background: #f8f3e8;
+  border-color: rgba(36, 75, 58, 0.15);
+}
+
+[data-theme='light'] .speed-cal-compare-text {
+  background: #f8f3e8;
+  color: #2b3b33;
+}
+
+[data-theme='light'] .speed-cal-btn.secondary {
+  background: #ede3cc;
+  border-color: rgba(36, 75, 58, 0.25);
+  color: #1b4533;
+}
+
+[data-theme='light'] .speed-cal-alert-card {
+  background: #fdf5e6;
+  border-color: #f59e0b;
+}
+
+[data-theme='light'] .speed-cal-alert-body strong {
+  color: #b45309;
+}
+
+[data-theme='light'] .speed-cal-alert-body p {
+  color: #4b5563;
+}
+
+[data-theme='light'] .speed-cal-flow-info {
+  background: #f8f3e8;
+  border-color: rgba(36, 75, 58, 0.15);
+}
+
+[data-theme='light'] .speed-cal-flow-item {
+  color: #1b4533;
+}
+
+
