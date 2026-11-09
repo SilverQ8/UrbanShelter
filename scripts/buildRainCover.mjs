@@ -11,7 +11,13 @@ const points = [];
 
 for (const e of raw.elements) {
   if (e.type === 'way' && e.geometry?.length > 1) lines.push(e.geometry.map((g) => [r5(g.lat), r5(g.lon)]));
-  else if (e.type === 'node') points.push([r5(e.lat), r5(e.lon)]);
+  // 지점: [위도, 경도, 종류(s=지하철 출입구, b=승강장 지붕), 이름(있으면)]
+  else if (e.type === 'node') {
+    const t = e.tags || {};
+    const subway = t.railway === 'subway_entrance';
+    const label = (t['description:ko'] || t.name || '').trim();
+    points.push(label ? [r5(e.lat), r5(e.lon), subway ? 's' : 'b', label] : [r5(e.lat), r5(e.lon), subway ? 's' : 'b']);
+  }
 }
 
 console.assert(lines.length > 0 && points.length > 0, '데이터가 비어 있음');

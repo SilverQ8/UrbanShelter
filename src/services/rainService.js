@@ -180,3 +180,23 @@ export async function findUndergroundRoute(start, target, base, allowance, fetch
   }
   return best;
 }
+
+// ---- 대피 지점: 경로 근처에서 눈·비를 잠깐 피할 수 있는 곳(지도에 표시용) ----
+const REFUGE_RADIUS_M = 150;
+const REFUGE_MAX = 40; // 지도가 마커로 뒤덮이지 않게 경로에 가까운 순으로 제한
+
+/** 경로에서 150m 안의 대피 지점을 가까운 순으로 돌려준다. kind: smart(스마트 버스쉘터) | subway(지하철 출입구) | bus(승강장 지붕) */
+export function findRefugesNearRoute(latlngs) {
+  if (!latlngs || latlngs.length < 2) return [];
+  const all = [
+    ...smartShelters.map((s) => ({ lat: s.lat, lng: s.lng, kind: 'smart', name: s.name, detail: s.facilities })),
+    ...cover.points.map(([lat, lng, t, label]) => ({ lat, lng, kind: t === 's' ? 'subway' : 'bus', name: label || '' }))
+  ];
+  const found = [];
+  for (const r of all) {
+    let nearest = Infinity;
+    for (let i = 1; i < latlngs.length && nearest > 1; i++) nearest = Math.min(nearest, distToSegment([r.lat, r.lng], latlngs[i - 1], latlngs[i]));
+    if (nearest <= REFUGE_RADIUS_M) found.push({ ...r, offset: Math.round(nearest) });
+  }
+  return found.sort((a, b) => a.offset - b.offset).slice(0, REFUGE_MAX);
+}

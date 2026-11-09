@@ -206,6 +206,7 @@ export default function App() {
           trees: true,
           cctv: true,
           streetlight: true,
+          refuge: true,
           weatherEffect: true,
           ...JSON.parse(saved)
         };
@@ -216,6 +217,7 @@ export default function App() {
       trees: true,
       cctv: true,
       streetlight: true,
+      refuge: true,
       weatherEffect: true
     };
   });

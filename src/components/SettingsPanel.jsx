@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, Check, Sun, Building, Trees, Video, Clock, Lightbulb, Info, CloudRain, Footprints } from 'lucide-react';
+import { X, Check, Sun, Building, Trees, Video, Clock, Lightbulb, Info, CloudRain, Footprints, Umbrella } from 'lucide-react';
 import { NEED_OPTIONS, SPEED_LEVELS, getAllSpeedLevels, getCustomSpeed } from '../utils/profile';
 import { MODE_LABELS } from '../utils/autoRouting';
 import TravelModeToggle from './TravelModeToggle';
@@ -9,6 +9,7 @@ const LAYER_ITEMS = [
   { key: 'trees', label: '가로수 그늘', icon: Trees, color: '#10b981' },
   { key: 'cctv', label: '방범 CCTV', icon: Video, color: '#38bdf8' },
   { key: 'streetlight', label: '가로등 / 보안등 (15m)', icon: Lightbulb, color: '#f59e0b' },
+  { key: 'refuge', label: '눈·비 대피 지점 (악천후 안심 경로)', icon: Umbrella, color: '#2563eb' },
   { key: 'weatherEffect', label: '실시간 날씨 효과 (비·눈 연출)', icon: CloudRain, color: '#38bdf8' }
 ];
 
