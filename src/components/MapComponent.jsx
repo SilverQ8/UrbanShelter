@@ -9,6 +9,7 @@ import { filterValidUrbanMarkers, isInvalidOceanCoordinate } from '../utils/geoS
 import { normalizeFacilityDataset } from '../utils/geoConverter';
 import { searchKakaoBuildings, fetchKakaoBuildingDetail, getInstantLocalBuildings } from '../services/kakaoService';
 import { getTransitArrivalInfo } from '../services/transitService';
+import { findRefugesNearRoute } from '../services/rainService';
 import { POI_CATEGORIES } from '../data/poiCategories';
 import WeatherParticles from './WeatherParticles';
 import rawFallbackCctvs from '../data/cctvRealData.json';
@@ -105,6 +106,7 @@ export default function MapComponent({
   const routeLayerRef = useRef(null);
   const cctvLayerRef = useRef(null);
   const streetlightLayerRef = useRef(null);
+  const refugeLayerRef = useRef(null);
   const markersLayerRef = useRef(null);
   const fallbackTileLayerRef = useRef(null);
 
@@ -150,6 +152,7 @@ export default function MapComponent({
 
     cctvLayerRef.current = L.layerGroup().addTo(map);
     streetlightLayerRef.current = L.layerGroup().addTo(map);
+    refugeLayerRef.current = L.layerGroup().addTo(map);
     routeLayerRef.current = L.layerGroup().addTo(map);
     markersLayerRef.current = L.layerGroup().addTo(map);
 
@@ -1178,6 +1181,34 @@ export default function MapComponent({
     };
   }, [layers.streetlight]);
 
+  // 눈·비 대피 지점: 악천후 안심 경로일 때 경로 150m 안의 스마트 쉘터·지하철 출입구·승강장 지붕을 표시 (설정에서 ON/OFF)
+  useEffect(() => {
+    const layer = refugeLayerRef.current;
+    if (!layer) return;
+    layer.clearLayers();
+    if (!layers.refuge || mode !== 'rain' || travelMode === 'car') return;
+
+    const STYLE = {
+      smart: { emoji: '☂️', size: 30, border: '#2563eb', label: '스마트 버스쉘터 (냉난방 실내)' },
+      subway: { emoji: '🚇', size: 24, border: '#0ea5e9', label: '지하철 출입구' },
+      bus: { emoji: '🚌', size: 24, border: '#64748b', label: '버스 승강장 지붕' }
+    };
+    for (const r of findRefugesNearRoute(recommendedRoute?.latlngs)) {
+      const s = STYLE[r.kind];
+      const icon = L.divIcon({
+        className: '',
+        iconSize: [s.size, s.size],
+        html: `<div style="width:${s.size}px;height:${s.size}px;border-radius:50%;background:#fff;border:2px solid ${s.border};display:flex;align-items:center;justify-content:center;font-size:${Math.round(s.size * 0.55)}px;box-shadow:0 1px 4px rgba(0,0,0,.35)">${s.emoji}</div>`
+      });
+      const marker = L.marker([r.lat, r.lng], { icon, zIndexOffset: r.kind === 'smart' ? 500 : 0 });
+      marker.bindTooltip(
+        `<strong>${s.emoji} ${r.name || s.label}</strong><br/>${r.name ? `${s.label}<br/>` : ''}${r.detail ? `${r.detail}<br/>` : ''}<span style="opacity:.8">경로에서 약 ${r.offset}m</span>`,
+        { className: 'route-tooltip-custom' }
+      );
+      layer.addLayer(marker);
+    }
+  }, [layers.refuge, mode, travelMode, recommendedRoute]);
+
   // 2. Render Pedestrian Route with High-contrast Shade vs Sun Differentiation
   useEffect(() => {
     const routeLayer = routeLayerRef.current;
@@ -1319,6 +1350,25 @@ export default function MapComponent({
           { className: 'route-tooltip-custom', sticky: true }
         );
         routeLayer.addLayer(mainPoly);
+      } else if (mode === 'rain') {
+        // 비 피하는 길: 비가 가려지는 구간은 파란색, 노출 구간은 회색
+        const segs = recommendedRoute.rainSegments?.length ? recommendedRoute.rainSegments : [{ covered: false, latlngs: recLatLngs }];
+        for (const seg of segs) {
+          const poly = L.polyline(seg.latlngs, {
+            color: seg.covered ? '#2563eb' : '#94a3b8',
+            weight: seg.covered ? 7 : 5,
+            opacity: 0.95,
+            lineCap: 'round',
+            lineJoin: 'round'
+          });
+          poly.bindTooltip(
+            seg.covered
+              ? `<strong>☂️ 눈·비를 피할 수 있는 구간</strong>`
+              : `<strong>눈·비 노출 구간</strong><br/>피할 수 있는 길 ${formatDistance(recommendedRoute.rainCoveredDistance ?? 0)} · 노출 ${formatDistance(recommendedRoute.rainExposedDistance)}`,
+            { className: 'route-tooltip-custom', sticky: true }
+          );
+          routeLayer.addLayer(poly);
+        }
       }
     }
 

@@ -5,6 +5,7 @@ import 'maplibre-gl/dist/maplibre-gl.css';
 import { MAP_CENTER } from '../data/urbanNetwork';
 import { loadMapStyle, applyPedestrianTweaks, applyPoiFilter } from '../utils/mapStyle';
 import { fetchKakaoBuildingDetail } from '../services/kakaoService';
+import { findRefugesNearRoute } from '../services/rainService';
 import WeatherParticles from './WeatherParticles';
 
 // Vite 번들링 및 프로덕션(Vercel) 환경에서 워커와 shared 모듈이 항상 함께 로드되도록 정적 경로 지정
@@ -17,6 +18,7 @@ if (typeof window !== 'undefined') {
 const ROUTE_COLORS = {
   shade: '#10b981',
   night: '#38bdf8',
+  rain: '#2563eb',
   standard: '#64748b'
 };
 
@@ -111,6 +113,18 @@ function toPointFeatures(startPoint, targetPoint) {
   return { type: 'FeatureCollection', features };
 }
 
+// 눈·비 대피 지점(스마트 쉘터·지하철 출입구·승강장 지붕): 2D 지도와 같은 종류·기준
+const REFUGE_KIND_LABEL = { smart: '스마트 버스쉘터 (냉난방 실내)', subway: '지하철 출입구', bus: '버스 승강장 지붕' };
+
+function toRefugeFeatures(latlngs) {
+  const features = findRefugesNearRoute(latlngs).map((r) => ({
+    type: 'Feature',
+    properties: { kind: r.kind, name: r.name, detail: r.detail || '', offset: r.offset },
+    geometry: { type: 'Point', coordinates: [r.lng, r.lat] }
+  }));
+  return { type: 'FeatureCollection', features };
+}
+
 export default function Map3D({
   startPoint,
   targetPoint,
@@ -151,7 +165,7 @@ export default function Map3D({
     return Math.min(2.0, Math.max(0.5, weather.precipitation / 3.0));
   }, [weather?.precipitation]);
 
-  latestRef.current = { startPoint, targetPoint, setStartPoint, setTargetPoint, recommendedRoute, mode, navigating, navPoint, shadows, trees, sunPos, userGps, baseLatlngs, mapTheme, poiSelected, weather, activeWeatherType, applyNavCamera: latestRef.current.applyNavCamera };
+  latestRef.current = { layers, startPoint, targetPoint, setStartPoint, setTargetPoint, recommendedRoute, mode, navigating, navPoint, shadows, trees, sunPos, userGps, baseLatlngs, mapTheme, poiSelected, weather, activeWeatherType, applyNavCamera: latestRef.current.applyNavCamera };
 
   // 현재 props를 지도 소스·레이어에 반영한다.
   const syncData = () => {
@@ -195,6 +209,8 @@ export default function Map3D({
     );
     map.getSource('route')?.setData(toLineFeature(r?.latlngs));
     map.getSource('endpoints')?.setData(toPointFeatures(s, t));
+    // 대피 지점은 악천후 안심 경로이면서 설정이 켜져 있을 때만 보인다
+    map.getSource('refuge')?.setData(latestRef.current.layers?.refuge !== false && m === 'rain' ? toRefugeFeatures(r?.latlngs) : emptyLine);
     map.setPaintProperty('route-line', 'line-color', ROUTE_COLORS[m] || ROUTE_COLORS.shade);
 
     if (!s || !t || nav) return; // 탐색 중에는 카메라를 보행자 시점으로 유지한다
@@ -293,6 +309,7 @@ export default function Map3D({
       addSourceSafe('trees3d', emptyLine);
       addSourceSafe('nav-position', emptyLine);
       addSourceSafe('me-position', emptyLine);
+      addSourceSafe('refuge', emptyLine);
 
       // 그림자는 건물 아래(땅 위)에 깔고, 길과 함께 보이도록 반투명하게 칠한다 (어두운 지도 대비 보강)
       const firstExtrusion = map.getStyle().layers.find((l) => l.type === 'fill-extrusion')?.id;
@@ -391,6 +408,35 @@ export default function Map3D({
           'text-font': ['Noto Sans Bold']
         },
         paint: { 'text-color': '#ffffff' }
+      });
+      // 눈·비 대피 지점: 스마트 쉘터(파랑·크게), 지하철 출입구(하늘), 승강장 지붕(회색). 누르면 이름이 뜬다
+      map.addLayer({
+        id: 'refuge-circle',
+        type: 'circle',
+        source: 'refuge',
+        paint: {
+          'circle-radius': ['match', ['get', 'kind'], 'smart', 10, 7],
+          'circle-color': ['match', ['get', 'kind'], 'smart', '#2563eb', 'subway', '#0ea5e9', '#64748b'],
+          'circle-stroke-color': '#ffffff',
+          'circle-stroke-width': 2.5,
+          'circle-pitch-alignment': 'viewport'
+        }
+      });
+      map.on('mouseenter', 'refuge-circle', () => { map.getCanvas().style.cursor = 'pointer'; });
+      map.on('mouseleave', 'refuge-circle', () => { map.getCanvas().style.cursor = ''; });
+      map.on('click', 'refuge-circle', (e) => {
+        const p = e.features?.[0]?.properties;
+        if (!p) return;
+        const box = document.createElement('div');
+        const title = document.createElement('strong');
+        title.textContent = p.name || REFUGE_KIND_LABEL[p.kind];
+        box.appendChild(title);
+        [p.name ? REFUGE_KIND_LABEL[p.kind] : '', p.detail, `경로에서 약 ${p.offset}m`].filter(Boolean).forEach((line) => {
+          const row = document.createElement('div');
+          row.textContent = line; // textContent라서 이름에 태그가 있어도 실행되지 않는다
+          box.appendChild(row);
+        });
+        new maplibregl.Popup({ closeButton: true, offset: 12 }).setLngLat(e.lngLat).setDOMContent(box).addTo(map);
       });
 
       // 3D 건물 레이어 클릭 시 카카오 API 연동 상세 정보 팝업
@@ -587,7 +633,7 @@ export default function Map3D({
   useEffect(() => {
     syncData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [startPoint, targetPoint, recommendedRoute, mode, navigating, navPoint, shadows, trees, sunPos, userGps, activeWeatherType]);
+  }, [startPoint, targetPoint, recommendedRoute, mode, navigating, navPoint, shadows, trees, sunPos, userGps, activeWeatherType, layers?.refuge]);
 
   // 탐색 시작: 보행자 시점으로 카메라를 낮추고 진행 방향을 바라본다. 종료하면 전체 보기로 되돌린다.
   const wasNavigatingRef = useRef(false);

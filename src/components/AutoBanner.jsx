@@ -1,7 +1,7 @@
 import React from 'react';
 import { MODE_LABELS } from '../utils/autoRouting';
 
-const MODE_EMOJI = { standard: '🧭', shade: '☀️', night: '🌙' };
+const MODE_EMOJI = { standard: '🧭', shade: '☀️', night: '🌙', rain: '☂️' };
 
 export default function AutoBanner({ weather, mode, isAuto, reason, onResetAuto, isCar = false }) {
   if (isCar) {

@@ -19,7 +19,8 @@ import {
   Home,
   GraduationCap,
   Star,
-  Plus
+  Plus,
+  CloudRain
 } from 'lucide-react';
 import { NODES } from '../data/urbanNetwork';
 import { findNearestNode } from '../engine/routingEngine';
@@ -53,6 +54,7 @@ export default function RouteSearch({
   standardRoute,
   shadeRoute,
   nightRoute,
+  rainRoute,
   transitRoutes = [],
   selectedTransitRoute = null,
   selectedTransitIdx = 0,
@@ -1142,7 +1144,7 @@ export default function RouteSearch({
           </div>
         )}
 
-        <div className="recommend-routes-grid" style={{ gridTemplateColumns: 'repeat(3, 1fr)', display: travelMode !== 'foot' ? 'none' : undefined }}>
+        <div className="recommend-routes-grid" style={{ gridTemplateColumns: rainRoute ? 'repeat(2, 1fr)' : 'repeat(3, 1fr)', display: travelMode !== 'foot' ? 'none' : undefined }}>
           {/* 1. 일반 최단 경로 */}
           {standardRoute && (
             <div
@@ -1224,6 +1226,37 @@ export default function RouteSearch({
               </div>
               <div className="route-card-desc">
                 CCTV <span style={{ color: '#38bdf8', fontWeight: 700 }}>{nightRoute.cctvCount}대</span> · 가로등 <span style={{ color: '#f59e0b', fontWeight: 700 }}>{nightRoute.streetlightCount || 0}개소</span>
+              </div>
+            </div>
+          )}
+
+          {/* 4. 비 피하는 길 */}
+          {rainRoute && (
+            <div
+              className={`recommend-route-card ${mode === 'rain' ? 'selected' : ''}`}
+              style={{
+                borderColor: mode === 'rain' ? '#2563eb' : undefined,
+                background: mode === 'rain' ? 'rgba(37, 99, 235, 0.12)' : undefined
+              }}
+              onClick={() => setMode('rain')}
+            >
+              <div className="card-top-row">
+                <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                  <CloudRain size={14} color="#2563eb" />
+                  <span className="route-card-title" style={{ color: '#2563eb' }}>악천후 안심</span>
+                </div>
+                {mode === 'rain' && <CheckCircle2 size={13} color="#2563eb" />}
+              </div>
+              <div className="route-card-metrics">
+                <strong>{formatDistance(rainRoute.totalDistance)}</strong>
+                <span className="route-card-time">{formatDuration(rainRoute.estimatedMinutes)}</span>
+              </div>
+              <div className="route-card-desc">
+                {rainRoute.rainCoveredDistance > 0 ? (
+                  <><span style={{ color: '#2563eb', fontWeight: 700 }}>눈·비를 피할 수 있는 길 {formatDistance(rainRoute.rainCoveredDistance)}</span> 포함</>
+                ) : (
+                  '눈·비를 피할 수 있는 구간이 없어요'
+                )}
               </div>
             </div>
           )}

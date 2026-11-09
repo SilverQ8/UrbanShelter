@@ -14,8 +14,8 @@ export function decideAutoMode(weather, needs) {
   if (weather.isRaining || weather.isSnowing) {
     const amountText = weather.precipitation > 0 ? ` (시간당 ${Number(weather.precipitation.toFixed(1))}mm)` : '';
     return {
-      mode: 'standard',
-      reason: `${weather.label}${amountText} 중이라 이동 시간을 줄이는 가장 짧은 길로 안내해요`
+      mode: 'rain',
+      reason: `${weather.label}${amountText} 중이라 지붕·지하 통로를 지나는 길을 우선해요 (예보 기준)`
     };
   }
   if (weather.apparent >= HEAT_APPARENT_TEMP || weather.uv >= HEAT_UV_INDEX) {
@@ -27,5 +27,6 @@ export function decideAutoMode(weather, needs) {
 export const MODE_LABELS = {
   standard: '가장 짧은 길',
   shade: '폭염 그늘',
-  night: '야간 안심'
+  night: '야간 안심',
+  rain: '악천후 안심'
 };
