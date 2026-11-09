@@ -12,7 +12,7 @@ import { NODES, MAP_CENTER } from './data/urbanNetwork';
 import { findNearestNode } from './engine/routingEngine';
 import { fetchOsrmPedestrianPath, analyzeRouteCctvSafety, findBestSafetyWaypoint } from './services/routingService';
 import { analyzeRouteStreetlightSafety } from './services/streetlightService';
-import { analyzeRouteRainCover, analyzeRainLegs, findRainWaypoints, findUndergroundRoute, rainDetourAllowance } from './services/rainService';
+import { analyzeRouteRainCover, analyzeRainLegs, findRainWaypoints, findUndergroundRoute, rainDetourAllowance, RAIN_MIN_GAIN_PCT } from './services/rainService';
 import {
   getSunPosition,
   generateAllShadows,
@@ -398,7 +398,7 @@ export default function App() {
       const limit = baseRoute.distance * (1 + allowance);
       const candidates = findRainWaypoints(baseRoute.latlngs, baseRoute.distance, allowance);
       let best = null;
-      let bestRatio = analyzeRouteRainCover(baseRoute.latlngs).rainCoverRatio;
+      let bestRatio = analyzeRouteRainCover(baseRoute.latlngs).rainCoverRatio + RAIN_MIN_GAIN_PCT - 1; // 정수 비율이라 "> 이 값" = 3%p 이상
       for (const w of candidates) {
         const detour = await fetchOsrmPedestrianPath(startPoint.lat, startPoint.lng, targetPoint.lat, targetPoint.lng, 'foot', [w]);
         if (isCancelled) return;

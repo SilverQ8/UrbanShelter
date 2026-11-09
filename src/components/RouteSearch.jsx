@@ -920,7 +920,11 @@ export default function RouteSearch({
                 <span className="route-card-time">{formatDuration(rainRoute.estimatedMinutes)}</span>
               </div>
               <div className="route-card-desc">
-                <span style={{ color: '#2563eb', fontWeight: 700 }}>눈·비 차단 {rainRoute.rainCoverRatio}%</span> (노출 {formatDistance(rainRoute.rainExposedDistance)})
+                {rainRoute.rainCoveredDistance > 0 ? (
+                  <><span style={{ color: '#2563eb', fontWeight: 700 }}>눈·비를 피할 수 있는 길 {formatDistance(rainRoute.rainCoveredDistance)}</span> 포함</>
+                ) : (
+                  '눈·비를 피할 수 있는 구간이 없어요'
+                )}
               </div>
             </div>
           )}

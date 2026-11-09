@@ -64,7 +64,7 @@ export default function Dashboard({
               {mode === 'rain' && (
                 <span className="route-type-badge badge-standard">
                   <CloudRain size={13} />
-                  <span>악천후 안심 경로 (눈·비를 차단하는 지붕 길·지하 통로·지하철 출입구 경유)</span>
+                  <span>악천후 안심 경로 (눈·비를 피할 수 있는 지붕 길·지하 통로·지하철 출입구 경유)</span>
                 </span>
               )}
               {mode === 'night' && (
@@ -134,17 +134,21 @@ export default function Dashboard({
         {!isCar && (<>
         {/* 3. 그늘 보행 비율 & 직사광선 회피 */}
         {mode === 'rain' ? (
-          <div className={`metric-box ${recommendedRoute.rainCoverRatio >= 30 ? 'green' : 'amber'}`}>
+          <div className={`metric-box ${(recommendedRoute.rainCoveredDistance ?? 0) > 0 ? 'green' : 'amber'}`}>
             <div className="metric-title">
               <CloudRain size={12} />
-              <span>눈·비 차단 비율</span>
+              <span>눈·비를 피할 수 있는 길</span>
             </div>
             <div className="metric-value-wrap">
-              <span className="metric-value">{recommendedRoute.rainCoverRatio ?? 0}</span>
-              <span className="metric-unit">%</span>
+              <span className="metric-value">{Math.round(recommendedRoute.rainCoveredDistance ?? 0)}</span>
+              <span className="metric-unit">m</span>
             </div>
             <div className="metric-comparison">
-              <span className="comparison-neutral">노출 {formatDistance(recommendedRoute.rainExposedDistance ?? 0)}</span>
+              <span className="comparison-neutral">
+                {(recommendedRoute.rainCoveredDistance ?? 0) > 0
+                  ? `나머지 ${formatDistance(recommendedRoute.rainExposedDistance ?? 0)}는 눈·비에 노출`
+                  : '눈·비를 피할 수 있는 구간이 없어요'}
+              </span>
             </div>
           </div>
         ) : (
@@ -226,7 +230,7 @@ export default function Dashboard({
               {mode === 'shade'
                 ? `☀️ 그늘 ${formatDistance(recommendedRoute.shadedDistance)}${recommendedRoute.shadeRatio != null ? ` (${recommendedRoute.shadeRatio}%)` : ''}`
                 : mode === 'rain'
-                ? `☂️ 눈·비 차단 ${recommendedRoute.rainCoverRatio ?? 0}% (${formatDistance(recommendedRoute.rainCoveredDistance ?? 0)}) · 노출 ${formatDistance(recommendedRoute.rainExposedDistance ?? 0)}${recommendedRoute.undergroundDistance ? ` · 지하 통로 ${formatDistance(recommendedRoute.undergroundDistance)} 포함` : ''}`
+                ? `☂️ ${(recommendedRoute.rainCoveredDistance ?? 0) > 0 ? `눈·비를 피할 수 있는 길 ${formatDistance(recommendedRoute.rainCoveredDistance)} 포함` : '눈·비를 피할 수 있는 구간이 없어요'} · 노출 ${formatDistance(recommendedRoute.rainExposedDistance ?? 0)}${recommendedRoute.undergroundDistance ? ` · 지하 통로 ${formatDistance(recommendedRoute.undergroundDistance)} 포함` : ''}`
                 : mode === 'night'
                 ? `🌙 CCTV ${recommendedRoute.cctvCount}대 · 가로등 ${recommendedRoute.streetlightCount || 0}개 · 조명 ${recommendedRoute.lightCoverageRatio || 85}%`
                 : isCar

@@ -2,13 +2,18 @@
 // 경로의 비 가림 비율을 계산하고, 비 가림 지점을 경유하는 우회 후보를 고른다.
 import cover from '../data/busanRainCover.json';
 import links from '../data/undergroundLinks.json';
+import smartShelters from '../data/smartBusShelters.json';
 import { getDistanceMeters } from '../engine/routingEngine';
+
+// 점 지점: OSM 출입구·승강장 지붕 + 부산시 스마트 버스쉘터(냉난방 실내형, 공공데이터 15154539)
+const points = [...cover.points, ...smartShelters.map((s) => [s.lat, s.lng])];
 
 const LINE_RADIUS_M = 8; // 덮인 길에서 이 거리 안이면 가려진 구간
 const POINT_RADIUS_M = 12; // 출입구·승강장 지붕은 점이라 조금 넓게 본다
 const CANDIDATE_RADIUS_M = 150; // 기준 경로에서 이 거리 안의 지점만 경유 후보
 const SAMPLE_STEP_M = 5;
 const MAX_TRIES = 4;
+export const RAIN_MIN_GAIN_PCT = 3; // 우회는 눈·비 차단이 이만큼(%p) 이상 늘 때만 채택한다
 
 // 점 p에서 선분 a-b까지 거리(m). 경로 길이 규모에서는 평면 근사로 충분하다.
 function distToSegment(p, a, b) {
@@ -28,7 +33,7 @@ function isCovered(p) {
       if (distToSegment(p, line[i - 1], line[i]) <= LINE_RADIUS_M) return true;
     }
   }
-  return cover.points.some((q) => getDistanceMeters(p[0], p[1], q[0], q[1]) <= POINT_RADIUS_M);
+  return points.some((q) => getDistanceMeters(p[0], p[1], q[0], q[1]) <= POINT_RADIUS_M);
 }
 
 /** 경로를 5m 간격으로 훑어 비 가림 비율(%)·가려진/노출 거리(m)를 구한다. */
@@ -70,7 +75,7 @@ export function rainDetourAllowance(precipitation = 0) {
 
 // 지붕 있는 길은 가장 가까운 꼭짓점 하나만 경유 후보로 쓴다.
 const allCandidates = [
-  ...cover.points,
+  ...points,
   ...cover.lines.map((l) => l[Math.floor(l.length / 2)])
 ];
 
@@ -164,7 +169,7 @@ export async function findUndergroundRoute(start, target, base, allowance, fetch
   }
   cands.sort((x, y) => y.ug - x.ug || x.est - y.est);
   let best = null;
-  let bestRatio = analyzeRouteRainCover(base.latlngs).rainCoverRatio;
+  let bestRatio = analyzeRouteRainCover(base.latlngs).rainCoverRatio + RAIN_MIN_GAIN_PCT - 1; // 정수 비율이라 "> 이 값" = 3%p 이상
   for (const c of cands.slice(0, 3)) {
     const [s1, s2] = await Promise.all([fetchPath(start, c.a), fetchPath(c.b, target)]);
     const distance = s1.distance + c.ug + s2.distance;

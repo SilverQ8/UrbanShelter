@@ -1332,8 +1332,8 @@ export default function MapComponent({
           });
           poly.bindTooltip(
             seg.covered
-              ? `<strong>☂️ 눈·비가 차단되는 구간</strong>`
-              : `<strong>눈·비 노출 구간</strong><br/>차단 ${recommendedRoute.rainCoverRatio}% · 노출 ${formatDistance(recommendedRoute.rainExposedDistance)}`,
+              ? `<strong>☂️ 눈·비를 피할 수 있는 구간</strong>`
+              : `<strong>눈·비 노출 구간</strong><br/>피할 수 있는 길 ${formatDistance(recommendedRoute.rainCoveredDistance ?? 0)} · 노출 ${formatDistance(recommendedRoute.rainExposedDistance)}`,
             { className: 'route-tooltip-custom', sticky: true }
           );
           routeLayer.addLayer(poly);
