@@ -1,15 +1,52 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 
 /**
  * 2D / 3D 지도 공용 고성능 비·눈 날씨 시각화 파티클 캔버스
- * - 비 (Rain): 강한 속도감의 사선 빗줄기(스트로크), 지면 물 튀김 및 파문 효과
- *   * 3D 모드: 풍성하고 생동감 넘치는 입체 빗줄기 & 지면 스플래시
- *   * 2D 모드 (is2D=true): 2D 도로명, POI, 마커 가독성을 위해 약 30% 수준으로 은은하고 깔끔하게 연출
- * - 눈 (Snow): 천천히 흩날리는 6각 눈 결정체와 몽글몽글한 함박눈 (2D는 잔잔한 눈송이)
+ * - 다크 모드 / 라이트 모드 동적 색상 자동 감지 및 시인성 최적화
+ *   * 다크 모드: 어두운 배경 대비 밝은 아이시 블루(186, 230, 253) / 순백 눈 결정
+ *   * 라이트 모드: 밝은 지도 타일 대비 선명한 빗줄기(짙은 블루 29, 78, 216) & 눈 결정 테두리/음영
+ * - 2D 모드 (is2D=true): 도로명, POI, 마커 가독성을 위해 적정 밀도와 은은한 파문 연출
+ * - 3D 모드: 풍성한 빗줄기, 지면 스플래시 비드 및 타원형 물방울 파문
  * - 상호작용 완전 투과 (pointer-events: none)
  */
-export default function WeatherParticles({ type = null, intensity = 1.0, is2D = false }) {
+export default function WeatherParticles({
+  type = null,
+  intensity = 1.0,
+  is2D = false,
+  mapTheme = 'dark'
+}) {
   const canvasRef = useRef(null);
+
+  // 현재 라이트 모드 여부 감지 (prop 또는 document data-theme 속성 감지)
+  const [isLight, setIsLight] = useState(() => {
+    if (mapTheme === 'light') return true;
+    if (typeof document !== 'undefined') {
+      return document.documentElement.getAttribute('data-theme') === 'light';
+    }
+    return false;
+  });
+
+  // mapTheme prop 또는 data-theme 속성 변경 실시간 관찰
+  useEffect(() => {
+    const updateTheme = () => {
+      const docTheme =
+        typeof document !== 'undefined'
+          ? document.documentElement.getAttribute('data-theme')
+          : null;
+      setIsLight(mapTheme === 'light' || docTheme === 'light');
+    };
+
+    updateTheme();
+
+    if (typeof document !== 'undefined') {
+      const observer = new MutationObserver(updateTheme);
+      observer.observe(document.documentElement, {
+        attributes: true,
+        attributeFilter: ['data-theme']
+      });
+      return () => observer.disconnect();
+    }
+  }, [mapTheme]);
 
   useEffect(() => {
     if (!type || (type !== 'rain' && type !== 'snow')) return;
@@ -35,40 +72,45 @@ export default function WeatherParticles({ type = null, intensity = 1.0, is2D = 
     resize();
     window.addEventListener('resize', resize);
 
-    // 파티클 수량 (2D에서는 시인성 보존을 위해 약 30~35%로 절제)
+    // 파티클 수량
     const rainCount = is2D
-      ? Math.min(85, Math.max(30, Math.round(50 * intensity)))
+      ? Math.min(100, Math.max(35, Math.round(60 * intensity)))
       : Math.min(320, Math.max(120, Math.round(180 * intensity)));
 
     const snowCount = is2D
-      ? Math.min(50, Math.max(20, Math.round(35 * intensity)))
+      ? Math.min(55, Math.max(25, Math.round(40 * intensity)))
       : Math.min(160, Math.max(65, Math.round(90 * intensity)));
 
-    // [1] 비 파티클 (2D는 얇고 짧으며 은은한 빗줄기)
+    // [1] 비 파티클 (라이트 모드에서는 또렷한 굵기와 농도로 시인성 확보)
     const raindrops = Array.from({ length: rainCount }, () => ({
       x: Math.random() * (cssWidth + 200) - 100,
       y: Math.random() * cssHeight,
-      len: is2D ? 13 + Math.random() * 14 : 22 + Math.random() * 26,
+      len: is2D
+        ? isLight ? 16 + Math.random() * 16 : 14 + Math.random() * 14
+        : 22 + Math.random() * 26,
       speed: is2D ? 16 + Math.random() * 10 : 24 + Math.random() * 16,
-      opacity: is2D ? 0.12 + Math.random() * 0.22 : 0.25 + Math.random() * 0.5,
-      width: is2D ? 0.75 + Math.random() * 0.5 : 1.0 + Math.random() * 1.4
+      opacity: is2D
+        ? isLight ? 0.38 + Math.random() * 0.35 : 0.18 + Math.random() * 0.25
+        : isLight ? 0.45 + Math.random() * 0.45 : 0.25 + Math.random() * 0.5,
+      width: is2D
+        ? isLight ? 1.2 + Math.random() * 0.6 : 0.85 + Math.random() * 0.5
+        : isLight ? 1.4 + Math.random() * 1.0 : 1.0 + Math.random() * 1.4
     }));
 
-    // 빗방울 바닥 스플래시 (물 튀김 비드 & 타원형 파문)
+    // 빗방울 바닥 스플래시
     const ripples = [];
     const splashBeads = [];
 
     const triggerSplash = (x, y) => {
-      // 2D에서는 번잡한 물튀김 비드는 생략하고, 잔잔한 작은 파문만 최소한으로 표출
       if (is2D) {
-        if (ripples.length < 12 && Math.random() > 0.55) {
+        if (ripples.length < 16 && Math.random() > 0.5) {
           ripples.push({
             x,
             y,
-            rx: 0.8,
-            ry: 0.35,
-            maxRx: 3.5 + Math.random() * 4.5,
-            opacity: 0.22
+            rx: 1.0,
+            ry: 0.4,
+            maxRx: isLight ? 4.5 + Math.random() * 5.0 : 3.5 + Math.random() * 4.5,
+            opacity: isLight ? 0.45 : 0.28
           });
         }
         return;
@@ -82,7 +124,7 @@ export default function WeatherParticles({ type = null, intensity = 1.0, is2D = 
           rx: 1.5,
           ry: 0.6,
           maxRx: 7 + Math.random() * 10,
-          opacity: 0.45
+          opacity: isLight ? 0.55 : 0.45
         });
       }
       if (splashBeads.length < 30 && Math.random() > 0.6) {
@@ -100,12 +142,12 @@ export default function WeatherParticles({ type = null, intensity = 1.0, is2D = 
       }
     };
 
-    // [2] 눈 파티클 (2D는 부드럽고 가벼운 눈송이 위주)
+    // [2] 눈 파티클
     const snowflakes = Array.from({ length: snowCount }, () => {
-      const isCrystal = is2D ? (Math.random() > 0.75) : (Math.random() > 0.6);
+      const isCrystal = is2D ? Math.random() > 0.75 : Math.random() > 0.6;
       const size = isCrystal
-        ? (is2D ? 2.8 + Math.random() * 2.8 : 4.5 + Math.random() * 5.5)
-        : (is2D ? 1.4 + Math.random() * 2.2 : 2.0 + Math.random() * 5.0);
+        ? is2D ? 3.0 + Math.random() * 3.0 : 4.5 + Math.random() * 5.5
+        : is2D ? 1.8 + Math.random() * 2.5 : 2.0 + Math.random() * 5.0;
 
       return {
         x: Math.random() * cssWidth,
@@ -118,7 +160,7 @@ export default function WeatherParticles({ type = null, intensity = 1.0, is2D = 
         swingRadius: is2D ? 0.5 + Math.random() * 0.9 : 0.8 + Math.random() * 1.5,
         rotation: Math.random() * Math.PI * 2,
         rotSpeed: (Math.random() - 0.5) * 0.03,
-        opacity: is2D ? 0.16 + Math.random() * 0.28 : 0.35 + Math.random() * 0.55
+        opacity: isLight ? 0.45 + Math.random() * 0.4 : 0.25 + Math.random() * 0.45
       };
     });
 
@@ -127,8 +169,12 @@ export default function WeatherParticles({ type = null, intensity = 1.0, is2D = 
       c.save();
       c.translate(x, y);
       c.rotate(rot);
-      c.strokeStyle = `rgba(255, 255, 255, ${opacity})`;
-      c.lineWidth = is2D ? 0.7 : 1.1;
+
+      // 라이트 모드에서는 밝은 배경에서도 잘 보이도록 선명한 코발트/블루 톤 적용
+      c.strokeStyle = isLight
+        ? `rgba(37, 99, 235, ${opacity * 0.85})`
+        : `rgba(255, 255, 255, ${opacity})`;
+      c.lineWidth = is2D ? (isLight ? 1.1 : 0.75) : (isLight ? 1.4 : 1.1);
       c.lineCap = 'round';
 
       for (let j = 0; j < 3; j++) {
@@ -163,17 +209,26 @@ export default function WeatherParticles({ type = null, intensity = 1.0, is2D = 
       ctx.clearRect(0, 0, cssWidth, cssHeight);
 
       if (type === 'rain') {
-        // [비] 틴트 배경 (2D는 지도 타일 시인성을 위해 극미세 틴트만 적용)
-        ctx.fillStyle = is2D ? 'rgba(15, 23, 42, 0.015)' : 'rgba(15, 23, 42, 0.06)';
+        // [비] 날씨 배경 틴트
+        if (isLight) {
+          // 라이트 모드: 흐리고 촉촉한 비오는 날 분위기 (은은한 쿨 슬레이트 틴트)
+          ctx.fillStyle = is2D ? 'rgba(71, 85, 105, 0.035)' : 'rgba(71, 85, 105, 0.06)';
+        } else {
+          // 다크 모드: 깊은 밤비 틴트
+          ctx.fillStyle = is2D ? 'rgba(15, 23, 42, 0.015)' : 'rgba(15, 23, 42, 0.06)';
+        }
         ctx.fillRect(0, 0, cssWidth, cssHeight);
 
-        // 빗줄기 (바람 각도 약 -18도)
+        // 빗줄기 색상 (라이트 모드: 선명한 비 색상, 다크 모드: 빛나는 아이시 블루)
+        const rainColorRgb = isLight ? '29, 78, 216' : '186, 230, 253';
+
+        // 빗줄기 렌더링
         ctx.lineCap = 'round';
         for (let i = 0; i < raindrops.length; i++) {
           const p = raindrops[i];
           ctx.beginPath();
           ctx.lineWidth = p.width;
-          ctx.strokeStyle = `rgba(186, 230, 253, ${p.opacity})`;
+          ctx.strokeStyle = `rgba(${rainColorRgb}, ${p.opacity})`;
           ctx.moveTo(p.x, p.y);
           ctx.lineTo(p.x - 3.8, p.y + p.len);
           ctx.stroke();
@@ -199,7 +254,7 @@ export default function WeatherParticles({ type = null, intensity = 1.0, is2D = 
             const b = splashBeads[i];
             ctx.beginPath();
             ctx.arc(b.x, b.y, 1.2, 0, Math.PI * 2);
-            ctx.fillStyle = `rgba(186, 230, 253, ${b.life * 0.7})`;
+            ctx.fillStyle = `rgba(${rainColorRgb}, ${b.life * 0.75})`;
             ctx.fill();
 
             b.x += b.vx;
@@ -215,8 +270,8 @@ export default function WeatherParticles({ type = null, intensity = 1.0, is2D = 
           const rip = ripples[i];
           ctx.beginPath();
           ctx.ellipse(rip.x, rip.y, rip.rx, rip.ry, 0, 0, Math.PI * 2);
-          ctx.strokeStyle = `rgba(186, 230, 253, ${rip.opacity * (is2D ? 0.45 : 0.6)})`;
-          ctx.lineWidth = is2D ? 0.7 : 0.9;
+          ctx.strokeStyle = `rgba(${rainColorRgb}, ${rip.opacity * (is2D ? 0.65 : 0.75)})`;
+          ctx.lineWidth = is2D ? (isLight ? 1.1 : 0.8) : (isLight ? 1.3 : 1.0);
           ctx.stroke();
 
           rip.rx += is2D ? 0.65 : 0.9;
@@ -228,7 +283,9 @@ export default function WeatherParticles({ type = null, intensity = 1.0, is2D = 
         }
       } else if (type === 'snow') {
         // [눈] 하늘 틴트
-        ctx.fillStyle = is2D ? 'rgba(224, 242, 254, 0.015)' : 'rgba(224, 242, 254, 0.04)';
+        ctx.fillStyle = isLight
+          ? is2D ? 'rgba(186, 230, 253, 0.04)' : 'rgba(186, 230, 253, 0.08)'
+          : is2D ? 'rgba(224, 242, 254, 0.015)' : 'rgba(224, 242, 254, 0.04)';
         ctx.fillRect(0, 0, cssWidth, cssHeight);
 
         for (let i = 0; i < snowflakes.length; i++) {
@@ -244,10 +301,23 @@ export default function WeatherParticles({ type = null, intensity = 1.0, is2D = 
             ctx.save();
             ctx.beginPath();
             ctx.arc(s.x, s.y, s.size, 0, Math.PI * 2);
-            ctx.fillStyle = `rgba(255, 255, 255, ${s.opacity})`;
-            ctx.shadowBlur = is2D ? 3 : 6;
-            ctx.shadowColor = 'rgba(224, 242, 254, 0.9)';
-            ctx.fill();
+
+            if (isLight) {
+              // 라이트 모드: 하얀 눈송이에 쿨 블루 테두리와 음영으로 또렷한 시인성 부여
+              ctx.fillStyle = `rgba(240, 249, 255, ${s.opacity})`;
+              ctx.strokeStyle = `rgba(37, 99, 235, ${s.opacity * 0.7})`;
+              ctx.lineWidth = 0.8;
+              ctx.shadowBlur = 4;
+              ctx.shadowColor = 'rgba(59, 130, 246, 0.5)';
+              ctx.fill();
+              ctx.stroke();
+            } else {
+              // 다크 모드: 몽글몽글 빛나는 순백 눈송이
+              ctx.fillStyle = `rgba(255, 255, 255, ${s.opacity})`;
+              ctx.shadowBlur = is2D ? 3 : 6;
+              ctx.shadowColor = 'rgba(224, 242, 254, 0.9)';
+              ctx.fill();
+            }
             ctx.restore();
           }
 
@@ -270,7 +340,7 @@ export default function WeatherParticles({ type = null, intensity = 1.0, is2D = 
       if (animId) cancelAnimationFrame(animId);
       window.removeEventListener('resize', resize);
     };
-  }, [type, intensity, is2D]);
+  }, [type, intensity, is2D, isLight]);
 
   if (!type || (type !== 'rain' && type !== 'snow')) return null;
 

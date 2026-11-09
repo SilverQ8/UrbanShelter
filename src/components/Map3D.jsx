@@ -651,7 +651,7 @@ export default function Map3D({
   return (
     <div style={{ position: 'relative', width: '100%', height: '100%', overflow: 'hidden' }}>
       <div ref={containerRef} className="map3d-viewport" />
-      <WeatherParticles type={activeWeatherType} intensity={weatherIntensity} />
+      <WeatherParticles type={activeWeatherType} intensity={weatherIntensity} mapTheme={mapTheme} />
 
 
     </div>
