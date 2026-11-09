@@ -17,7 +17,8 @@ const MODE_CHOICES = [
   { id: 'auto', label: '자동' },
   { id: 'standard', label: MODE_LABELS.standard },
   { id: 'shade', label: MODE_LABELS.shade },
-  { id: 'night', label: MODE_LABELS.night }
+  { id: 'night', label: MODE_LABELS.night },
+  { id: 'rain', label: MODE_LABELS.rain }
 ];
 
 function formatHour(val) {
@@ -181,7 +182,7 @@ export default function SettingsPanel({
               : `직접 고른 '${MODE_LABELS[modeOverride]}' 경로로 안내해요. 날씨에 맞춰 바꾸려면 '자동'을 누르세요.`}
           </p>
 
-          {mode !== 'standard' && (
+          {mode !== 'standard' && mode !== 'rain' && ( // 비 피하는 길은 강수량으로 우회 폭이 정해져 슬라이더가 없다
             <div className="slider-control-group" style={{ marginTop: '14px' }}>
               <div className="slider-label-row">
                 <span className="slider-title">{sensitivityLabel}</span>

@@ -13,7 +13,12 @@ function describeWeather(code) {
   return '날씨 정보';
 }
 
+// 디버그: 주소 뒤에 ?weather=rain 또는 ?weather=snow 를 붙이면 날씨를 강제로 바꾼다.
+const FORCED = { rain: { precipitation: 2, isRaining: true, isSnowing: false, label: '비' }, snow: { precipitation: 1, isRaining: false, isSnowing: true, label: '눈' } };
+
 export async function fetchCurrentWeather(lat, lng, signal) {
+  const forced = FORCED[new URLSearchParams(window.location.search).get('weather')];
+  if (forced) return { temperature: 8, apparent: 6, uv: 0, isDay: true, ...forced };
   const params = new URLSearchParams({
     latitude: lat.toFixed(4),
     longitude: lng.toFixed(4),

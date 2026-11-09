@@ -1319,6 +1319,25 @@ export default function MapComponent({
           { className: 'route-tooltip-custom', sticky: true }
         );
         routeLayer.addLayer(mainPoly);
+      } else if (mode === 'rain') {
+        // 비 피하는 길: 비가 가려지는 구간은 파란색, 노출 구간은 회색
+        const segs = recommendedRoute.rainSegments?.length ? recommendedRoute.rainSegments : [{ covered: false, latlngs: recLatLngs }];
+        for (const seg of segs) {
+          const poly = L.polyline(seg.latlngs, {
+            color: seg.covered ? '#2563eb' : '#94a3b8',
+            weight: seg.covered ? 7 : 5,
+            opacity: 0.95,
+            lineCap: 'round',
+            lineJoin: 'round'
+          });
+          poly.bindTooltip(
+            seg.covered
+              ? `<strong>☂️ 눈·비가 차단되는 구간</strong>`
+              : `<strong>눈·비 노출 구간</strong><br/>차단 ${recommendedRoute.rainCoverRatio}% · 노출 ${formatDistance(recommendedRoute.rainExposedDistance)}`,
+            { className: 'route-tooltip-custom', sticky: true }
+          );
+          routeLayer.addLayer(poly);
+        }
       }
     }
 

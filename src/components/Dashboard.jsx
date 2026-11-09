@@ -7,7 +7,8 @@ import {
   TrendingUp,
   Video,
   SunMedium,
-  Sparkles
+  Sparkles,
+  CloudRain
 } from 'lucide-react';
 import { formatDistance, formatDistanceParts, formatDuration, formatDurationParts } from '../utils/format';
 
@@ -58,6 +59,12 @@ export default function Dashboard({
                 <span className="route-type-badge badge-shade">
                   <SunMedium size={13} />
                   <span>폭염 안심 그늘 경로 (실시간 태양 위치 및 건물 그늘 분석)</span>
+                </span>
+              )}
+              {mode === 'rain' && (
+                <span className="route-type-badge badge-standard">
+                  <CloudRain size={13} />
+                  <span>악천후 안심 경로 (눈·비를 차단하는 지붕 길·지하 통로·지하철 출입구 경유)</span>
                 </span>
               )}
               {mode === 'night' && (
@@ -126,6 +133,21 @@ export default function Dashboard({
 
         {!isCar && (<>
         {/* 3. 그늘 보행 비율 & 직사광선 회피 */}
+        {mode === 'rain' ? (
+          <div className={`metric-box ${recommendedRoute.rainCoverRatio >= 30 ? 'green' : 'amber'}`}>
+            <div className="metric-title">
+              <CloudRain size={12} />
+              <span>눈·비 차단 비율</span>
+            </div>
+            <div className="metric-value-wrap">
+              <span className="metric-value">{recommendedRoute.rainCoverRatio ?? 0}</span>
+              <span className="metric-unit">%</span>
+            </div>
+            <div className="metric-comparison">
+              <span className="comparison-neutral">노출 {formatDistance(recommendedRoute.rainExposedDistance ?? 0)}</span>
+            </div>
+          </div>
+        ) : (
         <div className={`metric-box ${isNight ? '' : (recommendedRoute.shadeRatio >= 60 ? 'green' : 'amber')}`}>
           <div className="metric-title">
             <SunMedium size={12} className={isNight ? 'metric-icon-muted' : 'metric-icon-sun'} />
@@ -160,6 +182,7 @@ export default function Dashboard({
             )}
           </div>
         </div>
+        )}
 
         {/* 4. 경로상 방범 CCTV 연계 대수 */}
         <div className={`metric-box ${recommendedRoute.cctvCount > 0 ? 'green' : 'amber'}`}>
@@ -192,6 +215,8 @@ export default function Dashboard({
           <div className="hazard-content">
             {mode === 'shade' ? (
               <SunMedium size={16} color="#10b981" />
+            ) : mode === 'rain' ? (
+              <CloudRain size={16} color="#2563eb" />
             ) : mode === 'night' ? (
               <ShieldCheck size={16} color="#38bdf8" />
             ) : (
@@ -200,6 +225,8 @@ export default function Dashboard({
             <span>
               {mode === 'shade'
                 ? `☀️ 그늘 ${formatDistance(recommendedRoute.shadedDistance)}${recommendedRoute.shadeRatio != null ? ` (${recommendedRoute.shadeRatio}%)` : ''}`
+                : mode === 'rain'
+                ? `☂️ 눈·비 차단 ${recommendedRoute.rainCoverRatio ?? 0}% (${formatDistance(recommendedRoute.rainCoveredDistance ?? 0)}) · 노출 ${formatDistance(recommendedRoute.rainExposedDistance ?? 0)}${recommendedRoute.undergroundDistance ? ` · 지하 통로 ${formatDistance(recommendedRoute.undergroundDistance)} 포함` : ''}`
                 : mode === 'night'
                 ? `🌙 CCTV ${recommendedRoute.cctvCount}대 · 가로등 ${recommendedRoute.streetlightCount || 0}개 · 조명 ${recommendedRoute.lightCoverageRatio || 85}%`
                 : isCar

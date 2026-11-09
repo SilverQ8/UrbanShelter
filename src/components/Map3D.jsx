@@ -17,6 +17,7 @@ if (typeof window !== 'undefined') {
 const ROUTE_COLORS = {
   shade: '#10b981',
   night: '#38bdf8',
+  rain: '#2563eb',
   standard: '#64748b'
 };
 

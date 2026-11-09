@@ -12,6 +12,7 @@ import { NODES, MAP_CENTER } from './data/urbanNetwork';
 import { findNearestNode } from './engine/routingEngine';
 import { fetchOsrmPedestrianPath, analyzeRouteCctvSafety, findBestSafetyWaypoint } from './services/routingService';
 import { analyzeRouteStreetlightSafety } from './services/streetlightService';
+import { analyzeRouteRainCover, analyzeRainLegs, findRainWaypoints, findUndergroundRoute, rainDetourAllowance } from './services/rainService';
 import {
   getSunPosition,
   generateAllShadows,
@@ -382,6 +383,41 @@ export default function App() {
     return () => { isCancelled = true; };
   }, [baseRoute, startPoint, targetPoint, travelMode, routeStreetlights]);
 
+  // 비 피하는 우회 경로: 비 가림 지점(지붕 길·지하철 출입구·승강장 지붕)을 경유하는 OSRM 후보 중
+  // 허용 우회 폭 안에서 비 가림 비율이 가장 높은 것. 외부 호출을 아끼려 이 모드를 쓸 때만 계산한다.
+  const [rainBaseRoute, setRainBaseRoute] = useState(null);
+
+  useEffect(() => {
+    if (mode !== 'rain' || !baseRoute?.latlngs || travelMode === 'car' || !startPoint || !targetPoint) {
+      setRainBaseRoute(null);
+      return;
+    }
+    let isCancelled = false;
+    (async () => {
+      const allowance = rainDetourAllowance(weather?.precipitation);
+      const limit = baseRoute.distance * (1 + allowance);
+      const candidates = findRainWaypoints(baseRoute.latlngs, baseRoute.distance, allowance);
+      let best = null;
+      let bestRatio = analyzeRouteRainCover(baseRoute.latlngs).rainCoverRatio;
+      for (const w of candidates) {
+        const detour = await fetchOsrmPedestrianPath(startPoint.lat, startPoint.lng, targetPoint.lat, targetPoint.lng, 'foot', [w]);
+        if (isCancelled) return;
+        if (!detour?.latlngs || detour.distance > limit) continue;
+        const ratio = analyzeRouteRainCover(detour.latlngs).rainCoverRatio;
+        if (ratio > bestRatio) { best = detour; bestRatio = ratio; }
+      }
+      // 지하 통로를 끼운 경로가 차단 비율을 더 올리면 그쪽을 쓴다
+      const underground = await findUndergroundRoute(
+        startPoint, targetPoint, baseRoute, allowance,
+        (a, b) => fetchOsrmPedestrianPath(a.lat, a.lng, b.lat, b.lng, 'foot')
+      );
+      if (isCancelled) return;
+      if (underground && analyzeRainLegs(underground.legs).rainCoverRatio > bestRatio) best = underground;
+      setRainBaseRoute(best);
+    })();
+    return () => { isCancelled = true; };
+  }, [mode, baseRoute, startPoint, targetPoint, travelMode, weather?.precipitation]);
+
   useEffect(() => {
     if (!routeBounds) return;
     const controller = new AbortController();
@@ -583,7 +619,34 @@ export default function App() {
   // GPS는 이용자가 "내 위치" 버튼을 눌렀을 때만 요청한다.
   // (자동 요청 시 출발지가 현재 위치로 덮어써져 기본 경로가 어긋나던 문제 방지)
 
-  const standardRoute = computedRoutes.standard;
+  // 비 가림 계산은 무거워서 시간 슬라이더로 다시 계산되는 computedRoutes와 분리한다 (경로가 바뀔 때만 계산)
+  const baseRain = useMemo(
+    () => (baseRoute?.latlngs && !isCar ? analyzeRouteRainCover(baseRoute.latlngs) : null),
+    [baseRoute, isCar]
+  );
+
+  const rainRoute = useMemo(() => {
+    if (!baseRoute?.latlngs || isCar) return null;
+    const active = rainBaseRoute || baseRoute;
+    return {
+      type: 'rain',
+      latlngs: active.latlngs,
+      totalDistance: active.distance,
+      estimatedMinutes: Math.max(1, Math.round(active.distance / walkSpeed)),
+      cctvCount: analyzeRouteCctvSafety(active.latlngs).cctvCount,
+      streetlightCount: 0,
+      shadeRatio: null,
+      shadedDistance: 0,
+      exposedDistance: 0,
+      ...(rainBaseRoute?.legs ? analyzeRainLegs(rainBaseRoute.legs) : rainBaseRoute ? analyzeRouteRainCover(active.latlngs) : baseRain),
+      steps: active.steps
+    };
+  }, [baseRoute, rainBaseRoute, baseRain, walkSpeed, isCar]);
+
+  const standardRoute = useMemo(
+    () => (baseRain && computedRoutes.standard ? { ...computedRoutes.standard, ...baseRain } : computedRoutes.standard),
+    [computedRoutes.standard, baseRain]
+  );
   const shadeRoute = computedRoutes.shade;
   const nightRoute = computedRoutes.night;
 
@@ -591,8 +654,9 @@ export default function App() {
   const recommendedRoute = useMemo(() => {
     if (mode === 'shade') return shadeRoute || standardRoute;
     if (mode === 'night') return nightRoute || standardRoute;
+    if (mode === 'rain') return rainRoute || standardRoute;
     return standardRoute;
-  }, [mode, shadeRoute, nightRoute, standardRoute]);
+  }, [mode, shadeRoute, nightRoute, rainRoute, standardRoute]);
 
   // Reset to default location
   const handleResetPins = () => {
@@ -1056,6 +1120,7 @@ export default function App() {
             standardRoute={standardRoute}
             shadeRoute={shadeRoute}
             nightRoute={nightRoute}
+            rainRoute={rainRoute}
             travelMode={travelMode}
             setTravelMode={setTravelMode}
             transitRoutes={transitRoutes}
