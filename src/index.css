@@ -3631,17 +3631,31 @@ input:checked+.switch-slider:before {
     padding-top: 70px;
   }
 
-  /* 데스크톱에서 우측 길안내 카드는 우측 상단/중단에 고정되어 좌측 사이드바와 절대 겹치지 않음 */
+  /* 데스크톱에서 우측 길안내 카드는 시원하고 길게 표시되어 여러 단계를 한눈에 확인 가능 */
   .floating-overlay-right {
     position: absolute !important;
-    top: 96px !important;
-    right: 20px !important;
+    top: 90px !important;
+    right: 24px !important;
     bottom: 24px !important;
     left: auto !important;
-    width: 350px !important;
-    max-width: 360px !important;
+    width: 380px !important;
+    max-width: 420px !important;
     margin: 0 !important;
     z-index: 1001 !important;
+    max-height: calc(100vh - 114px) !important;
+  }
+
+  .route-guide.is-expanded {
+    max-height: calc(100vh - 120px) !important;
+    height: auto !important;
+    display: flex !important;
+    flex-direction: column !important;
+  }
+
+  .compact-step-list {
+    max-height: calc(100vh - 310px) !important;
+    min-height: 320px !important;
+    flex: 1 1 auto !important;
   }
 
   .map-viewport {
@@ -5023,8 +5037,8 @@ body {
 }
 
 .route-guide.is-expanded {
-  max-height: 360px !important;
-  border-radius: 20px !important;
+  max-height: calc(100vh - 120px);
+  border-radius: 20px;
 }
 
 .compact-nav-wrapper {
@@ -5144,7 +5158,8 @@ body {
 }
 
 .compact-step-list {
-  max-height: 150px !important;
+  max-height: calc(100vh - 310px);
+  min-height: 250px;
   overflow-y: auto;
   padding-right: 4px;
 }
@@ -5164,6 +5179,11 @@ body {
 
   .route-guide.is-expanded {
     max-height: 38vh !important;
+  }
+
+  .compact-step-list {
+    max-height: 150px !important;
+    min-height: 0 !important;
   }
 
   .route-guide.is-collapsed {
