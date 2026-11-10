@@ -66,9 +66,9 @@ export default function MapComponent({
   const activeWeatherType = useMemo(() => {
     if (layers?.weatherEffect === false) return null;
     if (weather?.isSnowing) return 'snow';
-    if (weather?.isRaining || (weather?.precipitation && weather.precipitation > 0) || mode === 'rain') return 'rain';
+    if (weather?.isRaining) return 'rain';
     return null;
-  }, [weather, mode, layers?.weatherEffect]);
+  }, [weather, layers?.weatherEffect]);
 
   const weatherIntensity = useMemo(() => {
     if (!weather?.precipitation || weather.precipitation <= 0) return 0.8;
@@ -1606,7 +1606,7 @@ export default function MapComponent({
         </div>
       )}
       {/* 2D 지도 전용 가벼운 비/눈 날씨 파티클 (on/off 설정 연동, 다크/라이트 테마 대응) */}
-      <WeatherParticles type={activeWeatherType} intensity={weatherIntensity} is2D={true} mapTheme={mapTheme} />
+      <WeatherParticles type={activeWeatherType} intensity={weatherIntensity} precipitation={weather?.precipitation} is2D={true} mapTheme={mapTheme} />
       {/* 맵 우측 최하단 구석 고정 출처 표기 (Leaflet/OSM) */}
       <div className="map-osm-attribution">
         <a href="https://leafletjs.com" target="_blank" rel="noopener noreferrer">Leaflet</a>

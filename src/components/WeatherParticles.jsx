@@ -12,6 +12,7 @@ import React, { useEffect, useRef, useState } from 'react';
 export default function WeatherParticles({
   type = null,
   intensity = 1.0,
+  precipitation = 0,
   is2D = false,
   mapTheme = 'dark'
 }) {
@@ -72,10 +73,17 @@ export default function WeatherParticles({
     resize();
     window.addEventListener('resize', resize);
 
-    // 파티클 수량
+    // 비 세기: 강수량 0.5mm(가랑비)=0 ~ 6mm 이상(폭우)=1 로 환산한다. 값이 없으면 보통 비(2mm)로 본다.
+    const rainMm = precipitation > 0 ? precipitation : 2;
+    const level = Math.min(1, Math.max(0, (rainMm - 0.5) / 5.5));
+    // 2D는 지도 글자·도로가 배경이라 약한 비도 눈에 띄도록 하한을 높인다.
     const rainCount = is2D
-      ? Math.min(100, Math.max(35, Math.round(60 * intensity)))
-      : Math.min(320, Math.max(120, Math.round(180 * intensity)));
+      ? Math.round(32 + 58 * level)
+      : Math.round(40 + 280 * level);
+    const speedMul = 0.65 + 0.55 * level; // 가랑비는 느리게, 폭우는 빠르게
+    const widthMul = is2D ? 1.0 + 0.5 * level : 0.7 + 0.6 * level; // 가랑비는 가늘게, 폭우는 굵게
+    const lenMul = is2D ? 0.9 + 0.35 * level : 0.75 + 0.5 * level;
+    const opacityMul = is2D ? 1.5 + 0.2 * level : 0.75 + 0.35 * level;
 
     const snowCount = is2D
       ? Math.min(55, Math.max(25, Math.round(40 * intensity)))
@@ -85,16 +93,16 @@ export default function WeatherParticles({
     const raindrops = Array.from({ length: rainCount }, () => ({
       x: Math.random() * (cssWidth + 200) - 100,
       y: Math.random() * cssHeight,
-      len: is2D
+      len: lenMul * (is2D
         ? isLight ? 16 + Math.random() * 16 : 14 + Math.random() * 14
-        : 22 + Math.random() * 26,
-      speed: is2D ? 16 + Math.random() * 10 : 24 + Math.random() * 16,
-      opacity: is2D
+        : 22 + Math.random() * 26),
+      speed: speedMul * (is2D ? 16 + Math.random() * 10 : 24 + Math.random() * 16),
+      opacity: Math.min(1, opacityMul * (is2D
         ? isLight ? 0.38 + Math.random() * 0.35 : 0.18 + Math.random() * 0.25
-        : isLight ? 0.45 + Math.random() * 0.45 : 0.25 + Math.random() * 0.5,
-      width: is2D
+        : isLight ? 0.45 + Math.random() * 0.45 : 0.25 + Math.random() * 0.5)),
+      width: widthMul * (is2D
         ? isLight ? 1.2 + Math.random() * 0.6 : 0.85 + Math.random() * 0.5
-        : isLight ? 1.4 + Math.random() * 1.0 : 1.0 + Math.random() * 1.4
+        : isLight ? 1.4 + Math.random() * 1.0 : 1.0 + Math.random() * 1.4)
     }));
 
     // 빗방울 바닥 스플래시
@@ -340,7 +348,7 @@ export default function WeatherParticles({
       if (animId) cancelAnimationFrame(animId);
       window.removeEventListener('resize', resize);
     };
-  }, [type, intensity, is2D, isLight]);
+  }, [type, intensity, precipitation, is2D, isLight]);
 
   if (!type || (type !== 'rain' && type !== 'snow')) return null;
 

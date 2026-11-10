@@ -21,7 +21,7 @@ export default function AutoBanner({ weather, mode, isAuto, reason, onResetAuto,
   const getWeatherHeadline = () => {
     if (!weather) return '날씨 확인 중';
     const tempPart = `${Math.round(weather.temperature)}°C (체감 ${Math.round(weather.apparent)}°C)`;
-    if (weather.isRaining || weather.isSnowing || (weather.precipitation && weather.precipitation > 0)) {
+    if (weather.isRaining || weather.isSnowing) {
       const precipPart = weather.precipitation > 0 ? ` · 강수량 ${Number(weather.precipitation.toFixed(1))}mm/h` : '';
       return `${weather.label}${precipPart} · ${tempPart}`;
     }

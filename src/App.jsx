@@ -1123,6 +1123,7 @@ export default function App() {
             shadeRoute={shadeRoute}
             nightRoute={nightRoute}
             rainRoute={rainRoute}
+            weather={weather}
             travelMode={travelMode}
             setTravelMode={setTravelMode}
             transitRoutes={transitRoutes}
