@@ -35,6 +35,8 @@ import {
   removeCustomFavorite
 } from '../utils/favorites';
 import FavoriteRegisterModal from './FavoriteRegisterModal';
+import { HEAT_APPARENT_TEMP, HEAT_UV_INDEX } from '../utils/autoRouting';
+import { UMBRELLA_MM } from '../services/weatherService';
 import TravelModeToggle from './TravelModeToggle';
 
 export default function RouteSearch({
@@ -55,6 +57,7 @@ export default function RouteSearch({
   shadeRoute,
   nightRoute,
   rainRoute,
+  weather = null,
   transitRoutes = [],
   selectedTransitRoute = null,
   selectedTransitIdx = 0,
@@ -1198,6 +1201,8 @@ export default function RouteSearch({
               <div className="route-card-desc">
                 {!sunPos?.isDaylight || shadeRoute.shadeRatio == null ? (
                   '일몰 후 (야간 안심 모드 권장)'
+                ) : weather && weather.apparent < HEAT_APPARENT_TEMP && !(weather.uv >= HEAT_UV_INDEX) ? (
+                  '덥지 않음 · 불필요'
                 ) : (
                   <>
                     <span style={{ color: '#10b981', fontWeight: 700 }}>그늘 {shadeRoute.shadeRatio}% 도보</span> (땡볕 최소화)
@@ -1252,7 +1257,11 @@ export default function RouteSearch({
                 <span className="route-card-time">{formatDuration(rainRoute.estimatedMinutes)}</span>
               </div>
               <div className="route-card-desc">
-                {rainRoute.rainCoveredDistance > 0 ? (
+                {weather && !weather.isRaining && !weather.isSnowing ? (
+                  '비·눈 없음 · 불필요'
+                ) : weather?.isRaining && weather.precipitation >= UMBRELLA_MM ? (
+                  <><span style={{ color: '#2563eb', fontWeight: 700 }}>☂ 우산 필수</span> · 가림길 {formatDistance(rainRoute.rainCoveredDistance || 0)}</>
+                ) : rainRoute.rainCoveredDistance > 0 ? (
                   <><span style={{ color: '#2563eb', fontWeight: 700 }}>눈·비를 피할 수 있는 길 {formatDistance(rainRoute.rainCoveredDistance)}</span> 포함</>
                 ) : (
                   '눈·비를 피할 수 있는 구간이 없어요'

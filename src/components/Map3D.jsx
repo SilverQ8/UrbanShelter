@@ -156,9 +156,9 @@ export default function Map3D({
   const activeWeatherType = useMemo(() => {
     if (layers?.weatherEffect === false) return null;
     if (weather?.isSnowing) return 'snow';
-    if (weather?.isRaining || (weather?.precipitation && weather.precipitation > 0) || mode === 'rain') return 'rain';
+    if (weather?.isRaining) return 'rain';
     return null;
-  }, [weather, mode, layers?.weatherEffect]);
+  }, [weather, layers?.weatherEffect]);
 
   const weatherIntensity = useMemo(() => {
     if (!weather?.precipitation || weather.precipitation <= 0) return 1.0;
@@ -697,7 +697,7 @@ export default function Map3D({
   return (
     <div style={{ position: 'relative', width: '100%', height: '100%', overflow: 'hidden' }}>
       <div ref={containerRef} className="map3d-viewport" />
-      <WeatherParticles type={activeWeatherType} intensity={weatherIntensity} mapTheme={mapTheme} />
+      <WeatherParticles type={activeWeatherType} intensity={weatherIntensity} precipitation={weather?.precipitation} mapTheme={mapTheme} />
 
 
     </div>
