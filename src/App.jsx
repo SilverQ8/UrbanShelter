@@ -674,16 +674,16 @@ export default function App() {
     return standardRoute;
   }, [mode, shadeRoute, nightRoute, rainRoute, standardRoute]);
 
-  // Reset to default location
-  const handleResetPins = () => {
-    setStartPoint(null);
-    setTargetPoint(null);
-    setStartNodeId(null);
-    setTargetNodeId(null);
-    setModeOverride('auto');
-    setShowGuide(false);
-    setIsLiveTime(true);
-  };
+  // 출발지나 도착지가 지워지면 지도에서 그려진 경로 및 길안내 자동 취소
+  useEffect(() => {
+    if (!startPoint || !targetPoint) {
+      setBaseRoute(null);
+      setNightBaseRoute(null);
+      setRainBaseRoute(null);
+      setShowGuide(false);
+      setNavigating(false);
+    }
+  }, [startPoint, targetPoint]);
 
   // 글자 크게 보기: 루트 글자 크기를 키워 rem 기반 UI 전체를 확대한다.
   useEffect(() => {
@@ -1003,7 +1003,6 @@ export default function App() {
             isRouteBased={isRouteBasedPoi}
           />
         }
-        onResetPins={handleResetPins}
         onOpenSettings={() => setShowSettings(true)}
         onOpenHelp={() => setShowHelp(true)}
         viewMode={viewMode}

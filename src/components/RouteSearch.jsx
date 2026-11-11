@@ -184,6 +184,8 @@ export default function RouteSearch({
     } else {
       setStartResults([]);
       setIsSearching(false);
+      if (setStartPoint) setStartPoint(null);
+      if (setStartNodeId) setStartNodeId(null);
     }
   };
 
@@ -206,6 +208,8 @@ export default function RouteSearch({
     } else {
       setDestResults([]);
       setIsSearching(false);
+      if (setTargetPoint) setTargetPoint(null);
+      if (setTargetNodeId) setTargetNodeId(null);
     }
   };
 
@@ -316,6 +320,8 @@ export default function RouteSearch({
     setStartQuery('');
     setStartResults([]);
     setActiveDropdown('start');
+    if (setStartPoint) setStartPoint(null);
+    if (setStartNodeId) setStartNodeId(null);
     if (startInputRef.current) startInputRef.current.focus();
   };
 
@@ -323,6 +329,8 @@ export default function RouteSearch({
     setDestQuery('');
     setDestResults([]);
     setActiveDropdown('dest');
+    if (setTargetPoint) setTargetPoint(null);
+    if (setTargetNodeId) setTargetNodeId(null);
     if (destInputRef.current) destInputRef.current.focus();
   };
 

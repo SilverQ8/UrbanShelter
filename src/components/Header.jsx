@@ -1,8 +1,7 @@
 import React from 'react';
-import { RotateCcw, Moon, Sun, SunMoon, Settings, Box, Map as MapIcon, CircleHelp, SunMedium } from 'lucide-react';
+import { Moon, Sun, SunMoon, Settings, Box, Map as MapIcon, CircleHelp, SunMedium } from 'lucide-react';
 
 export default function Header({
-  onResetPins,
   onOpenSettings,
   onOpenHelp,
   viewMode,
@@ -95,16 +94,6 @@ export default function Header({
           aria-label="내 설정 (이동에 필요한 도움 변경)"
         >
           <Settings size={18} />
-        </button>
-
-        {/* Reset Button */}
-        <button
-          className="reset-btn"
-          onClick={onResetPins}
-          title="출발/도착지 기본값 초기화"
-          aria-label="출발/도착지 기본값 초기화"
-        >
-          <RotateCcw size={18} />
         </button>
       </div>
     </header>
