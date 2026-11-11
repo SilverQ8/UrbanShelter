@@ -1822,10 +1822,11 @@ input:checked+.switch-slider:before {
 /* Route Guide (길 안내) */
 .floating-overlay-right {
   position: absolute;
-  top: 96px;
-  right: 20px;
-  bottom: 100px;
-  width: 340px;
+  top: 90px;
+  right: 24px;
+  bottom: 24px;
+  width: 490px;
+  max-width: calc(100vw - 48px);
   z-index: 500;
   display: flex;
   flex-direction: column;
@@ -3631,38 +3632,41 @@ input:checked+.switch-slider:before {
     padding-top: 70px;
   }
 
-  /* 데스크톱에서 우측 길안내 카드는 시원하고 길게 표시되어 여러 단계를 한눈에 확인 가능 */
+  /* 데스크톱에서 우측 길안내 카드는 시원하고 넉넉한 너비로 표시되어 텍스트 잘림 방지 및 가독성 확보 */
   .floating-overlay-right {
     position: absolute !important;
     top: 90px !important;
     right: 24px !important;
     bottom: 24px !important;
     left: auto !important;
-    width: 380px !important;
-    max-width: 420px !important;
+    width: 490px !important;
+    max-width: 530px !important;
     margin: 0 !important;
     z-index: 1001 !important;
     max-height: calc(100vh - 114px) !important;
   }
 
-  /* 데스크톱에서 우측 길안내 카드가 축소(접힌) 상태일 때: 화면 우하단 시원하고 넉넉한 너비로 확장하여 글자 잘림 방지 */
+  /* 데스크톱에서 우측 길안내 카드가 축소(접힌) 상태일 때: 우상단 위치 유지 & 시원하고 넉넉한 너비로 글자 잘림 방지 */
   .floating-overlay-right:has(.route-guide.is-collapsed) {
-    top: auto !important;
-    bottom: 24px !important;
+    top: 90px !important;
+    bottom: auto !important;
     right: 24px !important;
-    width: auto !important;
-    min-width: 480px !important;
-    max-width: 560px !important;
+    width: 490px !important;
+    max-width: 530px !important;
     max-height: 80px !important;
     height: auto !important;
   }
 
   .route-guide.is-collapsed {
-    min-width: 480px !important;
-    max-width: 560px !important;
+    width: 100% !important;
+    min-width: 460px !important;
+    max-width: 530px !important;
   }
 
   .route-guide.is-expanded {
+    width: 100% !important;
+    min-width: 460px !important;
+    max-width: 530px !important;
     max-height: calc(100vh - 120px) !important;
     height: auto !important;
     display: flex !important;

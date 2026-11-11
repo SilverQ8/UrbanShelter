@@ -141,14 +141,14 @@ export default function RouteGuide({
         onClick={() => setIsCollapsed((v) => !v)}
         role="button"
         tabIndex={0}
-        title={isCollapsed ? '상세 길안내 펼치기' : '하단으로 내리기'}
-        aria-label={isCollapsed ? '상세 길안내 펼치기' : '하단으로 내리기'}
+        title={isCollapsed ? '상세 길안내 펼치기' : '요약 보기로 접기'}
+        aria-label={isCollapsed ? '상세 길안내 펼치기' : '요약 보기로 접기'}
       >
         <div className="route-guide-handle-pill" />
       </div>
 
       {isCollapsed ? (
-        /* 1. 하단으로 내렸을 때 (축소 상태): 지도를 가리지 않는 초슬림 요약 바 */
+        /* 1. 요약 모드 (축소 상태): 우상단에서 한눈에 보는 초슬림 요약 바 */
         <div
           className="route-guide-collapsed-bar"
           onClick={() => setIsCollapsed(false)}
@@ -182,7 +182,7 @@ export default function RouteGuide({
             >
               <ListOrdered size={14} />
               <span>상세보기</span>
-              <ChevronUp size={14} />
+              <ChevronDown size={14} />
             </button>
             <button
               type="button"
@@ -207,7 +207,7 @@ export default function RouteGuide({
               className="route-guide-header"
               onClick={() => setIsCollapsed(true)}
               aria-expanded={!isCollapsed}
-              title="하단으로 접기"
+              title="요약 보기로 접기"
             >
               <span className="route-guide-title">
                 <ListOrdered size={16} />
@@ -223,10 +223,10 @@ export default function RouteGuide({
                 type="button"
                 className="route-guide-close route-guide-collapse-trigger"
                 onClick={() => setIsCollapsed(true)}
-                aria-label="하단으로 내리기"
-                title="하단으로 내리기"
+                aria-label="요약 보기로 접기"
+                title="요약 보기로 접기"
               >
-                <ChevronDown size={18} />
+                <ChevronUp size={18} />
               </button>
               <button
                 type="button"
