@@ -880,9 +880,9 @@ export default function App() {
   const closeGuide = () => {
     if (navigating) {
       setNavigating(false);
-
     }
     setShowGuide(false);
+    setIsMobileSearchOpen(false);
   };
 
   const stopNavigation = () => {
@@ -1095,7 +1095,7 @@ export default function App() {
         )}
 
         {/* Floating Left Overlay: Route Search & Control Panel */}
-        <div className={`floating-overlay-left ${showGuide ? "guide-active" : ""} ${isMobileSearchOpen ? "mobile-open" : "mobile-closed"}`}>
+        <div className={`floating-overlay-left ${showGuide ? "guide-active mobile-closed" : (isMobileSearchOpen ? "mobile-open" : "mobile-closed")}`}>
           {/* 데스크톱 사이드바 브랜드 로고 (스크롤 시 함께 자연스럽게 이동하여 인풋과 겹치지 않음) */}
           <div className="sidebar-brand-header">
             <div className="brand-section">
@@ -1149,6 +1149,7 @@ export default function App() {
             sunPos={sunPos}
             onShowGuide={() => {
               setShowGuide(true);
+              setIsMobileSearchOpen(false);
               startNavigation();
             }}
             guideOpen={showGuide}

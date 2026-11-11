@@ -180,7 +180,6 @@ export default function RouteGuide({
               }}
               title="상세 목록 펼치기"
             >
-              <ListOrdered size={14} />
               <span>상세보기</span>
               <ChevronDown size={14} />
             </button>

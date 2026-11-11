@@ -4642,11 +4642,11 @@ body {
       z-index: 960 !important;
     }
 
-    /* 모바일 길찾기 검색창(바텀시트) 또는 길안내 상세 목록이 열려 있을 때는 뒤쪽 지도 컨트롤(GPS 버튼, 줌 버튼)을 뒤로 보내고 투명 처리 */
-    .floating-overlay-left.mobile-open ~ .locate-btn,
-    body:has(.floating-overlay-left.mobile-open) .locate-btn,
-    body:has(.floating-overlay-left.mobile-open) .leaflet-bottom.leaflet-right,
-    body:has(.floating-overlay-left.mobile-open) .maplibregl-ctrl-bottom-right,
+    /* 모바일 길찾기 검색창(바텀시트)이 실제로 화면에 열려 있을 때만 뒤쪽 지도 컨트롤(GPS 버튼, 줌 버튼)을 숨김 (길안내 요약 모드 시에는 지도 컨트롤 항상 정상 노출) */
+    .floating-overlay-left.mobile-open:not(.guide-active) ~ .locate-btn,
+    body:has(.floating-overlay-left.mobile-open:not(.guide-active)) .locate-btn,
+    body:has(.floating-overlay-left.mobile-open:not(.guide-active)) .leaflet-bottom.leaflet-right,
+    body:has(.floating-overlay-left.mobile-open:not(.guide-active)) .maplibregl-ctrl-bottom-right,
     .floating-overlay-right:has(.route-guide.is-expanded) ~ .locate-btn,
     body:has(.route-guide.is-expanded) .locate-btn,
     body:has(.route-guide.is-expanded) .leaflet-bottom.leaflet-right .leaflet-control-zoom,
@@ -5061,22 +5061,23 @@ body {
 .collapsed-expand-btn {
   display: flex;
   align-items: center;
-  gap: 6px !important;
-  padding: 7px 13px !important;
+  gap: 5px !important;
+  padding: 6px 12px !important;
   border-radius: 12px;
-  background: rgba(56, 189, 248, 0.15);
-  border: 1px solid rgba(56, 189, 248, 0.35);
-  color: #38bdf8;
+  background: var(--theme-forest) !important;
+  border: 1px solid rgba(243, 237, 222, 0.22) !important;
+  color: var(--theme-cream) !important;
   font-size: 0.82rem !important;
   font-weight: 700;
   cursor: pointer;
   white-space: nowrap;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3) !important;
   transition: all 0.15s ease;
 }
 
 .collapsed-expand-btn:hover {
-  background: rgba(56, 189, 248, 0.25);
-  color: #ffffff;
+  background: var(--theme-forest-dark) !important;
+  color: #ffffff !important;
 }
 
 [data-theme='light'] .collapsed-expand-btn {
@@ -5092,15 +5093,25 @@ body {
 }
 
 .collapsed-actions .route-guide-close {
-  width: 32px !important;
-  height: 32px !important;
+  width: 30px !important;
+  height: 30px !important;
+  min-width: 30px !important;
+  flex-shrink: 0 !important;
   margin-right: 0 !important;
   border-radius: 50% !important;
   display: flex !important;
   align-items: center !important;
   justify-content: center !important;
   cursor: pointer !important;
+  background: rgba(255, 255, 255, 0.1) !important;
+  border: 1px solid rgba(255, 255, 255, 0.18) !important;
+  color: var(--text-main) !important;
   transition: all 0.15s ease !important;
+}
+
+.collapsed-actions .route-guide-close:hover {
+  background: rgba(255, 255, 255, 0.22) !important;
+  color: #ffffff !important;
 }
 
 [data-theme='light'] .collapsed-actions .route-guide-close {
@@ -5356,9 +5367,37 @@ body {
   }
 
   .route-guide.is-collapsed {
-    min-height: 58px !important;
-    max-height: 66px !important;
-    padding: 6px 14px 8px !important;
+    min-height: 56px !important;
+    max-height: 64px !important;
+    padding: 6px 10px 8px 12px !important;
+  }
+
+  .route-guide.is-collapsed .collapsed-time-info {
+    font-size: 0.84rem !important;
+    gap: 5px !important;
+    min-width: 0 !important;
+    overflow: hidden !important;
+  }
+
+  .route-guide.is-collapsed .collapsed-duration {
+    font-size: 0.94rem !important;
+  }
+
+  .route-guide.is-collapsed .collapsed-actions {
+    gap: 5px !important;
+    flex-shrink: 0 !important;
+  }
+
+  .route-guide.is-collapsed .collapsed-expand-btn {
+    padding: 5px 8px !important;
+    font-size: 0.78rem !important;
+    gap: 3px !important;
+  }
+
+  .route-guide.is-collapsed .collapsed-actions .route-guide-close {
+    width: 28px !important;
+    height: 28px !important;
+    min-width: 28px !important;
   }
 }
 
