@@ -3982,7 +3982,7 @@ body {
     border: 1px solid rgba(255, 255, 255, 0.16) !important;
     border-radius: 22px !important;
     box-shadow: 0 -8px 36px rgba(0, 0, 0, 0.8) !important;
-    z-index: 900 !important;
+    z-index: 1005 !important;
     display: flex !important;
     flex-direction: column !important;
     overflow: hidden !important;
@@ -4641,7 +4641,11 @@ body {
       z-index: 960 !important;
     }
 
-    /* 길안내 상세 목록이 크게 펼쳐진 경우(바텀시트 오픈 시), 지도 버튼들이 본문을 가리지 않도록 자연스럽게 페이드아웃 */
+    /* 모바일 길찾기 검색창(바텀시트) 또는 길안내 상세 목록이 열려 있을 때는 뒤쪽 지도 컨트롤(GPS 버튼, 줌 버튼)을 뒤로 보내고 투명 처리 */
+    .floating-overlay-left.mobile-open ~ .locate-btn,
+    body:has(.floating-overlay-left.mobile-open) .locate-btn,
+    body:has(.floating-overlay-left.mobile-open) .leaflet-bottom.leaflet-right,
+    body:has(.floating-overlay-left.mobile-open) .maplibregl-ctrl-bottom-right,
     .floating-overlay-right:has(.route-guide.is-expanded) ~ .locate-btn,
     body:has(.route-guide.is-expanded) .locate-btn,
     body:has(.route-guide.is-expanded) .leaflet-bottom.leaflet-right .leaflet-control-zoom,
