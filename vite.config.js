@@ -838,17 +838,33 @@ function addressSearchPlugin(cctvApiKey, buildingApiKey, streetlightApiKey, stre
           }
         }
 
-        // 3. 전국 실시간 온디맨드 조회 (서울, 경기, 대구, 인천, 대전, 광주, 제주 등 전국 모든 지역)
-        if (matches.length < 50 && lat && lng) {
+        // 3. 뷰포트 다분할(Multi-Quadrant) 실시간 온디맨드 공공데이터 연동
+        // 화면 중심뿐 아니라 사방 4개 분면의 법정동(EMD)을 감지하여 경계 지역의 누락을 원천 차단
+        if (lat && lng && minLat && maxLat && minLng && maxLng) {
           try {
-            const emdCd = await resolveKakaoEmdCode(lat, lng, kakaoApiKey);
-            if (emdCd) {
+            const probePoints = [
+              { lat, lng },
+              { lat: maxLat * 0.75 + minLat * 0.25, lng: maxLng * 0.75 + minLng * 0.25 },
+              { lat: minLat * 0.75 + maxLat * 0.25, lng: minLng * 0.75 + maxLng * 0.25 },
+              { lat: maxLat * 0.75 + minLat * 0.25, lng: minLng * 0.75 + maxLng * 0.25 },
+              { lat: minLat * 0.75 + maxLat * 0.25, lng: maxLng * 0.75 + minLng * 0.25 }
+            ];
+
+            const emdCodes = new Set();
+            for (const pt of probePoints) {
+              const code = await resolveKakaoEmdCode(pt.lat, pt.lng, kakaoApiKey);
+              if (code) emdCodes.add(code);
+            }
+
+            for (const emdCd of emdCodes) {
               let liveLights = nationwideDynamicDevCache.get(emdCd);
               if (!liveLights) {
                 liveLights = await fetchSafetyDataStreetlights(streetlightApiKey, streetlightDataId, 1, 1000, emdCd);
-                nationwideDynamicDevCache.set(emdCd, liveLights);
+                if (Array.isArray(liveLights)) {
+                  nationwideDynamicDevCache.set(emdCd, liveLights);
+                }
               }
-              if (liveLights && liveLights.length > 0) {
+              if (Array.isArray(liveLights) && liveLights.length > 0) {
                 for (const item of liveLights) {
                   if (!existingIds.has(item.id)) {
                     matches.push(item);
@@ -858,7 +874,22 @@ function addressSearchPlugin(cctvApiKey, buildingApiKey, streetlightApiKey, stre
               }
             }
           } catch (err) {
-            console.warn('Nationwide dev streetlight fetch error:', err);
+            console.warn('Nationwide multi-quadrant dev streetlight fetch error:', err);
+          }
+        }
+
+        // 4. 전국 음영지역 완전 방지: 실제 공공데이터가 전무하거나 부족한 지역(rural / deadzone)의 경우 OSM 보행 도로망 기반 가로등 자동 보완
+        if (matches.length < 20 && minLat && maxLat && minLng && maxLng) {
+          try {
+            const osmRoadLights = await fetchOsmRoadStreetlights(minLat, minLng, maxLat, maxLng);
+            for (const ol of osmRoadLights) {
+              if (!existingIds.has(ol.id)) {
+                matches.push(ol);
+                existingIds.add(ol.id);
+              }
+            }
+          } catch {
+            // ignore
           }
         }
 
@@ -881,7 +912,19 @@ function addressSearchPlugin(cctvApiKey, buildingApiKey, streetlightApiKey, stre
         }
 
         const slLimit = 200;
-        const finalLights = matches.slice(0, slLimit);
+        // 동일 기둥(6m 이내) 복수 등기구/중복 가로등 제거
+        const finalLights = [];
+        for (const item of matches) {
+          const isDup = finalLights.some(f => {
+            const dLat = (item.lat - f.lat) * 111000;
+            const dLng = (item.lng - f.lng) * 88000;
+            return (dLat * dLat + dLng * dLng) < 36; // 6m
+          });
+          if (!isDup) {
+            finalLights.push(item);
+            if (finalLights.length >= slLimit) break;
+          }
+        }
 
         res.end(JSON.stringify({
           streetlights: finalLights,

@@ -900,7 +900,19 @@ export default function MapComponent({
       });
 
       const maxLimit = zoom >= 17 ? 50 : 35;
-      const prioritizedCctvs = visibleCctvs.slice(0, maxLimit);
+      // 동일 기둥/폴대(5m 이내) 복수 카메라 중복 렌더링 방지
+      const prioritizedCctvs = [];
+      for (const cam of visibleCctvs) {
+        const isDuplicate = prioritizedCctvs.some(p => {
+          const dLat = (cam.lat - p.lat) * 111000;
+          const dLng = (cam.lng - p.lng) * 88000;
+          return (dLat * dLat + dLng * dLng) < 25; // 5m
+        });
+        if (!isDuplicate) {
+          prioritizedCctvs.push(cam);
+          if (prioritizedCctvs.length >= maxLimit) break;
+        }
+      }
 
       setCctvState({
         count: visibleCctvs.length,
@@ -1057,7 +1069,19 @@ export default function MapComponent({
       });
 
       const maxLimit = 200;
-      const prioritizedLights = visibleStreetlights.slice(0, maxLimit);
+      // 동일 기둥(6m 이내) 복수 등기구/중복 가로등 제거하여 1개 기둥 단위로 정돈
+      const prioritizedLights = [];
+      for (const light of visibleStreetlights) {
+        const isDuplicate = prioritizedLights.some(p => {
+          const dLat = (light.lat - p.lat) * 111000;
+          const dLng = (light.lng - p.lng) * 88000;
+          return (dLat * dLat + dLng * dLng) < 36; // 6m
+        });
+        if (!isDuplicate) {
+          prioritizedLights.push(light);
+          if (prioritizedLights.length >= maxLimit) break;
+        }
+      }
 
       setStreetlightState({
         count: visibleStreetlights.length,
@@ -1583,35 +1607,19 @@ export default function MapComponent({
         style={{ cursor: pinSelectMode ? 'crosshair' : 'grab' }}
       />
 
-      {/* Floating Route Shade Legend (Clear visual guide on the street) */}
-      {mode === 'shade' && (
-        <div style={{
-          position: 'absolute',
-          bottom: '24px',
-          left: '20px',
-          zIndex: 1000,
-          background: 'rgba(15, 23, 42, 0.88)',
-          backdropFilter: 'blur(10px)',
-          border: '1px solid rgba(255, 255, 255, 0.12)',
-          borderRadius: '10px',
-          padding: '8px 12px',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '6px',
-          boxShadow: '0 4px 16px rgba(0,0,0,0.4)',
-          pointerEvents: 'auto',
-          fontSize: '0.74rem'
-        }}>
-          <div style={{ fontSize: '0.70rem', fontWeight: 700, color: 'var(--text-muted)' }}>
+      {/* Floating Route Shade Legend (길찾기 후 그늘 경로 활성화 시에만 좌하단 노출) */}
+      {mode === 'shade' && recommendedRoute?.latlngs?.length > 1 && (
+        <div className={`floating-route-shade-legend ${mapTheme === 'light' ? 'theme-light' : 'theme-dark'}`}>
+          <div className="shade-legend-title">
             보행로 일조/그늘 상태 구분
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <span style={{ width: '22px', height: '5px', borderRadius: '3px', background: '#10b981', display: 'inline-block', boxShadow: '0 0 8px rgba(16,185,129,0.8)' }}></span>
-            <span style={{ color: '#34d399', fontWeight: 600 }}>시원한 그늘 구간 (초록)</span>
+          <div className="shade-legend-item">
+            <span className="shade-legend-bar shade-bar-green"></span>
+            <span className="shade-legend-text shade-text-green">시원한 그늘 구간 (초록)</span>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <span style={{ width: '22px', height: '4px', borderRadius: '2px', background: '#f59e0b', display: 'inline-block' }}></span>
-            <span style={{ color: '#fbbf24', fontWeight: 600 }}>직사광선 땡볕 구간 (주황)</span>
+          <div className="shade-legend-item">
+            <span className="shade-legend-bar shade-bar-orange"></span>
+            <span className="shade-legend-text shade-text-orange">직사광선 땡볕 구간 (주황)</span>
           </div>
         </div>
       )}

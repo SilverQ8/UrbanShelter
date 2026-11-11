@@ -6761,3 +6761,127 @@ body {
 [data-theme='light'] .live-search-hint {
   color: #446b57 !important;
 }
+
+/* =========================================================
+   FLOATING ROUTE SHADE LEGEND (좌하단 보행로 일조/그늘 상태 범례)
+   ========================================================= */
+.floating-route-shade-legend {
+  position: absolute;
+  bottom: 24px;
+  left: 20px;
+  z-index: 1000;
+  border-radius: 12px;
+  padding: 10px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  pointer-events: auto;
+  font-family: inherit;
+  font-size: 0.76rem;
+  user-select: none;
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@media (max-width: 992px) {
+  .floating-route-shade-legend {
+    left: 16px;
+    bottom: 84px; /* 모바일 하단 바텀시트/내비 컨트롤과 간격 유지 */
+  }
+}
+
+/* 다크 모드 테마 */
+.floating-route-shade-legend.theme-dark,
+[data-theme='dark'] .floating-route-shade-legend {
+  background: rgba(15, 23, 42, 0.92);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.55);
+}
+
+.floating-route-shade-legend.theme-dark .shade-legend-title,
+[data-theme='dark'] .floating-route-shade-legend .shade-legend-title {
+  font-size: 0.70rem;
+  font-weight: 700;
+  color: #94a3b8;
+  letter-spacing: -0.01em;
+}
+
+.floating-route-shade-legend.theme-dark .shade-bar-green,
+[data-theme='dark'] .floating-route-shade-legend .shade-bar-green {
+  background: #10b981;
+  box-shadow: 0 0 8px rgba(16, 185, 129, 0.85);
+}
+
+.floating-route-shade-legend.theme-dark .shade-text-green,
+[data-theme='dark'] .floating-route-shade-legend .shade-text-green {
+  color: #34d399;
+  font-weight: 700;
+}
+
+.floating-route-shade-legend.theme-dark .shade-bar-orange,
+[data-theme='dark'] .floating-route-shade-legend .shade-bar-orange {
+  background: #f59e0b;
+  box-shadow: 0 0 8px rgba(245, 158, 11, 0.85);
+}
+
+.floating-route-shade-legend.theme-dark .shade-text-orange,
+[data-theme='dark'] .floating-route-shade-legend .shade-text-orange {
+  color: #fbbf24;
+  font-weight: 700;
+}
+
+/* 라이트 모드 테마 (라이트 모드 배경과 완벽 일치 및 고대비 가독성 확보) */
+.floating-route-shade-legend.theme-light,
+[data-theme='light'] .floating-route-shade-legend {
+  background: rgba(255, 254, 250, 0.96) !important;
+  border: 1.5px solid rgba(36, 75, 58, 0.28) !important;
+  box-shadow: 0 8px 24px rgba(24, 56, 42, 0.16) !important;
+}
+
+.floating-route-shade-legend.theme-light .shade-legend-title,
+[data-theme='light'] .floating-route-shade-legend .shade-legend-title {
+  font-size: 0.70rem;
+  font-weight: 800;
+  color: #1b4533 !important;
+  letter-spacing: -0.01em;
+}
+
+.floating-route-shade-legend.theme-light .shade-bar-green,
+[data-theme='light'] .floating-route-shade-legend .shade-bar-green {
+  background: #059669 !important;
+  box-shadow: 0 0 6px rgba(5, 150, 105, 0.35) !important;
+}
+
+.floating-route-shade-legend.theme-light .shade-text-green,
+[data-theme='light'] .floating-route-shade-legend .shade-text-green {
+  color: #047857 !important;
+  font-weight: 800;
+}
+
+.floating-route-shade-legend.theme-light .shade-bar-orange,
+[data-theme='light'] .floating-route-shade-legend .shade-bar-orange {
+  background: #d97706 !important;
+  box-shadow: 0 0 6px rgba(217, 119, 6, 0.35) !important;
+}
+
+.floating-route-shade-legend.theme-light .shade-text-orange,
+[data-theme='light'] .floating-route-shade-legend .shade-text-orange {
+  color: #b45309 !important;
+  font-weight: 800;
+}
+
+.shade-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.shade-legend-bar {
+  width: 22px;
+  height: 5px;
+  border-radius: 3px;
+  display: inline-block;
+  flex-shrink: 0;
+}
+

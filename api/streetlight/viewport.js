@@ -280,21 +280,54 @@ export default async function handler(req, res) {
     }
   }
 
-  // 3. 전국 실시간 온디맨드 조회 (서울, 경기, 대구, 인천, 대전, 광주, 제주 등 전국 모든 지역)
-  if (matches.length < 50 && lat && lng) {
+  // 3. 뷰포트 다분할(Multi-Quadrant) 실시간 온디맨드 공공데이터 연동
+  // 화면 중심 및 사방 4개 분면의 법정동(EMD)을 감지하여 행정 경계 지역의 누락을 원천 방지
+  if (lat && lng && minLat && maxLat && minLng && maxLng) {
     try {
-      const region = await resolveEmdCode(lat, lng);
-      if (region?.emdCd) {
-        const liveLights = await fetchNationwideStreetlightsByEmd(region.emdCd, region.dong);
-        for (const item of liveLights) {
-          if (!existingIds.has(item.id)) {
-            matches.push(item);
-            existingIds.add(item.id);
+      const probePoints = [
+        { lat, lng },
+        { lat: maxLat * 0.75 + minLat * 0.25, lng: maxLng * 0.75 + minLng * 0.25 },
+        { lat: minLat * 0.75 + maxLat * 0.25, lng: minLng * 0.75 + maxLng * 0.25 },
+        { lat: maxLat * 0.75 + minLat * 0.25, lng: minLng * 0.75 + maxLng * 0.25 },
+        { lat: minLat * 0.75 + maxLat * 0.25, lng: maxLng * 0.75 + minLng * 0.25 }
+      ];
+
+      const emdCodes = new Map();
+      const resolvedList = await Promise.all(probePoints.map(p => resolveEmdCode(p.lat, p.lng)));
+      for (const reg of resolvedList) {
+        if (reg?.emdCd && !emdCodes.has(reg.emdCd)) {
+          emdCodes.set(reg.emdCd, reg.dong);
+        }
+      }
+
+      for (const [emdCd, dongName] of emdCodes) {
+        const liveLights = await fetchNationwideStreetlightsByEmd(emdCd, dongName);
+        if (Array.isArray(liveLights) && liveLights.length > 0) {
+          for (const item of liveLights) {
+            if (!existingIds.has(item.id)) {
+              matches.push(item);
+              existingIds.add(item.id);
+            }
           }
         }
       }
     } catch (err) {
-      console.warn('Nationwide live streetlight fetch error:', err);
+      console.warn('Nationwide multi-quadrant live streetlight fetch error:', err);
+    }
+  }
+
+  // 4. 전국 음영지역 완전 방지: 실제 공공데이터가 전무하거나 부족한 지역의 경우 OSM 보행 도로망 기반 자동 보완
+  if (matches.length < 20 && minLat && maxLat && minLng && maxLng) {
+    try {
+      const osmRoadLights = await fetchOsmRoadStreetlights(minLat, minLng, maxLat, maxLng);
+      for (const ol of osmRoadLights) {
+        if (!existingIds.has(ol.id)) {
+          matches.push(ol);
+          existingIds.add(ol.id);
+        }
+      }
+    } catch {
+      // ignore
     }
   }
 
@@ -317,7 +350,19 @@ export default async function handler(req, res) {
   }
 
   const slLimit = 200;
-  const finalLights = matches.slice(0, slLimit);
+  // 동일 기둥(6m 이내) 복수 등기구/중복 가로등 제거
+  const finalLights = [];
+  for (const item of matches) {
+    const isDup = finalLights.some(f => {
+      const dLat = (item.lat - f.lat) * 111000;
+      const dLng = (item.lng - f.lng) * 88000;
+      return (dLat * dLat + dLng * dLng) < 36; // 6m
+    });
+    if (!isDup) {
+      finalLights.push(item);
+      if (finalLights.length >= slLimit) break;
+    }
+  }
 
   return res.status(200).json({
     streetlights: finalLights,
