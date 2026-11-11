@@ -3847,23 +3847,26 @@ body {
   /* 2. 상단 헤더 브랜드 (좌측) */
   .brand-section {
     top: 10px !important;
-    left: 10px !important;
-    gap: 8px !important;
+    left: 8px !important;
+    gap: 6px !important;
     z-index: 1002 !important;
   }
 
   .brand-logo-img {
-    width: 30px !important;
-    height: 30px !important;
-    border-radius: 9px !important;
+    width: 28px !important;
+    height: 28px !important;
+    border-radius: 8px !important;
   }
 
   .brand-title {
-  font-size: 1.15rem;
-  font-weight: 800;
-  letter-spacing: -0.02em;
-  color: var(--brand-title-color) !important; background: none !important; -webkit-text-fill-color: var(--brand-title-color) !important;
-}
+    font-size: 1.05rem !important;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    color: var(--brand-title-color) !important;
+    background: none !important;
+    -webkit-text-fill-color: var(--brand-title-color) !important;
+    white-space: nowrap !important;
+  }
 
   .brand-tagline {
     display: none !important;
@@ -3872,10 +3875,10 @@ body {
   /* 3. 오른쪽 상단 도구 액션 버튼들 (POI 포함 6개 버튼) */
   .header-actions {
     top: 10px !important;
-    right: 10px !important;
+    right: 8px !important;
     display: flex !important;
     align-items: center !important;
-    gap: 5px !important;
+    gap: 4px !important;
     z-index: 1005 !important;
     position: absolute !important;
     overflow: visible !important;
@@ -3887,16 +3890,41 @@ body {
 
   .header-actions .reset-btn,
   .poi-panel .poi-panel-header {
-    width: 33px !important;
-    height: 33px !important;
+    width: 32px !important;
+    height: 32px !important;
     padding: 0 !important;
     background: rgba(34, 34, 38, 0.94) !important;
     border: 1px solid rgba(255, 255, 255, 0.12) !important;
-    border-radius: 10px !important;
+    border-radius: 9px !important;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35) !important;
     display: flex !important;
     align-items: center !important;
     justify-content: center !important;
+  }
+
+  /* 소형 모바일 (360px~400px): 상단바 요소 간 여백 및 크기 세밀 조절로 겹침 방지 */
+  @media (max-width: 400px) {
+    .brand-section {
+      left: 6px !important;
+      gap: 4px !important;
+    }
+    .brand-logo-img {
+      width: 24px !important;
+      height: 24px !important;
+    }
+    .brand-title {
+      font-size: 0.94rem !important;
+    }
+    .header-actions {
+      right: 6px !important;
+      gap: 3px !important;
+    }
+    .header-actions .reset-btn,
+    .poi-panel .poi-panel-header {
+      width: 29px !important;
+      height: 29px !important;
+      border-radius: 8px !important;
+    }
   }
 
   /* POI 패널: header-actions flex item */
@@ -4141,7 +4169,7 @@ body {
     position: fixed !important;
     bottom: 18px !important;
     left: 14px !important;
-    right: 14px !important;
+    right: 70px !important;
     height: 48px !important;
     background: linear-gradient(135deg, #1b382b 0%, #244b3a 65%, #2e5d48 100%) !important; color: #f3edde !important; border: 1px solid rgba(243, 237, 222, 0.3) !important; box-shadow: 0 6px 22px rgba(36, 75, 58, 0.5), inset 0 1px 1px rgba(243, 237, 222, 0.2) !important;
     font-weight: 700 !important;
@@ -4550,20 +4578,36 @@ body {
   /* 모바일: 우하단 확대/축소 버튼 및 현재 위치 버튼 간격 최적화 */
   @media (max-width: 992px) {
     .locate-btn {
+      position: fixed !important;
+      bottom: 18px !important;
+      right: 14px !important;
+      width: 48px !important;
+      height: 48px !important;
+      border-radius: 50% !important;
+      z-index: 950 !important;
+    }
+
+    /* 길안내 바텀시트가 열려 있을 때는 바텀시트 위로 올림 */
+    body:has(.route-guide) .locate-btn {
       bottom: 82px !important;
-      right: 16px !important;
-      width: 46px !important;
-      height: 46px !important;
     }
 
     .leaflet-bottom.leaflet-right .leaflet-control-zoom {
+      margin-bottom: 78px !important;
+      margin-right: 16px !important;
+    }
+
+    body:has(.route-guide) .leaflet-bottom.leaflet-right .leaflet-control-zoom {
       margin-bottom: 138px !important;
-      margin-right: 18px !important;
     }
 
     .maplibregl-ctrl-bottom-right {
+      bottom: 78px !important;
+      right: 16px !important;
+    }
+
+    body:has(.route-guide) .maplibregl-ctrl-bottom-right {
       bottom: 138px !important;
-      right: 18px !important;
     }
 
     .leaflet-control-zoom a {
