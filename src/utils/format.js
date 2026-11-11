@@ -13,13 +13,16 @@ export function formatDistance(meters) {
   return `${value}${unit}`;
 }
 
-// 시간 표기 유틸: 60분 미만은 "19분", 1시간 이상은 "1시간00분"처럼 표시한다.
+// 시간 표기 유틸: 60분 미만은 "19분", 60분은 "1시간", 65분은 "1시간 5분"처럼 자연스럽게 표시한다.
 export function formatDurationParts(minutes) {
   const total = Math.max(0, Math.round(Number(minutes) || 0));
   if (total >= 60) {
     const h = Math.floor(total / 60);
-    const m = String(total % 60).padStart(2, '0');
-    return { value: `${h}시간${m}`, unit: '분' };
+    const m = total % 60;
+    if (m === 0) {
+      return { value: `${h}`, unit: '시간' };
+    }
+    return { value: `${h}시간 ${m}`, unit: '분' };
   }
   return { value: String(total), unit: '분' };
 }
