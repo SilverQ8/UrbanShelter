@@ -1,3 +1,4 @@
+import proj4 from 'proj4';
 import { getSupabase } from '../_lib/supabase.js';
 import { isInvalidOceanCoordinate, getDistM } from '../_lib/geo.js';
 import { getStreetlightCache, resolveNearestDistrict } from '../_lib/data.js';
@@ -7,6 +8,72 @@ const KAKAO_HEADERS = {
   Authorization: `KakaoAK ${KAKAO_KEY}`,
   KA: 'sdk/1.0.0 os/javascript lang/ko-KR device/pc origin/http://localhost:5173'
 };
+const SAFETY_API_KEY = process.env.VITE_STREETLIGHT_API_KEY || '1H310859JSVJG543';
+const nationwideDynamicCache = new Map();
+
+async function resolveEmdCode(lat, lng) {
+  try {
+    const url = `https://dapi.kakao.com/v2/local/geo/coord2regioncode.json?x=${encodeURIComponent(lng)}&y=${encodeURIComponent(lat)}`;
+    const resp = await fetch(url, { headers: KAKAO_HEADERS, signal: AbortSignal.timeout(1200) });
+    if (!resp.ok) return null;
+    const json = await resp.json();
+    const bDoc = json?.documents?.find(x => x.region_type === 'B');
+    if (!bDoc?.code) return null;
+    return {
+      emdCd: bDoc.code.slice(0, 8),
+      addressName: bDoc.address_name,
+      dong: bDoc.region_3depth_name
+    };
+  } catch {
+    return null;
+  }
+}
+
+async function fetchNationwideStreetlightsByEmd(emdCd, dongName) {
+  if (nationwideDynamicCache.has(emdCd)) {
+    return nationwideDynamicCache.get(emdCd);
+  }
+
+  const items = [];
+  try {
+    const params = new URLSearchParams({
+      serviceKey: SAFETY_API_KEY,
+      pageNo: '1',
+      numOfRows: '1000',
+      returnType: 'json',
+      emdCd
+    });
+    const url = `https://www.safetydata.go.kr/V2/api/DSSP-IF-00084?${params.toString()}`;
+    const res = await fetch(url, { signal: AbortSignal.timeout(2500) });
+    if (res.ok) {
+      const data = await res.json();
+      const body = data.body || [];
+      for (const it of body) {
+        if (!it.XMAP_CRTS || !it.YMAP_CRTS) continue;
+        const [lng, lat] = proj4('EPSG:3857', 'EPSG:4326', [parseFloat(it.XMAP_CRTS), parseFloat(it.YMAP_CRTS)]);
+        if (isNaN(lat) || isNaN(lng) || isInvalidOceanCoordinate(lat, lng)) continue;
+
+        const roadAddr = it.ROAD_NM_ADDR || it.ADDR || '';
+        items.push({
+          id: `SL_SAFETY_${it.SN || `${lat.toFixed(5)}_${lng.toFixed(5)}`}`,
+          name: roadAddr ? `${roadAddr} 안심가로등` : `${dongName || '도심'} 안심가로등`,
+          address: roadAddr || dongName || '',
+          lat: Number(lat.toFixed(6)),
+          lng: Number(lng.toFixed(6)),
+          type: 'smart_led',
+          lumens: 7500,
+          radius: 15,
+          manager: it.FCLT_GVMNFC_NM || '관할 지자체 도로관리청'
+        });
+      }
+    }
+  } catch (err) {
+    console.warn(`[DSSP] ${emdCd} fetch error:`, err.message);
+  }
+
+  nationwideDynamicCache.set(emdCd, items);
+  return items;
+}
 
 async function resolveLocalRoadAndManager(lat, lng) {
   try {
@@ -39,7 +106,7 @@ function interpolateRoadStreetlights(ways, defaultRoadName = '보행로', defaul
     const roadName = rawName && rawName !== '보행로' ? rawName : defaultRoadName;
     const hwType = w.tags?.highway || '';
     const isMain = ['primary', 'secondary', 'tertiary'].includes(hwType);
-    const intervalMeters = isMain ? 30 : 24;
+    const intervalMeters = isMain ? 55 : 45;
 
     let currentCarry = 0;
     for (let i = 0; i < geom.length - 1; i++) {
@@ -158,13 +225,13 @@ export default async function handler(req, res) {
   const lat = parseFloat(req.query.lat || '0') || (minLat + maxLat) / 2;
   const lng = parseFloat(req.query.lng || '0') || (minLng + maxLng) / 2;
 
-  if (zoom < 13) {
+  if (zoom < 14) {
     return res.status(200).json({
       streetlights: [],
       count: 0,
       isZoomTooLow: true,
-      minZoomRequired: 13,
-      message: '일정 축척 이상 확대 시에만 표시됩니다.'
+      minZoomRequired: 14,
+      message: '축척 14 이상 확대 시 표시됩니다.'
     });
   }
 
@@ -200,28 +267,26 @@ export default async function handler(req, res) {
     }
   }
 
-  // 2. 로컬 캐시 조회
+  // 2. 로컬 캐시 조회 (부산광역시 39,348개 실제 공공 가로등 데이터셋)
   const slCache = getStreetlightCache();
-  if (matches.length < 25) {
-    const localMatches = slCache.filter(s =>
-      s.lat >= minLat && s.lat <= maxLat && s.lng >= minLng && s.lng <= maxLng && !isInvalidOceanCoordinate(s.lat, s.lng)
-    );
-    const existingIds = new Set(matches.map(s => s.id));
-    for (const m of localMatches) {
-      if (!existingIds.has(m.id)) {
-        matches.push(m);
-        existingIds.add(m.id);
-      }
+  const localMatches = slCache.filter(s =>
+    s.lat >= minLat && s.lat <= maxLat && s.lng >= minLng && s.lng <= maxLng && !isInvalidOceanCoordinate(s.lat, s.lng)
+  );
+  const existingIds = new Set(matches.map(s => s.id));
+  for (const m of localMatches) {
+    if (!existingIds.has(m.id)) {
+      matches.push(m);
+      existingIds.add(m.id);
     }
   }
 
-  // 3. 전국 어디서든 실제 도로망을 따라 가로등 배치가 고르게 표시되도록 OSRM 다중 격자 보간 수행
-  if (matches.length < 25 && minLat && minLng && maxLat && maxLng) {
+  // 3. 전국 실시간 온디맨드 조회 (서울, 경기, 대구, 인천, 대전, 광주, 제주 등 전국 모든 지역)
+  if (matches.length < 50 && lat && lng) {
     try {
-      const roadLights = await fetchOsmRoadStreetlights(minLat, minLng, maxLat, maxLng);
-      if (roadLights && roadLights.length > 0) {
-        const existingIds = new Set(matches.map(s => s.id));
-        for (const item of roadLights) {
+      const region = await resolveEmdCode(lat, lng);
+      if (region?.emdCd) {
+        const liveLights = await fetchNationwideStreetlightsByEmd(region.emdCd, region.dong);
+        for (const item of liveLights) {
           if (!existingIds.has(item.id)) {
             matches.push(item);
             existingIds.add(item.id);
@@ -229,7 +294,7 @@ export default async function handler(req, res) {
         }
       }
     } catch (err) {
-      console.warn('Road streetlight dynamic interpolation error:', err);
+      console.warn('Nationwide live streetlight fetch error:', err);
     }
   }
 
@@ -251,7 +316,7 @@ export default async function handler(req, res) {
     matches.sort((a, b) => getLightDistFromCenter(a.lat, a.lng) - getLightDistFromCenter(b.lat, b.lng));
   }
 
-  const slLimit = zoom >= 17 ? 200 : 140;
+  const slLimit = 200;
   const finalLights = matches.slice(0, slLimit);
 
   return res.status(200).json({

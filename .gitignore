@@ -13,6 +13,7 @@ dist/
 # Misc
 .DS_Store
 *.pem
+*.backup.json
 
 # Debug
 npm-debug.log*

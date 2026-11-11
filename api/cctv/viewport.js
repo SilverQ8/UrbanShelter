@@ -237,13 +237,13 @@ export default async function handler(req, res) {
   const lat = parseFloat(req.query.lat || '0') || (minLat + maxLat) / 2;
   const lng = parseFloat(req.query.lng || '0') || (minLng + maxLng) / 2;
 
-  if (zoom < 13) {
+  if (zoom < 14) {
     return res.status(200).json({
       cctvs: [],
       count: 0,
       isZoomTooLow: true,
-      minZoomRequired: 13,
-      message: '일정 축척 이상 확대 시에만 표시됩니다.'
+      minZoomRequired: 14,
+      message: '축척 14 이상 확대 시 표시됩니다.'
     });
   }
 
@@ -293,32 +293,21 @@ export default async function handler(req, res) {
     }
   }
 
-  // 3. 현재 뷰포트 내 CCTV가 10개 미만이면 전국 동/도로명 기반 공공데이터 조회 + 실제 도로망 기반 CCTV 보강
+  // 3. 현재 뷰포트 내 CCTV가 부족하면 전국 동/도로명 기반 공공데이터 API 조회 (실제 공공데이터만 사용)
   const cctvApiKey = process.env.VITE_CCTV_API_KEY || process.env.CCTV_API_KEY || DEFAULT_CCTV_API_KEY;
   if (matchMap.size < 10 && lat && lng) {
     const regionInfo = await resolveKakaoLocalRegion(lat, lng);
-    const districtInfo = resolveNearestDistrict(lat, lng);
-
-    const [govRes, roadRes] = await Promise.allSettled([
-      fetchGovCctvsSmart(lat, lng, cctvApiKey, regionInfo),
-      fetchRoadAlignedCctvs(minLat, minLng, maxLat, maxLng, regionInfo, districtInfo)
-    ]);
-
-    if (govRes.status === 'fulfilled' && Array.isArray(govRes.value)) {
-      for (const item of govRes.value) {
-        if (inBox(item) && !matchMap.has(item.id)) {
-          matchMap.set(item.id, item);
+    try {
+      const govItems = await fetchGovCctvsSmart(lat, lng, cctvApiKey, regionInfo);
+      if (Array.isArray(govItems)) {
+        for (const item of govItems) {
+          if (inBox(item) && !matchMap.has(item.id)) {
+            matchMap.set(item.id, item);
+          }
         }
       }
-    }
-
-    // 공공데이터 API에서 해당 골목/화면 내 좌표가 부족할 경우 실제 도로망 방범 CCTV로 빈틈없이 보강
-    if (matchMap.size < 12 && roadRes.status === 'fulfilled' && Array.isArray(roadRes.value)) {
-      for (const item of roadRes.value) {
-        if (inBox(item) && !matchMap.has(item.id)) {
-          matchMap.set(item.id, item);
-        }
-      }
+    } catch (err) {
+      console.warn('Gov CCTV fetch error:', err);
     }
   }
 
@@ -335,7 +324,7 @@ export default async function handler(req, res) {
     matches.sort((a, b) => getDistFromCenter(a.lat, a.lng) - getDistFromCenter(b.lat, b.lng));
   }
 
-  const cctvLimit = zoom >= 17 ? 150 : 100;
+  const cctvLimit = zoom >= 17 ? 50 : 35;
   const finalCctvs = matches.slice(0, cctvLimit);
 
   return res.status(200).json({

@@ -888,7 +888,7 @@ export default function MapComponent({
 
     const drawCctvItems = (items, zoom, center, currentBounds) => {
       const visibleCctvs = items.filter(cam =>
-        cam.lat && cam.lng && currentBounds.contains([cam.lat, cam.lng])
+        cam.lat && cam.lng && currentBounds.contains([cam.lat, cam.lng]) && !cam.id?.startsWith('CCTV_ROAD_')
       );
 
       visibleCctvs.sort((a, b) => {
@@ -899,7 +899,7 @@ export default function MapComponent({
         return (dLatA * dLatA + dLngA * dLngA) - (dLatB * dLatB + dLngB * dLngB);
       });
 
-      const maxLimit = zoom >= 17 ? 150 : 100;
+      const maxLimit = zoom >= 17 ? 50 : 35;
       const prioritizedCctvs = visibleCctvs.slice(0, maxLimit);
 
       setCctvState({
@@ -921,30 +921,35 @@ export default function MapComponent({
         const circle = L.circle([cam.lat, cam.lng], {
           radius: cam.radius || 20,
           color: '#0284c7',
-          weight: 1.2,
-          opacity: 0.65,
+          weight: 0.8,
+          opacity: 0.3,
           fillColor: '#38bdf8',
-          fillOpacity: zoom >= 16 ? 0.22 : 0.16,
+          fillOpacity: 0.06,
           className: 'cctv-coverage-zone'
         });
 
-        circle.on('mouseover', () => {
-          circle.setStyle({ weight: 2.2, opacity: 0.95, fillOpacity: 0.40, color: '#38bdf8' });
-        });
-        circle.on('mouseout', () => {
-          circle.setStyle({ weight: 1.2, opacity: 0.65, fillOpacity: zoom >= 16 ? 0.22 : 0.16, color: '#0284c7' });
-        });
+        const highlight = () => {
+          circle.setStyle({ weight: 2.2, opacity: 0.95, fillOpacity: 0.35, color: '#38bdf8' });
+        };
+        const resetHighlight = () => {
+          circle.setStyle({ weight: 0.8, opacity: 0.3, fillOpacity: 0.06, color: '#0284c7' });
+        };
+
+        circle.on('mouseover', highlight);
+        circle.on('mouseout', resetHighlight);
 
         circle.bindTooltip(tooltipContent, { className: 'route-tooltip-custom', sticky: true });
         cctvLayer.addLayer(circle);
 
         const sensorIcon = L.divIcon({
           className: 'cctv-core-dot',
-          html: `<div style="width: 6px; height: 6px; border-radius: 50%; background: #38bdf8; border: 1.5px solid #ffffff; box-shadow: 0 0 8px rgba(56,189,248,0.95); cursor: pointer;"></div>`,
-          iconSize: [6, 6],
-          iconAnchor: [3, 3]
+          html: `<div style="width: 7px; height: 7px; border-radius: 50%; background: #0284c7; border: 1.5px solid #ffffff; box-shadow: 0 0 6px rgba(2,132,199,0.85); cursor: pointer;"></div>`,
+          iconSize: [7, 7],
+          iconAnchor: [3.5, 3.5]
         });
         const dotMarker = L.marker([cam.lat, cam.lng], { icon: sensorIcon });
+        dotMarker.on('mouseover', highlight);
+        dotMarker.on('mouseout', resetHighlight);
         dotMarker.bindTooltip(tooltipContent, { className: 'route-tooltip-custom' });
         cctvLayer.addLayer(dotMarker);
       }
@@ -959,7 +964,7 @@ export default function MapComponent({
 
       const zoom = map.getZoom();
 
-      if (zoom < 13) {
+      if (zoom < 14) {
         cctvLayer.clearLayers();
         setCctvState({ count: 0, displayedCount: 0, isZoomTooLow: true, zoom });
         return;
@@ -1002,7 +1007,7 @@ export default function MapComponent({
           const rawCctvs = data.cctvs || [];
           if (rawCctvs.length === 0) return;
 
-          const items = normalizeFacilityDataset(rawCctvs);
+          const items = normalizeFacilityDataset(rawCctvs).filter(c => !c.id?.startsWith('CCTV_ROAD_'));
           const mergedMap = new Map();
           for (const lc of localMatches) mergedMap.set(lc.id, lc);
           for (const rc of items) {
@@ -1051,7 +1056,7 @@ export default function MapComponent({
         return (dLatA * dLatA + dLngA * dLngA) - (dLatB * dLatB + dLngB * dLngB);
       });
 
-      const maxLimit = zoom >= 17 ? 200 : 140;
+      const maxLimit = 200;
       const prioritizedLights = visibleStreetlights.slice(0, maxLimit);
 
       setStreetlightState({
@@ -1072,31 +1077,36 @@ export default function MapComponent({
 
         const circle = L.circle([light.lat, light.lng], {
           radius: light.radius || 15,
-          color: '#f59e0b',
-          weight: 1.0,
-          opacity: 0.60,
+          color: '#d97706',
+          weight: 0.8,
+          opacity: 0.3,
           fillColor: '#fbbf24',
-          fillOpacity: zoom >= 16 ? 0.24 : 0.16,
+          fillOpacity: 0.06,
           className: 'streetlight-lighting-zone'
         });
 
-        circle.on('mouseover', () => {
-          circle.setStyle({ weight: 2.2, opacity: 0.95, fillOpacity: 0.42, color: '#fde047' });
-        });
-        circle.on('mouseout', () => {
-          circle.setStyle({ weight: 1.0, opacity: 0.60, fillOpacity: zoom >= 16 ? 0.24 : 0.16, color: '#f59e0b' });
-        });
+        const highlightLight = () => {
+          circle.setStyle({ weight: 2.2, opacity: 0.95, fillOpacity: 0.38, color: '#f59e0b' });
+        };
+        const resetHighlightLight = () => {
+          circle.setStyle({ weight: 0.8, opacity: 0.3, fillOpacity: 0.06, color: '#d97706' });
+        };
+
+        circle.on('mouseover', highlightLight);
+        circle.on('mouseout', resetHighlightLight);
 
         circle.bindTooltip(tooltipContent, { className: 'route-tooltip-custom', sticky: true });
         streetlightLayer.addLayer(circle);
 
         const lightCoreIcon = L.divIcon({
           className: 'streetlight-core-dot',
-          html: `<div style="width: 5px; height: 5px; border-radius: 50%; background: #fbbf24; border: 1.5px solid #fffbeb; box-shadow: 0 0 8px rgba(245,158,11,0.95); cursor: pointer;"></div>`,
-          iconSize: [5, 5],
-          iconAnchor: [2.5, 2.5]
+          html: `<div style="width: 6px; height: 6px; border-radius: 50%; background: #d97706; border: 1.5px solid #fffbeb; box-shadow: 0 0 6px rgba(217,119,6,0.85); cursor: pointer;"></div>`,
+          iconSize: [6, 6],
+          iconAnchor: [3, 3]
         });
         const dotMarker = L.marker([light.lat, light.lng], { icon: lightCoreIcon });
+        dotMarker.on('mouseover', highlightLight);
+        dotMarker.on('mouseout', resetHighlightLight);
         dotMarker.bindTooltip(tooltipContent, { className: 'route-tooltip-custom' });
         streetlightLayer.addLayer(dotMarker);
       }
@@ -1111,7 +1121,7 @@ export default function MapComponent({
 
       const zoom = map.getZoom();
 
-      if (zoom < 13) {
+      if (zoom < 14) {
         streetlightLayer.clearLayers();
         setStreetlightState({ count: 0, displayedCount: 0, isZoomTooLow: true, zoom });
         return;

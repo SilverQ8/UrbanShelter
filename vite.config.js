@@ -313,10 +313,11 @@ function fetchGovStreetlightsByDistrict(district, apiKey) {
 }
 
 // Fetch Streetlights from National Disaster Safety Data Sharing Platform (행정안전부_공통POI_가로등, DSSP-IF-00084)
-function fetchSafetyDataStreetlights(apiKey, dataId = 'DSSP-IF-00084', pageNo = 1, numOfRows = 100) {
+function fetchSafetyDataStreetlights(apiKey, dataId = 'DSSP-IF-00084', pageNo = 1, numOfRows = 1000, emdCd = '') {
   return new Promise((resolve) => {
     if (!apiKey) return resolve([]);
-    const url = `https://www.safetydata.go.kr/V2/api/${dataId}?serviceKey=${encodeURIComponent(apiKey)}&pageNo=${pageNo}&numOfRows=${numOfRows}&returnType=json`;
+    let url = `https://www.safetydata.go.kr/V2/api/${dataId}?serviceKey=${encodeURIComponent(apiKey)}&pageNo=${pageNo}&numOfRows=${numOfRows}&returnType=json`;
+    if (emdCd) url += `&emdCd=${encodeURIComponent(emdCd)}`;
     const req = https.get(url, (res) => {
       let data = '';
       res.on('data', chunk => data += chunk);
@@ -337,14 +338,14 @@ function fetchSafetyDataStreetlights(apiKey, dataId = 'DSSP-IF-00084', pageNo = 
 
             return {
               id: `SL_SAFETY_${item.SN || `${lat.toFixed(5)}_${lng.toFixed(5)}`}`,
-              name: addr ? `${addr} 가로등` : `행정안전부 공통 가로등 #${item.SN}`,
+              name: addr ? `${addr} 가로등` : `행정안전부 안심가로등 #${item.SN}`,
               address: addr,
               lat: parseFloat(lat.toFixed(6)),
               lng: parseFloat(lng.toFixed(6)),
               type: 'smart_led',
-              lumens: 8000,
+              lumens: 7500,
               radius: 15,
-              manager: '행정안전부 공통POI_가로등',
+              manager: item.FCLT_GVMNFC_NM || '관할 지자체 도로관리청',
               source: 'safetydata_real'
             };
           }).filter(Boolean);
@@ -358,6 +359,28 @@ function fetchSafetyDataStreetlights(apiKey, dataId = 'DSSP-IF-00084', pageNo = 
     req.on('error', () => resolve([]));
     req.setTimeout(4500, () => { req.destroy(); resolve([]); });
   });
+}
+
+const nationwideDynamicDevCache = new Map();
+
+async function resolveKakaoEmdCode(lat, lng, kakaoApiKey) {
+  try {
+    const url = `https://dapi.kakao.com/v2/local/geo/coord2regioncode.json?x=${encodeURIComponent(lng)}&y=${encodeURIComponent(lat)}`;
+    const resp = await fetch(url, {
+      headers: {
+        Authorization: `KakaoAK ${kakaoApiKey}`,
+        KA: 'sdk/1.0.0 os/javascript lang/ko-KR device/pc origin/http://localhost:5173'
+      },
+      signal: AbortSignal.timeout(1500)
+    });
+    if (!resp.ok) return null;
+    const json = await resp.json();
+    const bDoc = json?.documents?.find(x => x.region_type === 'B');
+    if (!bDoc?.code) return null;
+    return bDoc.code.slice(0, 8);
+  } catch {
+    return null;
+  }
 }
 
 function getDistM(lat1, lon1, lat2, lon2) {
@@ -377,7 +400,7 @@ function interpolateRoadStreetlights(ways) {
     if (!Array.isArray(geom) || geom.length < 2) continue;
     const roadName = w.tags?.name || w.tags?.ref || '보행로';
     const isMain = w.tags?.highway === 'primary' || w.tags?.highway === 'secondary';
-    const intervalMeters = isMain ? 35 : 28; // 대로 35m, 골목 28m
+    const intervalMeters = isMain ? 55 : 45; // 대로 55m, 골목 45m (과밀 방지)
 
     let currentCarry = 0;
     for (let i = 0; i < geom.length - 1; i++) {
@@ -761,13 +784,13 @@ function addressSearchPlugin(cctvApiKey, buildingApiKey, streetlightApiKey, stre
         const lat = parseFloat(reqUrl.searchParams.get('lat') || '0');
         const lng = parseFloat(reqUrl.searchParams.get('lng') || '0');
 
-        if (zoom < 13) {
+        if (zoom < 14) {
           res.end(JSON.stringify({
             streetlights: [],
             count: 0,
             isZoomTooLow: true,
-            minZoomRequired: 13,
-            message: '일정 축척 이상 확대 시에만 표시됩니다.'
+            minZoomRequired: 14,
+            message: '축척 14 이상 확대 시 표시됩니다.'
           }));
           return;
         }
@@ -803,64 +826,39 @@ function addressSearchPlugin(cctvApiKey, buildingApiKey, streetlightApiKey, stre
           }
         }
 
-        // 2. Check local base cache if Supabase had few matches
-        if (matches.length < 15) {
-          const localMatches = nationwideStreetlightCache.filter(s =>
-            s.lat >= minLat && s.lat <= maxLat && s.lng >= minLng && s.lng <= maxLng && !isInvalidOceanCoordinate(s.lat, s.lng)
-          );
-          const existingIds = new Set(matches.map(s => s.id));
-          for (const m of localMatches) {
-            if (!existingIds.has(m.id)) {
-              matches.push(m);
-              existingIds.add(m.id);
-            }
+        // 2. Check local base cache (부산광역시 39,348개 실제 공공 가로등 데이터셋)
+        const localMatches = nationwideStreetlightCache.filter(s =>
+          s.lat >= minLat && s.lat <= maxLat && s.lng >= minLng && s.lng <= maxLng && !isInvalidOceanCoordinate(s.lat, s.lng)
+        );
+        const existingIds = new Set(matches.map(s => s.id));
+        for (const m of localMatches) {
+          if (!existingIds.has(m.id)) {
+            matches.push(m);
+            existingIds.add(m.id);
           }
         }
 
-        // 3. If still fewer than 15 matches, dynamically fetch road-following streetlights along real OSM roads
-        if (matches.length < 15 && minLat && minLng && maxLat && maxLng) {
+        // 3. 전국 실시간 온디맨드 조회 (서울, 경기, 대구, 인천, 대전, 광주, 제주 등 전국 모든 지역)
+        if (matches.length < 50 && lat && lng) {
           try {
-            const roadLights = await fetchOsmRoadStreetlights(minLat, minLng, maxLat, maxLng);
-            if (roadLights && roadLights.length > 0) {
-              const existingIds = new Set(nationwideStreetlightCache.map(s => s.id));
-              for (const item of roadLights) {
-                if (!existingIds.has(item.id)) {
-                  nationwideStreetlightCache.push(item);
-                  existingIds.add(item.id);
-                }
+            const emdCd = await resolveKakaoEmdCode(lat, lng, kakaoApiKey);
+            if (emdCd) {
+              let liveLights = nationwideDynamicDevCache.get(emdCd);
+              if (!liveLights) {
+                liveLights = await fetchSafetyDataStreetlights(streetlightApiKey, streetlightDataId, 1, 1000, emdCd);
+                nationwideDynamicDevCache.set(emdCd, liveLights);
               }
-              matches = nationwideStreetlightCache.filter(s =>
-                s.lat >= minLat && s.lat <= maxLat && s.lng >= minLng && s.lng <= maxLng && !isInvalidOceanCoordinate(s.lat, s.lng)
-              );
-            }
-          } catch (err) {
-            console.warn('Road streetlight dynamic interpolation error:', err);
-          }
-        }
-
-        // 3. If still fewer than 10 matches, fetch public government streetlights by district
-        if (matches.length < 10 && lat && lng) {
-          try {
-            const district = await reverseGeocodeDistrict(lat, lng);
-            if (district) {
-              let districtItems = districtStreetlightCache.get(district);
-              if (!districtItems) {
-                districtItems = await fetchGovStreetlightsByDistrict(district, cctvApiKey);
-                districtStreetlightCache.set(district, districtItems);
-                const existingIds = new Set(nationwideStreetlightCache.map(s => s.id));
-                for (const item of districtItems) {
+              if (liveLights && liveLights.length > 0) {
+                for (const item of liveLights) {
                   if (!existingIds.has(item.id)) {
-                    nationwideStreetlightCache.push(item);
+                    matches.push(item);
                     existingIds.add(item.id);
                   }
                 }
               }
-              matches = nationwideStreetlightCache.filter(s =>
-                s.lat >= minLat && s.lat <= maxLat && s.lng >= minLng && s.lng <= maxLng && !isInvalidOceanCoordinate(s.lat, s.lng)
-              );
             }
-          } catch {
-            // ignore
+          } catch (err) {
+            console.warn('Nationwide dev streetlight fetch error:', err);
           }
         }
 
@@ -882,7 +880,7 @@ function addressSearchPlugin(cctvApiKey, buildingApiKey, streetlightApiKey, stre
           matches.sort((a, b) => getLightDistFromCenter(a.lat, a.lng) - getLightDistFromCenter(b.lat, b.lng));
         }
 
-        const slLimit = zoom >= 17 ? 200 : 140;
+        const slLimit = 200;
         const finalLights = matches.slice(0, slLimit);
 
         res.end(JSON.stringify({
