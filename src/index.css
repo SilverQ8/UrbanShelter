@@ -4927,27 +4927,9 @@ body {
 }
 
 [data-theme='light'] .route-guide.is-collapsed {
-  background: rgba(255, 254, 250, 0.96) !important;
-  border: 1.5px solid rgba(36, 75, 58, 0.22) !important;
-  box-shadow: 0 10px 30px rgba(24, 56, 42, 0.16) !important;
-}
-
-.route-guide-drag-handle {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 2px 0 6px !important;
-  cursor: pointer;
-  user-select: none;
-  width: 100%;
-}
-
-.route-guide-handle-pill {
-  width: 38px !important;
-  height: 4px !important;
-  border-radius: 2px !important;
-  background: rgba(255, 255, 255, 0.35) !important;
-  transition: background 0.2s, transform 0.2s;
+  background: #f3edde !important;
+  border: 1.5px solid rgba(36, 75, 58, 0.28) !important;
+  box-shadow: 0 10px 30px rgba(24, 56, 42, 0.18) !important;
 }
 
 .route-guide-collapsed-bar {
@@ -4978,7 +4960,8 @@ body {
 }
 
 [data-theme='light'] .collapsed-duration {
-  color: #1b4533 !important;
+  color: #244b3a !important;
+  font-weight: 800 !important;
 }
 
 .collapsed-divider {
@@ -4988,7 +4971,7 @@ body {
 }
 
 [data-theme='light'] .collapsed-divider {
-  color: rgba(36, 75, 58, 0.4) !important;
+  color: rgba(36, 75, 58, 0.45) !important;
 }
 
 .collapsed-distance {
@@ -4997,7 +4980,8 @@ body {
 }
 
 [data-theme='light'] .collapsed-distance {
-  color: #374151 !important;
+  color: #143023 !important;
+  font-weight: 700 !important;
 }
 
 .collapsed-eta {
@@ -5006,7 +4990,8 @@ body {
 }
 
 [data-theme='light'] .collapsed-eta {
-  color: #059669 !important;
+  color: #244b3a !important;
+  font-weight: 700 !important;
 }
 
 .collapsed-actions {
@@ -5037,6 +5022,18 @@ body {
   color: #ffffff;
 }
 
+[data-theme='light'] .collapsed-expand-btn {
+  background: #244b3a !important;
+  color: #f3edde !important;
+  border: 1px solid #18382a !important;
+  box-shadow: 0 2px 8px rgba(36, 75, 58, 0.25) !important;
+}
+
+[data-theme='light'] .collapsed-expand-btn:hover {
+  background: #1b382b !important;
+  color: #f3edde !important;
+}
+
 .collapsed-actions .route-guide-close {
   width: 32px !important;
   height: 32px !important;
@@ -5050,13 +5047,13 @@ body {
 }
 
 [data-theme='light'] .collapsed-actions .route-guide-close {
-  border: 1.5px solid rgba(36, 75, 58, 0.25) !important;
+  border: 1.5px solid rgba(36, 75, 58, 0.28) !important;
   color: #244b3a !important;
-  background: rgba(255, 255, 255, 0.6) !important;
+  background: #e2d4bc !important;
 }
 
 [data-theme='light'] .collapsed-actions .route-guide-close:hover {
-  background: #e9dec9 !important;
+  background: #d5c4a7 !important;
   border-color: #244b3a !important;
 }
 
@@ -5108,17 +5105,11 @@ body {
 }
 
 [data-theme='light'] .route-guide-handle-pill {
-  background: rgba(36, 75, 58, 0.3) !important;
+  background: rgba(36, 75, 58, 0.35) !important;
 }
 
 [data-theme='light'] .route-guide-drag-handle:hover .route-guide-handle-pill {
-  background: rgba(36, 75, 58, 0.6) !important;
-}
-
-[data-theme='light'] .collapsed-expand-btn {
-  background: #244b3a !important;
-  color: #f3edde !important;
-  border-color: #18382a !important;
+  background: rgba(36, 75, 58, 0.65) !important;
 }
 
 /* 모바일 전용 반응형 튜닝 */
@@ -5320,7 +5311,7 @@ body {
 }
 
 [data-theme='light'] .compact-eta-time strong {
-  color: #10b981 !important;
+  color: #244b3a !important;
 }
 
 [data-theme='light'] .compact-speed-btn {
