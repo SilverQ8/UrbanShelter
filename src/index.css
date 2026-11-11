@@ -4160,7 +4160,7 @@ body {
     padding: 9px 10px !important;
   }
 
-  /* 5. 모바일 길찾기 다시 열기 플로팅 알약 버튼 */
+  /* 5. 모바일 길찾기 다시 열기 플로팅 알약 버튼 (하단 중앙 1단에 단독 배치) */
   .mobile-search-reopen-btn {
     display: flex !important;
     align-items: center !important;
@@ -4168,8 +4168,10 @@ body {
     gap: 8px;
     position: fixed !important;
     bottom: 18px !important;
-    left: 14px !important;
-    right: 70px !important;
+    left: 16px !important;
+    right: 16px !important;
+    max-width: 480px !important;
+    margin: 0 auto !important;
     height: 48px !important;
     background: linear-gradient(135deg, #1b382b 0%, #244b3a 65%, #2e5d48 100%) !important; color: #f3edde !important; border: 1px solid rgba(243, 237, 222, 0.3) !important; box-shadow: 0 6px 22px rgba(36, 75, 58, 0.5), inset 0 1px 1px rgba(243, 237, 222, 0.2) !important;
     font-weight: 700 !important;
@@ -4575,39 +4577,32 @@ body {
 }
 
 
-  /* 모바일: 우하단 확대/축소 버튼 및 현재 위치 버튼 간격 최적화 */
+  /* 모바일: 우하단 컨트롤 완벽 수직 계층화 (절대 겹치지 않는 3단 분리 구조)
+     - 1단 (하단 0~76px): 바텀 시트 (길안내 요약 바 또는 길찾기 알약 버튼)
+     - 2단 (하단 86~132px): 현재 위치(GPS) 버튼 (.locate-btn)
+     - 3단 (하단 144~230px): 지도 확대/축소 버튼 (+/-)
+  */
   @media (max-width: 992px) {
     .locate-btn {
       position: fixed !important;
-      bottom: 18px !important;
-      right: 14px !important;
-      width: 48px !important;
-      height: 48px !important;
+      bottom: 86px !important;
+      right: 16px !important;
+      width: 46px !important;
+      height: 46px !important;
       border-radius: 50% !important;
       z-index: 950 !important;
     }
 
-    /* 길안내 바텀시트가 열려 있을 때는 바텀시트 위로 올림 */
-    body:has(.route-guide) .locate-btn {
-      bottom: 82px !important;
-    }
-
     .leaflet-bottom.leaflet-right .leaflet-control-zoom {
-      margin-bottom: 78px !important;
+      margin-bottom: 144px !important;
       margin-right: 16px !important;
-    }
-
-    body:has(.route-guide) .leaflet-bottom.leaflet-right .leaflet-control-zoom {
-      margin-bottom: 138px !important;
+      z-index: 940 !important;
     }
 
     .maplibregl-ctrl-bottom-right {
-      bottom: 78px !important;
+      bottom: 144px !important;
       right: 16px !important;
-    }
-
-    body:has(.route-guide) .maplibregl-ctrl-bottom-right {
-      bottom: 138px !important;
+      z-index: 940 !important;
     }
 
     .leaflet-control-zoom a {
