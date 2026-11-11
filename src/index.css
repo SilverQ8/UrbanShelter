@@ -284,6 +284,7 @@ body,
   flex: 1;
   width: 100%;
   height: calc(100vh - var(--header-height));
+  height: calc(100dvh - var(--header-height));
   display: flex;
 }
 
@@ -4578,31 +4579,52 @@ body {
 
 
   /* 모바일: 우하단 컨트롤 완벽 수직 계층화 (절대 겹치지 않는 3단 분리 구조)
-     - 1단 (하단 0~76px): 바텀 시트 (길안내 요약 바 또는 길찾기 알약 버튼)
-     - 2단 (하단 86~132px): 현재 위치(GPS) 버튼 (.locate-btn)
-     - 3단 (하단 144~230px): 지도 확대/축소 버튼 (+/-)
+     - 1단 (하단 12~74px): 바텀 시트 (길안내 요약 바 또는 길찾기 알약 버튼)
+     - 2단 (하단 82~126px): 현재 위치(GPS) 버튼 (.locate-btn)
+     - 3단 (하단 138~220px): 지도 확대/축소 버튼 (+/-)
+
+     핵심 해결책:
+     Leaflet의 .leaflet-bottom.leaflet-right 컨테이너가 기본 position: absolute로 인해
+     모바일 브라우저 주소창/하단 툴바(Samsung Internet, Safari) 등장 시 visual viewport와
+     좌표가 어긋나던 문제를 방지하기 위해, Leaflet 및 MapLibre 하단 컨트롤을 visual viewport 기준
+     position: fixed !important로 일체화합니다.
   */
   @media (max-width: 992px) {
+    /* Leaflet 우하단 컨트롤 래퍼를 fixed로 고정하여 GPS 버튼과 동일한 뷰포트 좌표계 사용 */
+    .leaflet-bottom.leaflet-right {
+      position: fixed !important;
+      bottom: 0 !important;
+      right: 0 !important;
+      pointer-events: none !important;
+      z-index: 940 !important;
+    }
+
+    /* 2단: 현재 위치(GPS) 버튼 */
     .locate-btn {
       position: fixed !important;
-      bottom: 86px !important;
+      bottom: 82px !important;
       right: 16px !important;
-      width: 46px !important;
-      height: 46px !important;
+      width: 44px !important;
+      height: 44px !important;
       border-radius: 50% !important;
-      z-index: 950 !important;
+      z-index: 960 !important;
+      box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35) !important;
     }
 
+    /* 3단: 2D 지도 확대/축소 버튼 (+/-) */
     .leaflet-bottom.leaflet-right .leaflet-control-zoom {
-      margin-bottom: 144px !important;
+      margin-bottom: 138px !important;
       margin-right: 16px !important;
-      z-index: 940 !important;
+      z-index: 950 !important;
+      pointer-events: auto !important;
     }
 
+    /* 3단: 3D 지도 네비게이션 컨트롤 */
     .maplibregl-ctrl-bottom-right {
-      bottom: 144px !important;
+      position: fixed !important;
+      bottom: 138px !important;
       right: 16px !important;
-      z-index: 940 !important;
+      z-index: 950 !important;
     }
 
     .leaflet-control-zoom a {
@@ -4611,6 +4633,36 @@ body {
       font-size: 1.15rem !important;
       line-height: 36px !important;
     }
+
+    .locate-msg {
+      position: fixed !important;
+      bottom: 230px !important;
+      right: 16px !important;
+      z-index: 960 !important;
+    }
+
+    /* 길안내 상세 목록이 크게 펼쳐진 경우(바텀시트 오픈 시), 지도 버튼들이 본문을 가리지 않도록 자연스럽게 페이드아웃 */
+    .floating-overlay-right:has(.route-guide.is-expanded) ~ .locate-btn,
+    body:has(.route-guide.is-expanded) .locate-btn,
+    body:has(.route-guide.is-expanded) .leaflet-bottom.leaflet-right .leaflet-control-zoom,
+    body:has(.route-guide.is-expanded) .maplibregl-ctrl-bottom-right {
+      opacity: 0 !important;
+      pointer-events: none !important;
+      transform: scale(0.9);
+      transition: opacity 0.2s ease, transform 0.2s ease;
+    }
+  }
+
+  [data-theme='light'] .locate-btn {
+    background: #f3edde !important;
+    color: #244b3a !important;
+    border: 1.5px solid rgba(36, 75, 58, 0.3) !important;
+    box-shadow: 0 4px 16px rgba(24, 56, 42, 0.18) !important;
+  }
+
+  [data-theme='light'] .locate-btn:hover:not(:disabled) {
+    background: #244b3a !important;
+    color: #f3edde !important;
   }
 
 
